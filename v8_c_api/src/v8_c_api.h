@@ -47,6 +47,8 @@ typedef void (*native_funcion)(v8_local_value_arr *args, size_t len, void *pd);
 v8_local_native_function* v8_NewNativeFunction(v8_isolate* v8_isolate, native_funcion func, void *pd);
 void v8_FreeNativeFunction(v8_local_native_function *func);
 
+v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i);
+
 v8_local_object* v8_NewObject(v8_isolate* v8_isolate);
 void v8_FreeObject(v8_local_object *obj);
 void v8_ObjectSetFunction(v8_local_object *obj, v8_local_string *name, v8_local_native_function *f);

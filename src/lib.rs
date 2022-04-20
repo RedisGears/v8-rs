@@ -51,7 +51,28 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let h_scope = isolate.new_handlers_scope();
-        let _o = h_scope.new_native_function(|| println!("test"));
+        let _o = h_scope.new_native_function(|_args| println!("test"));
+    }
+
+    #[test]
+    fn test_native_function_args() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let h_scope = isolate.new_handlers_scope();
+        let native = h_scope.new_native_function(|args| {
+            let v = args.get(0);
+            let s = v.to_utf8(&isolate);
+            assert_eq!(s.as_str(), "2");
+        });
+        let native_funciton_name = h_scope.new_string("foo");
+        let mut globals = h_scope.new_object();
+        globals.set_native_function(&native_funciton_name, &native);
+        let code_str = h_scope.new_string("foo(2)");
+        let i_scope = isolate.enter();
+        let ctx = i_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter();
+        let script = ctx.compile(&code_str);
+        script.run(&ctx_scope);
     }
 
     #[test]

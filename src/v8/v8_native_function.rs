@@ -2,17 +2,39 @@ use crate::v8_c_raw::bindings::{
     v8_local_native_function,
     v8_local_value_arr,
     v8_FreeNativeFunction,
+    v8_ArgsGet,
 };
 
 use std::os::raw::{c_void};
+
+use crate::v8::v8_value::V8LocalValue;
 
 pub struct V8LocalNativeFunction {
     pub (crate) inner_func: *mut v8_local_native_function,
 }
 
-pub (crate)extern "C" fn native_basic_function<T:Fn()>(_args: *mut v8_local_value_arr, _len: usize, pd: *mut c_void) {
+pub struct V8LocalNativeFunctionArgs {
+    pub (crate) inner_arr: *mut v8_local_value_arr,
+    len: usize,
+}
+
+pub (crate)extern "C" fn native_basic_function<T:Fn(&V8LocalNativeFunctionArgs)>(args: *mut v8_local_value_arr, len: usize, pd: *mut c_void) {
     let func = unsafe{&*(pd as *mut T)};
-    func();
+    let args = V8LocalNativeFunctionArgs{
+        inner_arr: args,
+        len: len,
+    };
+    func(&args);
+}
+
+impl V8LocalNativeFunctionArgs {
+    pub fn get(&self, i: usize) -> V8LocalValue {
+        assert!(i <= self.len);
+        let val = unsafe{v8_ArgsGet(self.inner_arr, i)};
+        V8LocalValue{
+            inner_val: val,
+        }
+    }
 }
 
 impl Drop for V8LocalNativeFunction {

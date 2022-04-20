@@ -12,7 +12,7 @@ use std::os::raw::{c_char, c_void};
 use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_object::V8LocalObject;
-use crate::v8::v8_native_function::{V8LocalNativeFunction, native_basic_function};
+use crate::v8::v8_native_function::{V8LocalNativeFunction, native_basic_function, V8LocalNativeFunctionArgs};
 
 pub struct V8HandlersScope<'a> {
     isolate: &'a V8Isolate,
@@ -42,7 +42,7 @@ impl<'a> V8HandlersScope<'a> {
         }
     }
 
-    pub fn new_native_function<T:Fn()>(&self, func: T) -> V8LocalNativeFunction {
+    pub fn new_native_function<T:Fn(&V8LocalNativeFunctionArgs)>(&self, func: T) -> V8LocalNativeFunction {
         let inner_func = unsafe{v8_NewNativeFunction(self.isolate.inner_isolate, Some(native_basic_function::<T>), Box::into_raw(Box::new(func)) as *mut c_void)};
         V8LocalNativeFunction{
             inner_func: inner_func,

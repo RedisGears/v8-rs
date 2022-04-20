@@ -206,6 +206,14 @@ void v8_FreeNativeFunction(v8_local_native_function *func) {
 	V8_FREE(func);
 }
 
+v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i) {
+	v8::FunctionCallbackInfo<v8::Value> *info = (v8::FunctionCallbackInfo<v8::Value> *)args;
+	v8::Handle<v8::Value> v = (*info)[i];
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(v);
+	return v8_val;
+}
+
 v8_local_object* v8_NewObject(v8_isolate* v8_isolate) {
 	v8::Local<v8::ObjectTemplate> obj = v8::ObjectTemplate::New(v8_isolate->isolate);
 	v8_local_object *v8_obj = (struct v8_local_object*)V8_ALLOC(sizeof(*v8_obj));
