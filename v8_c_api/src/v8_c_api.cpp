@@ -24,32 +24,28 @@ static v8_alloctor *allocator;
 #define V8_CALLOC allocator->v8_Calloc
 #define V8_STRDUP allocator->v8_Strdup
 
-struct v8_isolate {
-	v8::Isolate* isolate;
-};
-
 struct v8_isolate_scope {
-	v8_isolate *isolate;
+	v8::Isolate *isolate;
 	v8::Locker locker;
-	v8_isolate_scope(v8_isolate *v8_isolate): locker(v8_isolate->isolate), isolate(v8_isolate) {}
+	v8_isolate_scope(v8::Isolate *v8_isolate): locker(v8_isolate), isolate(v8_isolate) {}
 	~v8_isolate_scope() {}
 };
 
 struct v8_context {
-	v8_isolate *isolate;
+	v8::Isolate *isolate;
 	v8::Persistent<v8::Context> *persistent_ctx;
 };
 
 struct v8_handlers_scope {
 	v8::HandleScope handle_scope;
-	v8_handlers_scope(v8_isolate *v8_isolate): handle_scope(v8_isolate->isolate){}
+	v8_handlers_scope(v8::Isolate *v8_isolate): handle_scope(v8_isolate){}
 	~v8_handlers_scope(){}
 };
 
 struct v8_local_string {
 	v8::Local<v8::String> str;
-	v8_local_string(v8_isolate *isolate, const char *buff, size_t len) {
-		str = v8::String::NewFromUtf8(isolate->isolate, buff, v8::NewStringType::kNormal, len).ToLocalChecked();
+	v8_local_string(v8::Isolate *isolate, const char *buff, size_t len) {
+		str = v8::String::NewFromUtf8(isolate, buff, v8::NewStringType::kNormal, len).ToLocalChecked();
 	}
 	~v8_local_string() {}
 };
@@ -57,7 +53,7 @@ struct v8_local_string {
 struct v8_local_script {
 	v8::Local<v8::Script> script;
 	v8_local_script(v8_context* v8_ctx, v8_local_string *code) {
-		v8::Local<v8::Context> v8_local_ctx = v8_ctx->persistent_ctx->Get(v8_ctx->isolate->isolate);
+		v8::Local<v8::Context> v8_local_ctx = v8_ctx->persistent_ctx->Get(v8_ctx->isolate);
 		v8::MaybeLocal<v8::Script> compilation_res = v8::Script::Compile(v8_local_ctx, code->str);
 		if (!compilation_res.IsEmpty()) {
 			script = compilation_res.ToLocalChecked();
@@ -72,7 +68,7 @@ struct v8_local_value {
 
 struct v8_utf8_value {
 	v8::String::Utf8Value utf8_val;
-	v8_utf8_value(v8_isolate *isolate, v8::Local<v8::Value> val): utf8_val(isolate->isolate, val) {}
+	v8_utf8_value(v8::Isolate *isolate, v8::Local<v8::Value> val): utf8_val(isolate, val) {}
 };
 
 struct v8_local_native_function {
@@ -83,6 +79,11 @@ struct v8_local_native_function {
 struct v8_local_object {
 	v8::Local<v8::ObjectTemplate> obj;
 	v8_local_object(v8::Local<v8::ObjectTemplate> o): obj(o) {};
+};
+
+struct v8_trycatch {
+	v8::TryCatch trycatch;
+	v8_trycatch(v8::Isolate *isolate): trycatch(isolate){}
 };
 
 void v8_Initialize(v8_alloctor *alloc) {
@@ -104,32 +105,56 @@ v8_isolate* v8_NewIsolate() {
 	v8::Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 	v8::Isolate *isolate = v8::Isolate::New(create_params);
-	v8_isolate *v8_isolate = (struct v8_isolate*)V8_ALLOC(sizeof(*v8_isolate));
-	v8_isolate->isolate = isolate;
-	return v8_isolate;
+	return (v8_isolate*)isolate;
 }
 
-void v8_FreeIsolate(v8_isolate* isolate) {
-	isolate->isolate->Dispose();
-	V8_FREE(isolate);
+void v8_FreeIsolate(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->Dispose();
 }
 
-v8_isolate_scope* v8_IsolateEnter(v8_isolate *v8_isolate) {
+v8_isolate_scope* v8_IsolateEnter(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_isolate_scope *v8_isolateScope = (struct v8_isolate_scope*)V8_ALLOC(sizeof(*v8_isolateScope));
-	v8_isolateScope = new(v8_isolateScope) v8_isolate_scope(v8_isolate);
-	v8_isolate->isolate->Enter();
+	v8_isolateScope = new(v8_isolateScope) v8_isolate_scope(isolate);
+	isolate->Enter();
 	return v8_isolateScope;
 }
 
 void v8_IsolateExit(v8_isolate_scope *v8_isolate_scope) {
-	v8_isolate_scope->isolate->isolate->Exit();
+	v8_isolate_scope->isolate->Exit();
 	v8_isolate_scope->~v8_isolate_scope();
 	V8_FREE(v8_isolate_scope);
 }
 
-v8_handlers_scope* v8_NewHandlersScope(v8_isolate *v8_isolate) {
+void v8_IsolateRaiseException(v8_isolate *i, v8_local_value *exception) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->ThrowException(exception->val);
+}
+
+v8_trycatch* v8_NewTryCatch(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8_trycatch *trycatch = (v8_trycatch*) V8_ALLOC(sizeof(*trycatch));
+	trycatch = new (trycatch) v8_trycatch(isolate);
+	return trycatch;
+}
+
+v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch) {
+	v8::Local<v8::Value> exception = trycatch->trycatch.Exception();
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(exception);
+	return v8_val;
+}
+
+void v8_FreeTryCatch(v8_trycatch *trycatch) {
+	trycatch->~v8_trycatch();
+	V8_FREE(trycatch);
+}
+
+v8_handlers_scope* v8_NewHandlersScope(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_handlers_scope *v8_handlersScope = (struct v8_handlers_scope*)V8_ALLOC(sizeof(*v8_handlersScope));
-	v8_handlersScope = new (v8_handlersScope) v8_handlers_scope(v8_isolate);
+	v8_handlersScope = new (v8_handlersScope) v8_handlers_scope(isolate);
 	return v8_handlersScope;
 }
 
@@ -138,21 +163,22 @@ void v8_FreeHandlersScope(v8_handlers_scope* v8_handlersScope) {
 	V8_FREE(v8_handlersScope);
 }
 
-static v8::Local<v8::Context> v8_NewContexInternal(v8_isolate* v8_isolate, v8_local_object *globals) {
+static v8::Local<v8::Context> v8_NewContexInternal(v8::Isolate* v8_isolate, v8_local_object *globals) {
 	if (globals) {
-		return v8::Context::New(v8_isolate->isolate, nullptr, globals->obj);
+		return v8::Context::New(v8_isolate, nullptr, globals->obj);
 	} else {
-		return v8::Context::New(v8_isolate->isolate);
+		return v8::Context::New(v8_isolate);
 	}
 }
 
-v8_context* v8_NewContext(v8_isolate* v8_isolate, v8_local_object *globals) {
-	v8::HandleScope handle_scope(v8_isolate->isolate);
-	v8::Local<v8::Context> context = v8_NewContexInternal(v8_isolate, globals);
-	v8::Persistent<v8::Context> *persistent_ctx = new v8::Persistent<v8::Context>(v8_isolate->isolate, context);
+v8_context* v8_NewContext(v8_isolate* i, v8_local_object *globals) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::HandleScope handle_scope(isolate);
+	v8::Local<v8::Context> context = v8_NewContexInternal(isolate, globals);
+	v8::Persistent<v8::Context> *persistent_ctx = new v8::Persistent<v8::Context>(isolate, context);
 	v8_context *v8_context = (struct v8_context*)V8_ALLOC(sizeof(*v8_context));
 	v8_context->persistent_ctx = persistent_ctx;
-	v8_context->isolate = v8_isolate;
+	v8_context->isolate = isolate;
 	return v8_context;
 }
 
@@ -162,17 +188,24 @@ void v8_FreeContext(v8_context* ctx) {
 }
 
 void v8_ContextEnter(v8_context *v8_ctx) {
-	v8_ctx->persistent_ctx->Get(v8_ctx->isolate->isolate)->Enter();
+	v8_ctx->persistent_ctx->Get(v8_ctx->isolate)->Enter();
 }
 
 void v8_ContextExit(v8_context *v8_ctx) {
-	v8_ctx->persistent_ctx->Get(v8_ctx->isolate->isolate)->Exit();
+	v8_ctx->persistent_ctx->Get(v8_ctx->isolate)->Exit();
 }
 
-v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len) {
+v8_local_string* v8_NewString(v8_isolate* i, const char *str, size_t len) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_local_string *v8_str = (struct v8_local_string*)V8_ALLOC(sizeof(*v8_str));
-	v8_str = new (v8_str) v8_local_string(v8_isolate, str, len);
+	v8_str = new (v8_str) v8_local_string(isolate, str, len);
 	return v8_str;
+}
+
+v8_local_value* v8_StringToValue(v8_local_string *str) {
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(str->str);
+	return v8_val;
 }
 
 void v8_FreeString(v8_local_string *str) {
@@ -190,13 +223,14 @@ static void v8_NativeBaseFunction(const v8::FunctionCallbackInfo<v8::Value>& inf
 	nf_pd->func((v8_local_value_arr*)&info, info.Length(), nf_pd->pd);
 }
 
-v8_local_native_function* v8_NewNativeFunction(v8_isolate* v8_isolate, native_funcion func, void *pd) {
+v8_local_native_function* v8_NewNativeFunction(v8_isolate* i, native_funcion func, void *pd) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_native_function_pd *nf_pd = (v8_native_function_pd*)V8_ALLOC(sizeof(*nf_pd));
 	nf_pd->func = func;
 	nf_pd->pd = pd;
 
-	v8::Local<v8::External> data = v8::External::New(v8_isolate->isolate, (void*)nf_pd);
-	v8::Local<v8::FunctionTemplate> f = v8::FunctionTemplate::New(v8_isolate->isolate, v8_NativeBaseFunction, data);
+	v8::Local<v8::External> data = v8::External::New(isolate, (void*)nf_pd);
+	v8::Local<v8::FunctionTemplate> f = v8::FunctionTemplate::New(isolate, v8_NativeBaseFunction, data);
 	v8_local_native_function *v8_native = (struct v8_local_native_function*)V8_ALLOC(sizeof(*v8_native));
 	v8_native = new (v8_native) v8_local_native_function(f);
 	return v8_native;
@@ -214,8 +248,15 @@ v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i) {
 	return v8_val;
 }
 
-v8_local_object* v8_NewObject(v8_isolate* v8_isolate) {
-	v8::Local<v8::ObjectTemplate> obj = v8::ObjectTemplate::New(v8_isolate->isolate);
+v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args) {
+	v8::FunctionCallbackInfo<v8::Value> *info = (v8::FunctionCallbackInfo<v8::Value> *)args;
+	v8::Isolate* isolate = info->GetIsolate();
+	return (v8_isolate*)isolate;
+}
+
+v8_local_object* v8_NewObject(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::ObjectTemplate> obj = v8::ObjectTemplate::New(isolate);
 	v8_local_object *v8_obj = (struct v8_local_object*)V8_ALLOC(sizeof(*v8_obj));
 	v8_obj = new (v8_obj) v8_local_object(obj);
 	return v8_obj;
@@ -244,7 +285,7 @@ void v8_FreeScript(v8_local_script *script) {
 }
 
 v8_local_value* v8_Run(v8_context* v8_ctx, v8_local_script* script) {
-	v8::Local<v8::Context> v8_local_ctx = v8_ctx->persistent_ctx->Get(v8_ctx->isolate->isolate);
+	v8::Local<v8::Context> v8_local_ctx = v8_ctx->persistent_ctx->Get(v8_ctx->isolate);
 	v8::MaybeLocal<v8::Value> result = script->script->Run(v8_local_ctx);
 	if (result.IsEmpty()) {
 		return NULL;
@@ -261,7 +302,8 @@ void v8_FreeValue(v8_local_value *val) {
 	V8_FREE(val);
 }
 
-v8_utf8_value* v8_ToUtf8(v8_isolate *isolate, v8_local_value* val) {
+v8_utf8_value* v8_ToUtf8(v8_isolate *i, v8_local_value* val) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_utf8_value *utf8_val = (struct v8_utf8_value*)V8_ALLOC(sizeof(*utf8_val));
 	utf8_val = new (utf8_val) v8_utf8_value(isolate, val->val);
 	return utf8_val;

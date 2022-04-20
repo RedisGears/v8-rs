@@ -71,8 +71,33 @@ mod json_path_tests {
         let i_scope = isolate.enter();
         let ctx = i_scope.new_context(Some(&globals));
         let ctx_scope = ctx.enter();
-        let script = ctx.compile(&code_str);
-        script.run(&ctx_scope);
+        let script = ctx.compile(&code_str).unwrap();
+        script.run(&ctx_scope).unwrap();
+    }
+
+    #[test]
+    fn test_native_function_raise_exception() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let h_scope = isolate.new_handlers_scope();
+        
+        let native = h_scope.new_native_function(|args| {
+            let isolate = args.get_current_isolate();
+            isolate.raise_exception_str("this is an error");
+        });
+        let native_funciton_name = h_scope.new_string("foo");
+        let mut globals = h_scope.new_object();
+        globals.set_native_function(&native_funciton_name, &native);
+        let code_str = h_scope.new_string("foo(2)");
+        let i_scope = isolate.enter();
+        let ctx = i_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter();
+        let script = ctx.compile(&code_str).unwrap();
+        let trycatch = isolate.new_try_catch();
+        assert!(script.run(&ctx_scope).is_none());
+        let exception = trycatch.get_exception();
+        let exception_msg = exception.to_utf8(&isolate);
+        assert_eq!(exception_msg.as_str(), "this is an error");
     }
 
     #[test]
@@ -84,9 +109,40 @@ mod json_path_tests {
         let i_scope = isolate.enter();
         let ctx = i_scope.new_context(None);
         let ctx_scope = ctx.enter();
-        let script = ctx.compile(&code_str);
-        let res = script.run(&ctx_scope);
+        let script = ctx.compile(&code_str).unwrap();
+        let res = script.run(&ctx_scope).unwrap();
         let res_utf8 = res.to_utf8(&isolate);
         assert_eq!(res_utf8.as_str(), "2");
+    }
+
+    #[test]
+    fn test_compilation_error() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let h_scope = isolate.new_handlers_scope();
+        let code_str = h_scope.new_string("foo(");
+        let i_scope = isolate.enter();
+        let ctx = i_scope.new_context(None);
+        let _ctx_scope = ctx.enter();
+        let trycatch = isolate.new_try_catch();
+        let script = ctx.compile(&code_str);
+        assert!(script.is_none());
+        assert_eq!(trycatch.get_exception().to_utf8(&isolate).as_str(), "SyntaxError: Unexpected end of input");
+    }
+
+    #[test]
+    fn test_run_error() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let h_scope = isolate.new_handlers_scope();
+        let code_str = h_scope.new_string("foo()");
+        let i_scope = isolate.enter();
+        let ctx = i_scope.new_context(None);
+        let ctx_scope = ctx.enter();
+        let trycatch = isolate.new_try_catch();
+        let script = ctx.compile(&code_str).unwrap();
+        let res = script.run(&ctx_scope);
+        assert!(res.is_none());
+        assert_eq!(trycatch.get_exception().to_utf8(&isolate).as_str(), "ReferenceError: foo is not defined");
     }
 }

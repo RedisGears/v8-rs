@@ -12,6 +12,7 @@ typedef struct v8_alloctor {
 }v8_alloctor;
 
 typedef struct v8_isolate v8_isolate;
+typedef struct v8_trycatch v8_trycatch;
 typedef struct v8_isolate_scope v8_isolate_scope;
 typedef struct v8_context v8_context;
 typedef struct v8_handlers_scope v8_handlers_scope;
@@ -31,6 +32,11 @@ v8_isolate* v8_NewIsolate();
 void v8_FreeIsolate(v8_isolate* isolate);
 v8_isolate_scope* v8_IsolateEnter(v8_isolate *v8_isolate);
 void v8_IsolateExit(v8_isolate_scope *v8_isolate_scope);
+void v8_IsolateRaiseException(v8_isolate *isolate, v8_local_value *value);
+
+v8_trycatch* v8_NewTryCatch(v8_isolate *isolate);
+v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch);
+void v8_FreeTryCatch(v8_trycatch *trycatch);
 
 v8_handlers_scope* v8_NewHandlersScope(v8_isolate *v8_isolate);
 void v8_FreeHandlersScope(v8_handlers_scope* v8_handlersScope);
@@ -41,6 +47,7 @@ void v8_ContextEnter(v8_context *v8_ctx);
 void v8_ContextExit(v8_context *v8_ctx);
 
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);
+v8_local_value* v8_StringToValue(v8_local_string *str);
 void v8_FreeString(v8_local_string *str);
 
 typedef void (*native_funcion)(v8_local_value_arr *args, size_t len, void *pd);
@@ -48,6 +55,7 @@ v8_local_native_function* v8_NewNativeFunction(v8_isolate* v8_isolate, native_fu
 void v8_FreeNativeFunction(v8_local_native_function *func);
 
 v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i);
+v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args);
 
 v8_local_object* v8_NewObject(v8_isolate* v8_isolate);
 void v8_FreeObject(v8_local_object *obj);

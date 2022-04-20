@@ -16,6 +16,7 @@ pub mod v8_context_scope;
 pub mod v8_script;
 pub mod v8_value;
 pub mod v8_utf8;
+pub mod try_catch;
 
 pub fn v8_init() {
     unsafe {v8_Initialize(ptr::null_mut())}

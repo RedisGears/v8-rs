@@ -34,10 +34,14 @@ impl V8Context {
         V8ContextScope{ctx: self}
     }
 
-    pub fn compile(&self, s: &V8LocalString) -> V8LocalScript{
+    pub fn compile(&self, s: &V8LocalString) -> Option<V8LocalScript>{
         let inner_script = unsafe{v8_Compile(self.inner_ctx, s.inner_string)};
-        V8LocalScript{
-            inner_script: inner_script,
+        if inner_script.is_null() {
+            None
+        } else {
+            Some(V8LocalScript{
+                inner_script: inner_script,
+            })
         }
     }
 }

@@ -12,10 +12,14 @@ pub struct V8LocalScript {
 }
 
 impl V8LocalScript {
-    pub fn run(&self, ctx: &V8ContextScope) -> V8LocalValue{
+    pub fn run(&self, ctx: &V8ContextScope) -> Option<V8LocalValue>{
         let inner_val = unsafe{v8_Run(ctx.ctx.inner_ctx, self.inner_script)};
-        V8LocalValue {
-            inner_val: inner_val,
+        if inner_val.is_null() {
+            None
+        } else {
+            Some(V8LocalValue {
+                inner_val: inner_val,
+            })
         }
     }
 }
