@@ -39,7 +39,6 @@ struct v8_context {
 struct v8_handlers_scope {
 	v8::HandleScope handle_scope;
 	v8_handlers_scope(v8::Isolate *v8_isolate): handle_scope(v8_isolate){}
-	~v8_handlers_scope(){}
 };
 
 struct v8_local_string {
@@ -47,13 +46,13 @@ struct v8_local_string {
 	v8_local_string(v8::Isolate *isolate, const char *buff, size_t len) {
 		str = v8::String::NewFromUtf8(isolate, buff, v8::NewStringType::kNormal, len).ToLocalChecked();
 	}
+	v8_local_string(v8::Local<v8::String> val): str(val) {}
 	~v8_local_string() {}
 };
 
 struct v8_local_script {
 	v8::Local<v8::Script> script;
-	v8_local_script(v8_context* v8_ctx, v8_local_string *code) {
-		v8::Local<v8::Context> v8_local_ctx = v8_ctx->persistent_ctx->Get(v8_ctx->isolate);
+	v8_local_script(v8::Local<v8::Context> v8_local_ctx, v8_local_string *code) {
 		v8::MaybeLocal<v8::Script> compilation_res = v8::Script::Compile(v8_local_ctx, code->str);
 		if (!compilation_res.IsEmpty()) {
 			script = compilation_res.ToLocalChecked();
@@ -64,6 +63,9 @@ struct v8_local_script {
 struct v8_local_value {
 	v8::Local<v8::Value> val;
 	v8_local_value(v8::Local<v8::Value> value): val(value) {}
+	v8_local_value(v8::Isolate *isolate, v8::Persistent<v8::Value> *value) {
+		val = v8::Local<v8::Value>::New(isolate, *value);
+	}
 };
 
 struct v8_utf8_value {
@@ -86,7 +88,14 @@ struct v8_trycatch {
 	v8_trycatch(v8::Isolate *isolate): trycatch(isolate){}
 };
 
+struct v8_context_ref {
+	v8::Local<v8::Context> context;
+	v8_context_ref(v8::Local<v8::Context> ctx): context(ctx){}
+};
+
 void v8_Initialize(v8_alloctor *alloc) {
+//	v8::V8::SetFlagsFromString("--expose_gc");
+//	v8::V8::SetFlagsFromString("--log-all");
 	platform = v8::platform::NewDefaultPlatform();
 	v8::V8::InitializePlatform(platform.get());
 	v8::V8::Initialize();
@@ -113,6 +122,11 @@ void v8_FreeIsolate(v8_isolate* i) {
 	isolate->Dispose();
 }
 
+void v8_SetInterrupt(v8_isolate* i, v8_InterruptCallback callback, void *data) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->RequestInterrupt((v8::InterruptCallback)callback, data);
+}
+
 v8_isolate_scope* v8_IsolateEnter(v8_isolate *i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_isolate_scope *v8_isolateScope = (struct v8_isolate_scope*)V8_ALLOC(sizeof(*v8_isolateScope));
@@ -130,6 +144,18 @@ void v8_IsolateExit(v8_isolate_scope *v8_isolate_scope) {
 void v8_IsolateRaiseException(v8_isolate *i, v8_local_value *exception) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	isolate->ThrowException(exception->val);
+}
+
+v8_context_ref* v8_GetCurrentCtxRef(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8_context_ref *ref = (v8_context_ref*) V8_ALLOC(sizeof(*ref));
+	ref = new (ref) v8_context_ref(isolate->GetCurrentContext());
+	return ref;
+}
+
+void v8_IdleNotificationDeadline(v8_isolate *i, double deadline_in_seconds) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->IdleNotificationDeadline(deadline_in_seconds);
 }
 
 v8_trycatch* v8_NewTryCatch(v8_isolate *i) {
@@ -173,7 +199,6 @@ static v8::Local<v8::Context> v8_NewContexInternal(v8::Isolate* v8_isolate, v8_l
 
 v8_context* v8_NewContext(v8_isolate* i, v8_local_object *globals) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
-	v8::HandleScope handle_scope(isolate);
 	v8::Local<v8::Context> context = v8_NewContexInternal(isolate, globals);
 	v8::Persistent<v8::Context> *persistent_ctx = new v8::Persistent<v8::Context>(isolate, context);
 	v8_context *v8_context = (struct v8_context*)V8_ALLOC(sizeof(*v8_context));
@@ -183,16 +208,38 @@ v8_context* v8_NewContext(v8_isolate* i, v8_local_object *globals) {
 }
 
 void v8_FreeContext(v8_context* ctx) {
+	ctx->persistent_ctx->Reset();
 	delete ctx->persistent_ctx;
 	V8_FREE(ctx);
 }
 
-void v8_ContextEnter(v8_context *v8_ctx) {
-	v8_ctx->persistent_ctx->Get(v8_ctx->isolate)->Enter();
+void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd) {
+	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
+	v8::Local<v8::External> data = v8::External::New(ctx->isolate, (void*)pd);
+	v8_ctx->SetEmbedderData(index, data);
 }
 
-void v8_ContextExit(v8_context *v8_ctx) {
-	v8_ctx->persistent_ctx->Get(v8_ctx->isolate)->Exit();
+void* v8_GetPrivateData(v8_context* ctx, size_t index) {
+	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
+	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(v8_ctx->GetEmbedderData(index));
+	return data->Value();
+}
+
+v8_context_ref* v8_ContextEnter(v8_context *v8_ctx) {
+	v8_context_ref *ref = (v8_context_ref*) V8_ALLOC(sizeof(*ref));
+	ref = new (ref) v8_context_ref(v8_ctx->persistent_ctx->Get(v8_ctx->isolate));
+	ref->context->Enter();
+	return ref;
+}
+
+void v8_FreeContextRef(v8_context_ref *v8_ctx_ref) {
+	v8_ctx_ref->context->Exit();
+	V8_FREE(v8_ctx_ref);
+}
+
+void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index) {
+	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(ctx_ref->context->GetEmbedderData(index));
+	return data->Value();
 }
 
 v8_local_string* v8_NewString(v8_isolate* i, const char *str, size_t len) {
@@ -270,9 +317,17 @@ void v8_ObjectSetFunction(v8_local_object *obj, v8_local_string *name, v8_local_
 	obj->obj->Set(name->str, f->func);
 }
 
-v8_local_script* v8_Compile(v8_context* v8_ctx, v8_local_string* str) {
+void v8_ObjectSetObject(v8_local_object *obj, v8_local_string *name, v8_local_object *o) {
+	obj->obj->Set(name->str, o->obj);
+}
+
+void v8_ObjectSetValue(v8_local_object *obj, v8_local_string *name, v8_local_value *val) {
+	obj->obj->Set(name->str, val->val);
+}
+
+v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str) {
 	v8_local_script *v8_script = (struct v8_local_script*)V8_ALLOC(sizeof(*v8_script));
-	v8_script = new (v8_script) v8_local_script(v8_ctx, str);
+	v8_script = new (v8_script) v8_local_script(v8_ctx_ref->context, str);
 	if (v8_script->script.IsEmpty()) {
 		V8_FREE(v8_script);
 		return NULL;
@@ -284,9 +339,8 @@ void v8_FreeScript(v8_local_script *script) {
 	V8_FREE(script);
 }
 
-v8_local_value* v8_Run(v8_context* v8_ctx, v8_local_script* script) {
-	v8::Local<v8::Context> v8_local_ctx = v8_ctx->persistent_ctx->Get(v8_ctx->isolate);
-	v8::MaybeLocal<v8::Value> result = script->script->Run(v8_local_ctx);
+v8_local_value* v8_Run(v8_context_ref* v8_ctx_ref, v8_local_script* script) {
+	v8::MaybeLocal<v8::Value> result = script->script->Run(v8_ctx_ref->context);
 	if (result.IsEmpty()) {
 		return NULL;
 	}
@@ -296,6 +350,77 @@ v8_local_value* v8_Run(v8_context* v8_ctx, v8_local_script* script) {
 	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
 	v8_val = new (v8_val) v8_local_value(res);
 	return v8_val;
+}
+
+int v8_ValueIsFunction(v8_local_value *val){
+	return val->val->IsFunction();
+}
+
+v8_local_value* v8_FunctionCall(v8_context_ref *v8_ctx_ref, v8_local_value *val, size_t argc, v8_local_value** argv) {
+	v8::Local<v8::Value> argv_arr[argc];
+	for (size_t i = 0 ; i < argc ; ++i) {
+		argv_arr[i] = argv[i]->val;
+	}
+	v8::Local<v8::Function> function = v8::Local<v8::Function>::Cast(val->val);
+	v8::MaybeLocal<v8::Value> result = function->Call(v8_ctx_ref->context, v8_ctx_ref->context->Global(), argc, argv_arr);
+	if (result.IsEmpty()) {
+		return NULL;
+	}
+
+	v8::Local<v8::Value> res = result.ToLocalChecked();
+
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(res);
+	return v8_val;
+}
+
+int v8_ValueIsAsyncFunction(v8_local_value *val) {
+	return val->val->IsAsyncFunction();
+}
+
+int v8_ValueIsString(v8_local_value *val) {
+	return val->val->IsString();
+}
+
+v8_local_string* v8_ValueAsString(v8_local_value *val) {
+	v8_local_string *v8_str = (struct v8_local_string*)V8_ALLOC(sizeof(*v8_str));
+	v8_str = new (v8_str) v8_local_string(v8::Local<v8::String>::Cast(val->val));
+	return v8_str;
+}
+
+int v8_ValueIsBigInt(v8_local_value *val) {
+	return val->val->IsBigInt();
+}
+
+int v8_ValueIsNumber(v8_local_value *val) {
+	return val->val->IsNumber();
+}
+
+int v8_ValueIsPromise(v8_local_value *val) {
+	return val->val->IsPromise();
+}
+
+int v8_ValueIsObject(v8_local_value *val) {
+	return val->val->IsObject();
+}
+
+v8_persisted_value* v8_PersistValue(v8_isolate *i, v8_local_value *val) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	return (v8_persisted_value*) new v8::Persistent<v8::Value>(isolate, val->val);
+}
+
+v8_local_value* v8_PersistedValueToLocal(v8_isolate *i, v8_persisted_value *val) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Persistent<v8::Value> *persisted_val = (v8::Persistent<v8::Value>*)val;
+	v8_local_value *local_val = (struct v8_local_value*)V8_ALLOC(sizeof(*local_val));
+	local_val = new (local_val) v8_local_value(isolate, persisted_val);
+	return local_val;
+}
+
+void v8_FreePersistedValue(v8_persisted_value *val) {
+	v8::Persistent<v8::Value> *persisted_val = (v8::Persistent<v8::Value>*)val;
+	persisted_val->Reset();
+	delete persisted_val;
 }
 
 void v8_FreeValue(v8_local_value *val) {

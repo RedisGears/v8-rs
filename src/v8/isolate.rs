@@ -6,17 +6,26 @@ use crate::v8_c_raw::bindings::{
     v8_NewString,
     v8_StringToValue,
     v8_NewTryCatch,
+    v8_GetCurrentCtxRef,
+    v8_IdleNotificationDeadline,
+    v8_SetInterrupt,
 };
 
-use std::os::raw::{c_char};
+use std::os::raw::{c_char, c_void};
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::handler_scope::V8HandlersScope;
 use crate::v8::v8_value::V8LocalValue;
 use crate::v8::try_catch::V8TryCatch;
+use crate::v8::v8_context_scope::V8ContextScope;
 
 pub struct V8Isolate {
     pub (crate) inner_isolate: *mut v8_isolate,
+}
+
+pub (crate)extern "C" fn interrupt_callback<T:Fn(&V8Isolate)>(isolate: *mut v8_isolate, data: *mut ::std::os::raw::c_void) {
+    let func = unsafe{&*(data as *mut T)};
+    func(&V8Isolate{inner_isolate: isolate});
 }
 
 impl V8Isolate {
@@ -50,6 +59,22 @@ impl V8Isolate {
         V8TryCatch {
             inner_trycatch: inner_trycatch,
         }
+    }
+
+    pub fn get_curr_context_scope(&self) -> V8ContextScope {
+        let inner_ctx_ref = unsafe{v8_GetCurrentCtxRef(self.inner_isolate)};
+        V8ContextScope {
+            inner_ctx_ref: inner_ctx_ref,
+            exit_on_drop: false,
+        }
+    }
+
+    pub fn idle_notification_deadline(&self) {
+        unsafe{v8_IdleNotificationDeadline(self.inner_isolate, 1.0)};
+    }
+
+    pub fn set_interrupt<T:Fn(&V8Isolate)>(&self, callback: T) {
+        unsafe{v8_SetInterrupt(self.inner_isolate, Some(interrupt_callback::<T>), Box::into_raw(Box::new(callback)) as *mut c_void)};
     }
 
     pub fn free_isolate(&self) {

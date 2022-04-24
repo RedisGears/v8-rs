@@ -44,6 +44,10 @@ impl V8LocalNativeFunctionArgs {
             inner_isolate: inner_isolate,
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
 }
 
 impl Drop for V8LocalNativeFunction {
