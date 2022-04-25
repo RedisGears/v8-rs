@@ -20,6 +20,7 @@ pub mod v8_utf8;
 pub mod try_catch;
 pub mod v8_promise;
 pub mod v8_resolver;
+pub mod v8_object;
 
 pub fn v8_init() {
     unsafe {v8_Initialize(ptr::null_mut())}

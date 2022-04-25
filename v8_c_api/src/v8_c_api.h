@@ -21,6 +21,7 @@ typedef struct v8_local_string v8_local_string;
 typedef struct v8_local_native_function_template v8_local_native_function_template;
 typedef struct v8_local_native_function v8_local_native_function;
 typedef struct v8_local_object_template v8_local_object_template;
+typedef struct v8_local_object v8_local_object;
 typedef struct v8_local_script v8_local_script;
 typedef struct v8_local_value v8_local_value;
 typedef struct v8_local_promise v8_local_promise;
@@ -94,6 +95,11 @@ int v8_ValueIsNumber(v8_local_value *val);
 int v8_ValueIsPromise(v8_local_value *val);
 v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
 int v8_ValueIsObject(v8_local_value *val);
+v8_local_object* v8_ValueAsObject(v8_local_value *val);
+
+v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key);
+void v8_FreeObject(v8_local_object *obj);
+v8_local_value* v8_ObjectToValue(v8_local_object *obj);
 
 typedef enum v8_PromiseState{
 	v8_PromiseState_Unknown, v8_PromiseState_Fulfilled, v8_PromiseState_Rejected, v8_PromiseState_Pending

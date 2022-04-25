@@ -108,6 +108,11 @@ struct v8_local_resolver {
 	v8_local_resolver(v8::Local<v8::Promise::Resolver> r): resolver(r) {}
 };
 
+struct v8_local_object {
+	v8::Local<v8::Object> obj;
+	v8_local_object(v8::Local<v8::Object> o): obj(o) {}
+};
+
 void v8_Initialize(v8_alloctor *alloc) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 //	v8::V8::SetFlagsFromString("--log-all");
@@ -520,6 +525,35 @@ v8_local_value* v8_ResolverToValue(v8_local_resolver *resolver) {
 
 int v8_ValueIsObject(v8_local_value *val) {
 	return val->val->IsObject();
+}
+
+v8_local_object* v8_ValueAsObject(v8_local_value *val) {
+	v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(val->val);
+	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_object(obj);
+	return res;
+}
+
+v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key) {
+	v8::MaybeLocal<v8::Value> maybe_val = obj->obj->Get(ctx_ref->context, key->val);
+	if (maybe_val.IsEmpty()) {
+		return NULL;
+	}
+	v8::Local<v8::Value> val = maybe_val.ToLocalChecked();
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+void v8_FreeObject(v8_local_object *obj) {
+	V8_FREE(obj);
+}
+
+v8_local_value* v8_ObjectToValue(v8_local_object *obj) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(obj->obj);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
 }
 
 v8_persisted_value* v8_PersistValue(v8_isolate *i, v8_local_value *val) {
