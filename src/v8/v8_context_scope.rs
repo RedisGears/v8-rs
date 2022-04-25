@@ -3,10 +3,12 @@ use crate::v8_c_raw::bindings::{
     v8_Compile,
     v8_FreeContextRef,
     v8_GetPrivateDataFromCtxRef,
+    v8_NewResolver,
 };
 
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_script::V8LocalScript;
+use crate::v8::v8_resolver::V8LocalResolver;
 
 pub struct V8ContextScope {
     pub (crate) inner_ctx_ref: *mut v8_context_ref,
@@ -40,6 +42,13 @@ impl V8ContextScope {
             None
         } else {
             Some(unsafe{&mut *(pd as *mut T)})
+        }
+    }
+
+    pub fn new_resolver(&self) -> V8LocalResolver{
+        let inner_resolver = unsafe{v8_NewResolver(self.inner_ctx_ref)};
+        V8LocalResolver {
+            inner_resolver: inner_resolver,
         }
     }
 }

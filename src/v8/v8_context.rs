@@ -11,7 +11,7 @@ use std::ptr;
 use std::os::raw::{c_void};
 
 use crate::v8::isolate::V8Isolate;
-use crate::v8::v8_object::V8LocalObject;
+use crate::v8::v8_object_template::V8LocalObjectTemplate;
 use crate::v8::v8_context_scope::V8ContextScope;
 
 pub struct V8Context {
@@ -19,7 +19,7 @@ pub struct V8Context {
 }
 
 impl V8Context {
-    pub fn new(isolate: &V8Isolate, globals: Option<&V8LocalObject>) -> V8Context {
+    pub fn new(isolate: &V8Isolate, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         let inner_ctx = match globals {
             Some(g) => unsafe{v8_NewContext(isolate.inner_isolate, g.inner_obj)},
             None => unsafe{v8_NewContext(isolate.inner_isolate, ptr::null_mut())},

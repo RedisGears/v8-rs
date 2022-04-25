@@ -9,6 +9,8 @@ use crate::v8_c_raw::bindings::{
     v8_GetCurrentCtxRef,
     v8_IdleNotificationDeadline,
     v8_SetInterrupt,
+    v8_NewObjectTemplate,
+    v8_NewNativeFunctionTemplate,
 };
 
 use std::os::raw::{c_char, c_void};
@@ -18,6 +20,13 @@ use crate::v8::handler_scope::V8HandlersScope;
 use crate::v8::v8_value::V8LocalValue;
 use crate::v8::try_catch::V8TryCatch;
 use crate::v8::v8_context_scope::V8ContextScope;
+use crate::v8::v8_string::V8LocalString;
+use crate::v8::v8_object_template::V8LocalObjectTemplate;
+use crate::v8::v8_native_function_template::{
+    V8LocalNativeFunctionArgs,
+    V8LocalNativeFunctionTemplate,
+    native_basic_function,
+};
 
 pub struct V8Isolate {
     pub (crate) inner_isolate: *mut v8_isolate,
@@ -79,5 +88,26 @@ impl V8Isolate {
 
     pub fn free_isolate(&self) {
         unsafe {v8_FreeIsolate(self.inner_isolate)}
+    }
+
+    pub fn new_string(&self, s: &str) -> V8LocalString {
+        let inner_string = unsafe{v8_NewString(self.inner_isolate, s.as_ptr() as *const c_char, s.len())};
+        V8LocalString{
+            inner_string: inner_string,
+        }
+    }
+
+    pub fn new_object_template(&self) -> V8LocalObjectTemplate {
+        let inner_obj = unsafe{v8_NewObjectTemplate(self.inner_isolate)};
+        V8LocalObjectTemplate{
+            inner_obj: inner_obj,
+        }
+    }
+
+    pub fn new_native_function_template<T:Fn(&V8LocalNativeFunctionArgs) -> Option<V8LocalValue>>(&self, func: T) -> V8LocalNativeFunctionTemplate {
+        let inner_func = unsafe{v8_NewNativeFunctionTemplate(self.inner_isolate, Some(native_basic_function::<T>), Box::into_raw(Box::new(func)) as *mut c_void)};
+        V8LocalNativeFunctionTemplate{
+            inner_func: inner_func,
+        }
     }
 }

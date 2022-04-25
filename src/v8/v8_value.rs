@@ -14,6 +14,7 @@ use crate::v8_c_raw::bindings::{
     v8_PersistValue,
     v8_PersistedValueToLocal,
     v8_FunctionCall,
+    v8_ValueAsPromise,
 };
 
 use std::ptr;
@@ -22,6 +23,7 @@ use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_utf8::V8LocalUtf8;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_context_scope::V8ContextScope;
+use crate::v8::v8_promise::V8LocalPromise;
 
 pub struct V8LocalValue {
     pub (crate) inner_val: *mut v8_local_value,
@@ -66,6 +68,13 @@ impl V8LocalValue {
         if unsafe{v8_ValueIsPromise(self.inner_val)} != 0 {true} else {false}
     }
 
+    pub fn as_promise(&self) -> V8LocalPromise {
+        let inner_promise = unsafe{v8_ValueAsPromise(self.inner_val)};
+        V8LocalPromise {
+            inner_promise: inner_promise,
+        }
+    }
+
     pub fn is_object(&self) -> bool {
         if unsafe{v8_ValueIsObject(self.inner_val)} != 0 {true} else {false}
     }
@@ -77,8 +86,18 @@ impl V8LocalValue {
         }
     }
 
-    pub fn call(&self, ctx: &V8ContextScope) -> Option<V8LocalValue> {
-        let res = unsafe{v8_FunctionCall(ctx.inner_ctx_ref, self.inner_val, 0, ptr::null_mut())};
+    pub fn call(&self, ctx: &V8ContextScope, args: Option<&[&V8LocalValue]>) -> Option<V8LocalValue> {
+        let res = match args {
+            Some(args) => {
+                let args = args.into_iter().map(|v| v.inner_val).collect::<Vec<*mut v8_local_value>>();
+                let ptr = args.as_ptr();
+                unsafe{v8_FunctionCall(ctx.inner_ctx_ref, self.inner_val, args.len(), ptr)}
+            }
+            None => {
+                unsafe{v8_FunctionCall(ctx.inner_ctx_ref, self.inner_val, 0, ptr::null())}
+            }
+        };
+
         if res.is_null() {
             None
         } else {
@@ -100,7 +119,9 @@ impl V8PersistValue {
 
 impl Drop for V8LocalValue {
     fn drop(&mut self) {
-        unsafe {v8_FreeValue(self.inner_val)}
+        if !self.inner_val.is_null() {
+            unsafe {v8_FreeValue(self.inner_val)}
+        }
     }
 }
 

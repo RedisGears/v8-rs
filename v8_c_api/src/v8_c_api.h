@@ -18,10 +18,13 @@ typedef struct v8_context v8_context;
 typedef struct v8_context_ref v8_context_ref;
 typedef struct v8_handlers_scope v8_handlers_scope;
 typedef struct v8_local_string v8_local_string;
+typedef struct v8_local_native_function_template v8_local_native_function_template;
 typedef struct v8_local_native_function v8_local_native_function;
-typedef struct v8_local_object v8_local_object;
+typedef struct v8_local_object_template v8_local_object_template;
 typedef struct v8_local_script v8_local_script;
 typedef struct v8_local_value v8_local_value;
+typedef struct v8_local_promise v8_local_promise;
+typedef struct v8_local_resolver v8_local_resolver;
 typedef struct v8_local_value_arr v8_local_value_arr;
 typedef struct v8_utf8_value v8_utf8_value;
 typedef struct v8_persisted_value v8_persisted_value;
@@ -47,7 +50,7 @@ void v8_FreeTryCatch(v8_trycatch *trycatch);
 v8_handlers_scope* v8_NewHandlersScope(v8_isolate *v8_isolate);
 void v8_FreeHandlersScope(v8_handlers_scope* v8_handlersScope);
 
-v8_context* v8_NewContext(v8_isolate* v8_isolate, v8_local_object *globals);
+v8_context* v8_NewContext(v8_isolate* v8_isolate, v8_local_object_template *globals);
 void v8_FreeContext(v8_context* ctx);
 void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd);
 void* v8_GetPrivateData(v8_context* ctx, size_t index);
@@ -59,18 +62,22 @@ v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t le
 v8_local_value* v8_StringToValue(v8_local_string *str);
 void v8_FreeString(v8_local_string *str);
 
-typedef void (*native_funcion)(v8_local_value_arr *args, size_t len, void *pd);
-v8_local_native_function* v8_NewNativeFunction(v8_isolate* v8_isolate, native_funcion func, void *pd);
+typedef v8_local_value* (*native_funcion)(v8_local_value_arr *args, size_t len, void *pd);
+v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* v8_isolate, native_funcion func, void *pd);
+v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ctx_ref, v8_local_native_function_template *func);
+void v8_FreeNativeFunctionTemplate(v8_local_native_function_template *func);
 void v8_FreeNativeFunction(v8_local_native_function *func);
+v8_local_value* v8_NativeFunctionToValue(v8_local_native_function *func);
 
 v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i);
 v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args);
 
-v8_local_object* v8_NewObject(v8_isolate* v8_isolate);
-void v8_FreeObject(v8_local_object *obj);
-void v8_ObjectSetFunction(v8_local_object *obj, v8_local_string *name, v8_local_native_function *f);
-void v8_ObjectSetObject(v8_local_object *obj, v8_local_string *name, v8_local_object *o);
-void v8_ObjectSetValue(v8_local_object *obj, v8_local_string *name, v8_local_value *val);
+v8_local_object_template* v8_NewObjectTemplate(v8_isolate* v8_isolate);
+void v8_FreeObjectTemplate(v8_local_object_template *obj);
+void v8_ObjectTemplateSetFunction(v8_local_object_template *obj, v8_local_string *name, v8_local_native_function_template *f);
+void v8_ObjectTemplateSetObject(v8_local_object_template *obj, v8_local_string *name, v8_local_object_template *o);
+void v8_ObjectTemplateSetValue(v8_local_object_template *obj, v8_local_string *name, v8_local_value *val);
+v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_object_template *obj);
 
 v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str);
 void v8_FreeScript(v8_local_script *script);
@@ -78,14 +85,32 @@ void v8_FreeScript(v8_local_script *script);
 v8_local_value* v8_Run(v8_context_ref* v8_ctx_ref, v8_local_script* script);
 
 int v8_ValueIsFunction(v8_local_value *val);
-v8_local_value* v8_FunctionCall(v8_context_ref *v8_ctx_ref, v8_local_value *val, size_t argc, v8_local_value** argv);
+v8_local_value* v8_FunctionCall(v8_context_ref *v8_ctx_ref, v8_local_value *val, size_t argc, v8_local_value* const* argv);
 int v8_ValueIsAsyncFunction(v8_local_value *val);
 int v8_ValueIsString(v8_local_value *val);
 v8_local_string* v8_ValueAsString(v8_local_value *val);
 int v8_ValueIsBigInt(v8_local_value *val);
 int v8_ValueIsNumber(v8_local_value *val);
 int v8_ValueIsPromise(v8_local_value *val);
+v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
 int v8_ValueIsObject(v8_local_value *val);
+
+typedef enum v8_PromiseState{
+	v8_PromiseState_Unknown, v8_PromiseState_Fulfilled, v8_PromiseState_Rejected, v8_PromiseState_Pending
+}v8_PromiseState;
+
+void v8_FreePromise(v8_local_promise* promise);
+v8_PromiseState v8_PromiseGetState(v8_local_promise* promise);
+v8_local_value* v8_PromiseGetResult(v8_local_promise* promise);
+void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local_native_function *resolve, v8_local_native_function *reject);
+v8_local_value* v8_PromiseToValue(v8_local_promise *promise);
+
+v8_local_resolver* v8_NewResolver(v8_context_ref *ctx_ref);
+void v8_FreeResolver(v8_local_resolver *resolver);
+v8_local_promise* v8_ResolverGetPromise(v8_local_resolver *resolver);
+void v8_ResolverResolve(v8_context_ref *ctx_ref, v8_local_resolver *resolver, v8_local_value *val);
+void v8_ResolverReject(v8_context_ref *ctx_ref, v8_local_resolver *resolver, v8_local_value *val);
+v8_local_value* v8_ResolverToValue(v8_local_resolver *resolver);
 
 v8_persisted_value* v8_PersistValue(v8_isolate *i, v8_local_value *val);
 v8_local_value* v8_PersistedValueToLocal(v8_isolate *i, v8_persisted_value *val);

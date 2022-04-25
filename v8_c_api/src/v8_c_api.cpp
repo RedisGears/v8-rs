@@ -73,14 +73,19 @@ struct v8_utf8_value {
 	v8_utf8_value(v8::Isolate *isolate, v8::Local<v8::Value> val): utf8_val(isolate, val) {}
 };
 
-struct v8_local_native_function {
+struct v8_local_native_function_template {
 	v8::Local<v8::FunctionTemplate> func;
-	v8_local_native_function(v8::Local<v8::FunctionTemplate> f): func(f) {}
+	v8_local_native_function_template(v8::Local<v8::FunctionTemplate> f): func(f) {}
 };
 
-struct v8_local_object {
+struct v8_local_native_function {
+	v8::Local<v8::Function> func;
+	v8_local_native_function(v8::Local<v8::Function> f): func(f) {}
+};
+
+struct v8_local_object_template {
 	v8::Local<v8::ObjectTemplate> obj;
-	v8_local_object(v8::Local<v8::ObjectTemplate> o): obj(o) {};
+	v8_local_object_template(v8::Local<v8::ObjectTemplate> o): obj(o) {};
 };
 
 struct v8_trycatch {
@@ -91,6 +96,16 @@ struct v8_trycatch {
 struct v8_context_ref {
 	v8::Local<v8::Context> context;
 	v8_context_ref(v8::Local<v8::Context> ctx): context(ctx){}
+};
+
+struct v8_local_promise {
+	v8::Local<v8::Promise> promise;
+	v8_local_promise(v8::Local<v8::Promise> p): promise(p) {}
+};
+
+struct v8_local_resolver {
+	v8::Local<v8::Promise::Resolver> resolver;
+	v8_local_resolver(v8::Local<v8::Promise::Resolver> r): resolver(r) {}
 };
 
 void v8_Initialize(v8_alloctor *alloc) {
@@ -189,7 +204,7 @@ void v8_FreeHandlersScope(v8_handlers_scope* v8_handlersScope) {
 	V8_FREE(v8_handlersScope);
 }
 
-static v8::Local<v8::Context> v8_NewContexInternal(v8::Isolate* v8_isolate, v8_local_object *globals) {
+static v8::Local<v8::Context> v8_NewContexInternal(v8::Isolate* v8_isolate, v8_local_object_template *globals) {
 	if (globals) {
 		return v8::Context::New(v8_isolate, nullptr, globals->obj);
 	} else {
@@ -197,7 +212,7 @@ static v8::Local<v8::Context> v8_NewContexInternal(v8::Isolate* v8_isolate, v8_l
 	}
 }
 
-v8_context* v8_NewContext(v8_isolate* i, v8_local_object *globals) {
+v8_context* v8_NewContext(v8_isolate* i, v8_local_object_template *globals) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::Context> context = v8_NewContexInternal(isolate, globals);
 	v8::Persistent<v8::Context> *persistent_ctx = new v8::Persistent<v8::Context>(isolate, context);
@@ -267,10 +282,14 @@ typedef struct v8_native_function_pd{
 static void v8_NativeBaseFunction(const v8::FunctionCallbackInfo<v8::Value>& info) {
 	v8::Local<v8::External> data = v8::Handle<v8::External>::Cast(info.Data());
 	v8_native_function_pd *nf_pd = (v8_native_function_pd*)data->Value();
-	nf_pd->func((v8_local_value_arr*)&info, info.Length(), nf_pd->pd);
+	v8_local_value* val = nf_pd->func((v8_local_value_arr*)&info, info.Length(), nf_pd->pd);
+	if (val) {
+		info.GetReturnValue().Set(val->val);
+		V8_FREE(val);
+	}
 }
 
-v8_local_native_function* v8_NewNativeFunction(v8_isolate* i, native_funcion func, void *pd) {
+v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* i, native_funcion func, void *pd) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_native_function_pd *nf_pd = (v8_native_function_pd*)V8_ALLOC(sizeof(*nf_pd));
 	nf_pd->func = func;
@@ -278,13 +297,31 @@ v8_local_native_function* v8_NewNativeFunction(v8_isolate* i, native_funcion fun
 
 	v8::Local<v8::External> data = v8::External::New(isolate, (void*)nf_pd);
 	v8::Local<v8::FunctionTemplate> f = v8::FunctionTemplate::New(isolate, v8_NativeBaseFunction, data);
-	v8_local_native_function *v8_native = (struct v8_local_native_function*)V8_ALLOC(sizeof(*v8_native));
-	v8_native = new (v8_native) v8_local_native_function(f);
+	v8_local_native_function_template *v8_native = (struct v8_local_native_function_template*)V8_ALLOC(sizeof(*v8_native));
+	v8_native = new (v8_native) v8_local_native_function_template(f);
 	return v8_native;
+}
+
+v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ctx_ref, v8_local_native_function_template *func) {
+	v8::Local<v8::Function> f = func->func->GetFunction(ctx_ref->context).ToLocalChecked();
+	v8_local_native_function *ret = (v8_local_native_function*) V8_ALLOC(sizeof(*ret));
+	ret = new (ret) v8_local_native_function(f);
+	return ret;
+}
+
+void v8_FreeNativeFunctionTemplate(v8_local_native_function_template *func) {
+	V8_FREE(func);
 }
 
 void v8_FreeNativeFunction(v8_local_native_function *func) {
 	V8_FREE(func);
+}
+
+v8_local_value* v8_NativeFunctionToValue(v8_local_native_function *func) {
+	v8::Local<v8::Value> v = v8::Local<v8::Value>::Cast(func->func);
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(v);
+	return v8_val;
 }
 
 v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i) {
@@ -301,28 +338,35 @@ v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args) {
 	return (v8_isolate*)isolate;
 }
 
-v8_local_object* v8_NewObject(v8_isolate* i) {
+v8_local_object_template* v8_NewObjectTemplate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::ObjectTemplate> obj = v8::ObjectTemplate::New(isolate);
-	v8_local_object *v8_obj = (struct v8_local_object*)V8_ALLOC(sizeof(*v8_obj));
-	v8_obj = new (v8_obj) v8_local_object(obj);
+	v8_local_object_template *v8_obj = (struct v8_local_object_template*)V8_ALLOC(sizeof(*v8_obj));
+	v8_obj = new (v8_obj) v8_local_object_template(obj);
 	return v8_obj;
 }
 
-void v8_FreeObject(v8_local_object *obj) {
+void v8_FreeObjectTemplate(v8_local_object_template *obj) {
 	V8_FREE(obj);
 }
 
-void v8_ObjectSetFunction(v8_local_object *obj, v8_local_string *name, v8_local_native_function *f) {
+void v8_ObjectTemplateSetFunction(v8_local_object_template *obj, v8_local_string *name, v8_local_native_function_template *f) {
 	obj->obj->Set(name->str, f->func);
 }
 
-void v8_ObjectSetObject(v8_local_object *obj, v8_local_string *name, v8_local_object *o) {
+void v8_ObjectTemplateSetObject(v8_local_object_template *obj, v8_local_string *name, v8_local_object_template *o) {
 	obj->obj->Set(name->str, o->obj);
 }
 
-void v8_ObjectSetValue(v8_local_object *obj, v8_local_string *name, v8_local_value *val) {
+void v8_ObjectTemplateSetValue(v8_local_object_template *obj, v8_local_string *name, v8_local_value *val) {
 	obj->obj->Set(name->str, val->val);
+}
+
+v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_object_template *obj) {
+	v8::Local<v8::Value> v = obj->obj->NewInstance(ctx_ref->context).ToLocalChecked();
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(v);
+	return v8_val;
 }
 
 v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str) {
@@ -356,7 +400,7 @@ int v8_ValueIsFunction(v8_local_value *val){
 	return val->val->IsFunction();
 }
 
-v8_local_value* v8_FunctionCall(v8_context_ref *v8_ctx_ref, v8_local_value *val, size_t argc, v8_local_value** argv) {
+v8_local_value* v8_FunctionCall(v8_context_ref *v8_ctx_ref, v8_local_value *val, size_t argc, v8_local_value* const* argv) {
 	v8::Local<v8::Value> argv_arr[argc];
 	for (size_t i = 0 ; i < argc ; ++i) {
 		argv_arr[i] = argv[i]->val;
@@ -398,6 +442,79 @@ int v8_ValueIsNumber(v8_local_value *val) {
 
 int v8_ValueIsPromise(v8_local_value *val) {
 	return val->val->IsPromise();
+}
+
+v8_local_promise* v8_ValueAsPromise(v8_local_value *val) {
+	v8::Local<v8::Promise> promise = v8::Local<v8::Promise>::Cast(val->val);
+	v8_local_promise* p = (v8_local_promise*)V8_ALLOC(sizeof(*p));
+	p = new (p) v8_local_promise(promise);
+	return p;
+}
+
+void v8_FreePromise(v8_local_promise* promise) {
+	V8_FREE(promise);
+}
+v8_PromiseState v8_PromiseGetState(v8_local_promise* promise) {
+	v8::Promise::PromiseState s = promise->promise->State();
+	switch(s) {
+	case v8::Promise::PromiseState::kPending:
+		return v8_PromiseState_Pending;
+	case v8::Promise::PromiseState::kFulfilled:
+		return v8_PromiseState_Fulfilled;
+	case v8::Promise::PromiseState::kRejected:
+		return v8_PromiseState_Rejected;
+	}
+	return v8_PromiseState_Unknown;
+}
+
+v8_local_value* v8_PromiseGetResult(v8_local_promise* promise) {
+	v8_local_value* val = (v8_local_value*)V8_ALLOC(sizeof(*val));
+	val = new (val) v8_local_value(promise->promise->Result());
+	return val;
+}
+
+void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local_native_function *resolve, v8_local_native_function *reject) {
+	v8::MaybeLocal<v8::Promise> _may_local = promise->promise->Then(ctx_ref->context, resolve->func, reject->func);
+}
+
+v8_local_value* v8_PromiseToValue(v8_local_promise *promise) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(promise->promise);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+v8_local_resolver* v8_NewResolver(v8_context_ref *ctx_ref) {
+	v8::Local<v8::Promise::Resolver> resolver = v8::Promise::Resolver::New(ctx_ref->context).ToLocalChecked();
+	v8_local_resolver *res = (v8_local_resolver*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_resolver(resolver);
+	return res;
+}
+
+void v8_FreeResolver(v8_local_resolver *resolver) {
+	V8_FREE(resolver);
+}
+
+v8_local_promise* v8_ResolverGetPromise(v8_local_resolver *resolver) {
+	v8::Local<v8::Promise> promise = resolver->resolver->GetPromise();
+	v8_local_promise *res = (v8_local_promise*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_promise(promise);
+	return res;
+}
+
+void v8_ResolverResolve(v8_context_ref *ctx_ref, v8_local_resolver *resolver, v8_local_value *val) {
+	v8::Maybe<bool> res = resolver->resolver->Resolve(ctx_ref->context, val->val);
+}
+
+void v8_ResolverReject(v8_context_ref *ctx_ref, v8_local_resolver *resolver, v8_local_value *val) {
+	v8::Maybe<bool> res = resolver->resolver->Reject(ctx_ref->context, val->val);
+}
+
+v8_local_value* v8_ResolverToValue(v8_local_resolver *resolver) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(resolver->resolver);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
 }
 
 int v8_ValueIsObject(v8_local_value *val) {

@@ -6,7 +6,7 @@ use crate::v8_c_raw::bindings::{
 
 use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_context::V8Context;
-use crate::v8::v8_object::V8LocalObject;
+use crate::v8::v8_object_template::V8LocalObjectTemplate;
 
 pub struct V8IsolateScope<'a> {
     isolate: &'a V8Isolate,
@@ -22,7 +22,7 @@ impl<'a> V8IsolateScope<'a> {
         }
     }
 
-    pub fn new_context(&self, globals: Option<&V8LocalObject>) -> V8Context {
+    pub fn new_context(&self, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         V8Context::new(self.isolate, globals)
     }
 }
