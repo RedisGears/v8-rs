@@ -8,7 +8,7 @@ use crate::v8_c_raw::bindings::{
     v8_NewTryCatch,
     v8_GetCurrentCtxRef,
     v8_IdleNotificationDeadline,
-    v8_SetInterrupt,
+    v8_RequestInterrupt,
     v8_NewObjectTemplate,
     v8_NewNativeFunctionTemplate,
 };
@@ -86,8 +86,8 @@ impl V8Isolate {
         unsafe{v8_IdleNotificationDeadline(self.inner_isolate, 1.0)};
     }
 
-    pub fn set_interrupt<T:Fn(&V8Isolate)>(&self, callback: T) {
-        unsafe{v8_SetInterrupt(self.inner_isolate, Some(interrupt_callback::<T>), Box::into_raw(Box::new(callback)) as *mut c_void)};
+    pub fn request_interrupt<T:Fn(&V8Isolate)>(&self, callback: T) {
+        unsafe{v8_RequestInterrupt(self.inner_isolate, Some(interrupt_callback::<T>), Box::into_raw(Box::new(callback)) as *mut c_void)};
     }
 
     pub fn free_isolate(&self) {

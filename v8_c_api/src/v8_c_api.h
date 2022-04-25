@@ -36,7 +36,7 @@ void v8_Despose();
 
 v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap_size_in_bytes);
 void v8_FreeIsolate(v8_isolate* isolate);
-void v8_SetInterrupt(v8_isolate* isolate, v8_InterruptCallback callback, void *data);
+void v8_RequestInterrupt(v8_isolate* isolate, v8_InterruptCallback callback, void *data);
 v8_isolate_scope* v8_IsolateEnter(v8_isolate *v8_isolate);
 void v8_IsolateExit(v8_isolate_scope *v8_isolate_scope);
 void v8_IsolateRaiseException(v8_isolate *isolate, v8_local_value *value);

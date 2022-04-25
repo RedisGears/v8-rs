@@ -138,7 +138,7 @@ void v8_FreeIsolate(v8_isolate* i) {
 	isolate->Dispose();
 }
 
-void v8_SetInterrupt(v8_isolate* i, v8_InterruptCallback callback, void *data) {
+void v8_RequestInterrupt(v8_isolate* i, v8_InterruptCallback callback, void *data) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	isolate->RequestInterrupt((v8::InterruptCallback)callback, data);
 }
