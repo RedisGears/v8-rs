@@ -34,7 +34,7 @@ typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 void v8_Initialize(v8_alloctor *allocator);
 void v8_Despose();
 
-v8_isolate* v8_NewIsolate();
+v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap_size_in_bytes);
 void v8_FreeIsolate(v8_isolate* isolate);
 void v8_SetInterrupt(v8_isolate* isolate, v8_InterruptCallback callback, void *data);
 v8_isolate_scope* v8_IsolateEnter(v8_isolate *v8_isolate);

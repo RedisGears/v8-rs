@@ -125,9 +125,10 @@ void v8_Despose() {
 	v8::V8::Dispose();
 }
 
-v8_isolate* v8_NewIsolate() {
+v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap_size_in_bytes) {
 	v8::Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
+	create_params.constraints.ConfigureDefaultsFromHeapSize(initial_heap_size_in_bytes, maximum_heap_size_in_bytes);
 	v8::Isolate *isolate = v8::Isolate::New(create_params);
 	return (v8_isolate*)isolate;
 }

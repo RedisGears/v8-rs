@@ -39,7 +39,11 @@ pub (crate)extern "C" fn interrupt_callback<T:Fn(&V8Isolate)>(isolate: *mut v8_i
 
 impl V8Isolate {
     pub fn new() -> V8Isolate {
-        let inner_isolate = unsafe{v8_NewIsolate()};
+        Self::new_with_limits(0, 1024 * 1024 * 1024) /* default max heap: 1G */
+    }
+
+    pub fn new_with_limits(initial_heap_size_in_bytes: usize, maximum_heap_size_in_bytes: usize) -> V8Isolate {
+        let inner_isolate = unsafe{v8_NewIsolate(initial_heap_size_in_bytes, maximum_heap_size_in_bytes)};
         V8Isolate {
             inner_isolate: inner_isolate,
         }
