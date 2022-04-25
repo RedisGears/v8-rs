@@ -6,7 +6,6 @@ use crate::v8_c_raw::bindings::{
     v8_NewString,
     v8_StringToValue,
     v8_NewTryCatch,
-    v8_GetCurrentCtxRef,
     v8_IdleNotificationDeadline,
     v8_RequestInterrupt,
     v8_NewObjectTemplate,
@@ -74,14 +73,6 @@ impl V8Isolate {
         }
     }
 
-    pub fn get_curr_context_scope(&self) -> V8ContextScope {
-        let inner_ctx_ref = unsafe{v8_GetCurrentCtxRef(self.inner_isolate)};
-        V8ContextScope {
-            inner_ctx_ref: inner_ctx_ref,
-            exit_on_drop: false,
-        }
-    }
-
     pub fn idle_notification_deadline(&self) {
         unsafe{v8_IdleNotificationDeadline(self.inner_isolate, 1.0)};
     }
@@ -108,7 +99,7 @@ impl V8Isolate {
         }
     }
 
-    pub fn new_native_function_template<T:Fn(&V8LocalNativeFunctionArgs) -> Option<V8LocalValue>>(&self, func: T) -> V8LocalNativeFunctionTemplate {
+    pub fn new_native_function_template<T:Fn(&V8LocalNativeFunctionArgs, &V8Isolate, &V8ContextScope) -> Option<V8LocalValue>>(&self, func: T) -> V8LocalNativeFunctionTemplate {
         let inner_func = unsafe{v8_NewNativeFunctionTemplate(self.inner_isolate, Some(native_basic_function::<T>), Box::into_raw(Box::new(func)) as *mut c_void)};
         V8LocalNativeFunctionTemplate{
             inner_func: inner_func,

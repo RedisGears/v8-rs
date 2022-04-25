@@ -51,7 +51,7 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
-        let _o = isolate.new_native_function_template(|_args| {
+        let _o = isolate.new_native_function_template(|_args, _isolate, _ctx_scope| {
             println!("test");
             None
         });
@@ -62,9 +62,9 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
-        let native = isolate.new_native_function_template(|args| {
+        let native = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
-            let s = v.to_utf8(&isolate);
+            let s = v.to_utf8(isolate);
             assert_eq!(s.as_str(), "2");
             None
         });
@@ -85,17 +85,16 @@ mod json_path_tests {
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
         
-        let foo1 = isolate.new_native_function_template(|args| {
+        let foo1 = isolate.new_native_function_template(|args, _isolate, ctx_scope| {
             let v = args.get(0);
-            let ctx_scope = args.get_current_isolate().get_curr_context_scope();
-            v.call(&ctx_scope, None);
+            v.call(ctx_scope, None);
             None
         });
         let foo1_name = isolate.new_string("foo1");
         
-        let foo2 = isolate.new_native_function_template(|args| {
+        let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
-            let s = v.to_utf8(&isolate);
+            let s = v.to_utf8(isolate);
             assert_eq!(s.as_str(), "2");
             None
         });
@@ -119,18 +118,16 @@ mod json_path_tests {
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
         
-        let foo1 = isolate.new_native_function_template(|args| {
-            let isolate = args.get_current_isolate();
+        let foo1 = isolate.new_native_function_template(|args, isolate, ctx_scope| {
             let _h_scope = isolate.new_handlers_scope();
             let foo = isolate.new_string("foo");
             let v = args.get(0);
-            let ctx_scope = isolate.get_curr_context_scope();
-            v.call(&ctx_scope, Some(&[&foo.to_value()]));
+            v.call(ctx_scope, Some(&[&foo.to_value()]));
             None
         });
         let foo1_name = isolate.new_string("foo1");
         
-        let foo2 = isolate.new_native_function_template(|args| {
+        let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
             let s = v.to_utf8(&isolate);
             assert_eq!(s.as_str(), "foo");
@@ -156,8 +153,7 @@ mod json_path_tests {
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
         
-        let native = isolate.new_native_function_template(|args| {
-            let isolate = args.get_current_isolate();
+        let native = isolate.new_native_function_template(|_args, isolate, _ctx_scope| {
             isolate.raise_exception_str("this is an error");
             None
         });
@@ -218,11 +214,9 @@ mod json_path_tests {
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
         let mut globals = isolate.new_object_template();
-        globals.add_native_function(&isolate, "foo", |args| {
-            let isolate = args.get_current_isolate();
-            let ctx_scope = isolate.get_curr_context_scope();
+        globals.add_native_function(&isolate, "foo", |_args, isolate, ctx_scope| {
             let resolver = ctx_scope.new_resolver();
-            resolver.resolve(&ctx_scope, &isolate.new_string("foo").to_value());
+            resolver.resolve(ctx_scope, &isolate.new_string("foo").to_value());
             Some(resolver.get_promise().to_value())
         });
         let code_str = isolate.new_string("foo()");
@@ -271,7 +265,7 @@ mod json_path_tests {
         assert_eq!(trycatch.get_exception().to_utf8(&isolate).as_str(), "ReferenceError: foo is not defined");
     }
 
-    fn test_value_is_functions<F:Fn(&v8_native_function_template::V8LocalNativeFunctionArgs) -> Option<crate::v8::v8_value::V8LocalValue>>(code: &str, f: F) {
+    fn test_value_is_functions<F:Fn(&v8_native_function_template::V8LocalNativeFunctionArgs, &isolate::V8Isolate, &v8_context_scope::V8ContextScope) -> Option<v8_value::V8LocalValue>>(code: &str, f: F) {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let _h_scope = isolate.new_handlers_scope();
@@ -289,7 +283,7 @@ mod json_path_tests {
 
     #[test]
     fn test_value_is_object() {
-        test_value_is_functions("foo({})", |args| {
+        test_value_is_functions("foo({})", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_object());
             None
         })
@@ -297,7 +291,7 @@ mod json_path_tests {
 
     #[test]
     fn test_value_is_function() {
-        test_value_is_functions("foo(()=>{})", |args| {
+        test_value_is_functions("foo(()=>{})", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_function());
             None
         })
@@ -305,7 +299,7 @@ mod json_path_tests {
 
     #[test]
     fn test_value_is_async_function() {
-        test_value_is_functions("foo(async function(){})", |args| {
+        test_value_is_functions("foo(async function(){})", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_async_function());
             None
         })
@@ -313,7 +307,7 @@ mod json_path_tests {
 
     #[test]
     fn test_value_is_string() {
-        test_value_is_functions("foo(\"foo\")", |args| {
+        test_value_is_functions("foo(\"foo\")", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_string());
             None
         })
@@ -321,7 +315,7 @@ mod json_path_tests {
 
     #[test]
     fn test_value_is_number() {
-        test_value_is_functions("foo(1)", |args| {
+        test_value_is_functions("foo(1)", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_number());
             None
         })
@@ -329,7 +323,7 @@ mod json_path_tests {
 
     #[test]
     fn test_value_is_promise() {
-        test_value_is_functions("foo(async function(){}())", |args| {
+        test_value_is_functions("foo(async function(){}())", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_promise());
             None
         })

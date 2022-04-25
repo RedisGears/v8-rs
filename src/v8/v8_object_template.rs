@@ -25,7 +25,7 @@ impl V8LocalObjectTemplate {
         unsafe{v8_ObjectTemplateSetFunction(self.inner_obj, name.inner_string, func.inner_func)};
     }
 
-    pub fn add_native_function<T:Fn(&V8LocalNativeFunctionArgs) -> Option<V8LocalValue>>(&mut self, isolate: &V8Isolate, name: &str, func: T) {
+    pub fn add_native_function<T:Fn(&V8LocalNativeFunctionArgs, &V8Isolate, &V8ContextScope) -> Option<V8LocalValue>>(&mut self, isolate: &V8Isolate, name: &str, func: T) {
         let native_func = isolate.new_native_function_template(func);
         let func_name = isolate.new_string(name);
         self.set_native_function(&func_name, &native_func);
