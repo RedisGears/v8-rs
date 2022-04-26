@@ -306,7 +306,7 @@ mod json_path_tests {
         test_value_is_functions("foo({})", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_object());
             None
-        })
+        });
     }
 
     #[test]
@@ -314,7 +314,7 @@ mod json_path_tests {
         test_value_is_functions("foo(()=>{})", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_function());
             None
-        })
+        });
     }
 
     #[test]
@@ -322,7 +322,7 @@ mod json_path_tests {
         test_value_is_functions("foo(async function(){})", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_async_function());
             None
-        })
+        });
     }
 
     #[test]
@@ -330,7 +330,7 @@ mod json_path_tests {
         test_value_is_functions("foo(\"foo\")", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_string());
             None
-        })
+        });
     }
 
     #[test]
@@ -338,7 +338,7 @@ mod json_path_tests {
         test_value_is_functions("foo(1)", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_number());
             None
-        })
+        });
     }
 
     #[test]
@@ -346,6 +346,6 @@ mod json_path_tests {
         test_value_is_functions("foo(async function(){}())", |args, _isolate, _ctx_scope| {
             assert!(args.get(0).is_promise());
             None
-        })
+        });
     }
 }

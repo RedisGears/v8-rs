@@ -57,6 +57,7 @@ pub(crate) extern "C" fn native_basic_function<
 
 impl V8LocalNativeFunctionArgs {
     /// Return the i-th argument from the native function args
+    /// # Panics
     #[must_use]
     pub fn get(&self, i: usize) -> V8LocalValue {
         assert!(i <= self.len);

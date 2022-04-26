@@ -34,11 +34,12 @@ impl V8LocalPromise {
                 ctx.inner_ctx_ref,
                 resolve.inner_func,
                 reject.inner_func,
-            )
+            );
         };
     }
 
     /// Return the state on the promise object
+    /// # Panics
     #[must_use]
     pub fn state(&self) -> V8PromiseState {
         let inner_state = unsafe { v8_PromiseGetState(self.inner_promise) };

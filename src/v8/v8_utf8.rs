@@ -10,6 +10,7 @@ pub struct V8LocalUtf8 {
 
 impl V8LocalUtf8 {
     /// Get &str from the utf8 object
+    /// # Panics
     #[must_use]
     pub fn as_str(&self) -> &str {
         let mut len: usize = 0;

@@ -109,7 +109,7 @@ impl V8Isolate {
                 self.inner_isolate,
                 Some(interrupt_callback::<T>),
                 Box::into_raw(Box::new(callback)).cast::<c_void>(),
-            )
+            );
         };
     }
 
