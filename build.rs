@@ -1,9 +1,9 @@
 extern crate bindgen;
 
 use std::env;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
-use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=v8_c_api/src/v8_c_api.h");
@@ -41,12 +41,22 @@ fn main() {
 
     if !Path::new(&v8_monolith_path).exists() {
         // download libv8_monolith.a
-        if !Command::new("wget").args(&["-O", &v8_monolith_path, &v8_monolith_url]).status().expect("failed downloading libv8_monolith.a").success() {
+        if !Command::new("wget")
+            .args(&["-O", &v8_monolith_path, &v8_monolith_url])
+            .status()
+            .expect("failed downloading libv8_monolith.a")
+            .success()
+        {
             panic!("failed downloading libv8_monolith.a");
         }
     }
 
-    if !Command::new("cp").args(&[&v8_monolith_path, &output_dir]).status().expect("failed copy libv8_monolith.a to output directory").success() {
+    if !Command::new("cp")
+        .args(&[&v8_monolith_path, &output_dir])
+        .status()
+        .expect("failed copy libv8_monolith.a to output directory")
+        .success()
+    {
         panic!("failed copy libv8_monolith.a to output directory");
     }
 
