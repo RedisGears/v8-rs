@@ -51,7 +51,7 @@ fn main() {
         .generate()
         .expect("error generating bindings");
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_path = PathBuf::from(&output_dir);
     bindings
         .write_to_file(out_path.join("v8_c_bindings.rs"))
         .expect("failed to write bindings to file");
