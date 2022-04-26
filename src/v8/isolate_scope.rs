@@ -14,7 +14,7 @@ pub struct V8IsolateScope<'a> {
 }
 
 impl<'a> V8IsolateScope<'a> {
-    pub fn new(isolate: &'a V8Isolate) -> V8IsolateScope<'a> {
+    pub (crate) fn new(isolate: &'a V8Isolate) -> V8IsolateScope<'a> {
         let inner_isolate_scope = unsafe{v8_IsolateEnter(isolate.inner_isolate)};
         V8IsolateScope {
             isolate: isolate,
@@ -22,6 +22,7 @@ impl<'a> V8IsolateScope<'a> {
         }
     }
 
+    /// Creating a new context for JS code invocation.
     pub fn new_context(&self, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         V8Context::new(self.isolate, globals)
     }

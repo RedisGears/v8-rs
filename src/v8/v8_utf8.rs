@@ -7,11 +7,14 @@ use crate::v8_c_raw::bindings::{
 use std::slice;
 use std::str;
 
+/// JS utf8 object
 pub struct V8LocalUtf8 {
     pub (crate) inner_val: *mut v8_utf8_value,
 }
 
 impl V8LocalUtf8 {
+
+    /// Get &str from the utf8 object
     pub fn as_str(&self) -> &str {
         let mut len: usize = 0;
         let buff = unsafe{v8_Utf8PtrLen(self.inner_val, &mut len)};

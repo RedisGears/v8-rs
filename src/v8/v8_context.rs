@@ -19,7 +19,7 @@ pub struct V8Context {
 }
 
 impl V8Context {
-    pub fn new(isolate: &V8Isolate, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
+    pub (crate) fn new(isolate: &V8Isolate, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         let inner_ctx = match globals {
             Some(g) => unsafe{v8_NewContext(isolate.inner_isolate, g.inner_obj)},
             None => unsafe{v8_NewContext(isolate.inner_isolate, ptr::null_mut())},
@@ -29,6 +29,10 @@ impl V8Context {
         }
     }
 
+    /// Enter the context for JS code invocation.
+    /// Returns a V8ContextScope object. The context will
+    /// be automatically exit when the returned V8ContextScope
+    /// will be destroyed.
     pub fn enter(&self) -> V8ContextScope {
         let inner_ctx_ref = unsafe{v8_ContextEnter(self.inner_ctx)};
         V8ContextScope{
@@ -37,10 +41,13 @@ impl V8Context {
         }
     }
 
+    /// Set a private data on the context that can later be retieve with `get_private_data`.
+    /// Note: index 0 is saved for v8 internals.
     pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
         unsafe{v8_SetPrivateData(self.inner_ctx, index, if pd.is_none() {ptr::null_mut()} else {pd.unwrap() as *const T as *mut c_void})};
     }
 
+    /// Return the private data that was set using `set_private_data`
     pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
         let pd = unsafe{v8_GetPrivateData(self.inner_ctx, index)};
         if pd.is_null() {

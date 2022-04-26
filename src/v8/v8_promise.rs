@@ -27,10 +27,12 @@ pub enum V8PromiseState {
 }
 
 impl V8LocalPromise {
+    /// Set resolve and reject callbacks
     pub fn then(&self, ctx: &V8ContextScope, resolve: &V8LocalNativeFunction, reject: &V8LocalNativeFunction) {
         unsafe{v8_PromiseThen(self.inner_promise, ctx.inner_ctx_ref, resolve.inner_func, reject.inner_func)};
     }
 
+    /// Return the state on the promise object
     pub fn state(&self) -> V8PromiseState {
         let inner_state = unsafe{v8_PromiseGetState(self.inner_promise)};
         if inner_state == v8_PromiseState_v8_PromiseState_Fulfilled {
@@ -44,6 +46,8 @@ impl V8LocalPromise {
         }
     }
 
+    /// Return the result of the promise object.
+    /// Only applicable if the promise object was resolved/rejected.
     pub fn get_result(&self) -> V8LocalValue {
         let inner_val = unsafe{v8_PromiseGetResult(self.inner_promise)};
         V8LocalValue {
@@ -51,6 +55,7 @@ impl V8LocalPromise {
         }
     }
 
+    /// Convert the promise object into a generic JS value
     pub fn to_value(&self) -> V8LocalValue {
         let inner_val = unsafe{v8_PromiseToValue(self.inner_promise)};
         V8LocalValue {

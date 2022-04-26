@@ -1,6 +1,6 @@
 use crate::v8_c_raw::bindings::{
     v8_Initialize,
-    v8_Despose,
+    v8_Dispose,
 };
 
 use std::ptr;
@@ -22,10 +22,12 @@ pub mod v8_promise;
 pub mod v8_resolver;
 pub mod v8_object;
 
+/// Initialize the v8, must be called before any other v8 API. 
 pub fn v8_init() {
     unsafe {v8_Initialize(ptr::null_mut())}
 }
 
+/// Destroy v8, after called it is not allowed to use any v8 API anymore.
 pub fn v8_destroy() {
-    unsafe {v8_Despose()}
+    unsafe {v8_Dispose()}
 }

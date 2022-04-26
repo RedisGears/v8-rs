@@ -126,7 +126,7 @@ void v8_Initialize(v8_alloctor *alloc) {
 	}
 }
 
-void v8_Despose() {
+void v8_Dispose() {
 	v8::V8::Dispose();
 }
 

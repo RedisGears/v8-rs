@@ -12,7 +12,7 @@ pub struct V8HandlersScope<'a> {
 }
 
 impl<'a> V8HandlersScope<'a> {
-    pub fn new(isolate: &'a V8Isolate) -> V8HandlersScope<'a> {
+    pub (crate) fn new(isolate: &'a V8Isolate) -> V8HandlersScope<'a> {
         let inner_handlers_scope = unsafe{v8_NewHandlersScope(isolate.inner_isolate)};
         V8HandlersScope {
             _isolate: isolate,

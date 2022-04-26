@@ -3,6 +3,9 @@
 
 #include <stddef.h>
 
+/* Allocator definition
+ * Note: only structs memory will be allocated using the allocator,
+ *       v8 memory will be allocate and manage by b8. */
 typedef struct v8_alloctor {
 	void* (*v8_Alloc)(size_t bytes);
 	void* (*v8_Realloc)(void *ptr, size_t bytes);
@@ -11,120 +14,313 @@ typedef struct v8_alloctor {
 	char* (*v8_Strdup)(const char *str);
 }v8_alloctor;
 
+/* Opaque struct representing a v8 interpreter.
+ * There is no limit to the amount of isolates that can be
+ * created in a single processes. */
 typedef struct v8_isolate v8_isolate;
-typedef struct v8_trycatch v8_trycatch;
+
+/* Represent a scope to run JS code inside the isolate. */
 typedef struct v8_isolate_scope v8_isolate_scope;
+
+/* An isolate JS environment to run JS code.
+ * There is no limit to the amount of contexts that can be
+ * create in a single isolate. Each context has its own globals
+ * separate from other contexts. It is only possible to run a single
+ * contexts in a given time (in each isolate) */
 typedef struct v8_context v8_context;
+
+/* Represent a scope to run JS code inside the context. */
 typedef struct v8_context_ref v8_context_ref;
+
+/* Try catch scope, any error that will be raise during JS execution
+ * will be catch by this object. */
+typedef struct v8_trycatch v8_trycatch;
+
+/* Responsible for all local handlers. When freed, all the locals
+ * handlers that were manager by the handlers score will be freed. */
 typedef struct v8_handlers_scope v8_handlers_scope;
+
+/* JS String object */
 typedef struct v8_local_string v8_local_string;
+
+/* JS native function template */
 typedef struct v8_local_native_function_template v8_local_native_function_template;
+
+/* JS native function */
 typedef struct v8_local_native_function v8_local_native_function;
+
+/* JS native object template */
 typedef struct v8_local_object_template v8_local_object_template;
+
+/* JS native object */
 typedef struct v8_local_object v8_local_object;
+
+/* JS script object */
 typedef struct v8_local_script v8_local_script;
+
+/* JS generic value */
 typedef struct v8_local_value v8_local_value;
+
+/* JS promise object */
 typedef struct v8_local_promise v8_local_promise;
+
+/* JS promise resolver object */
 typedef struct v8_local_resolver v8_local_resolver;
+
+/* Represent a native function arguments */
 typedef struct v8_local_value_arr v8_local_value_arr;
+
+/* JS utf8 object */
 typedef struct v8_utf8_value v8_utf8_value;
+
+/* JS persisted object, can outlive the handlers score. */
 typedef struct v8_persisted_value v8_persisted_value;
 
 typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 
+/* Initialize v8, must be called before any v8 API.
+ * if allocator is NULL, use default memory functions. */
 void v8_Initialize(v8_alloctor *allocator);
-void v8_Despose();
 
+/* Dispose v8 initialization */
+void v8_Dispose();
+
+/* Create a new v8 isolate. An isolate is a v8 interpreter that responsible to run JS code.
+ * Impeder may create as many isolates as wishes.
+ * initial_heap_size_in_bytes - the initial isolate heap size
+ * maximum_heap_size_in_bytes - maximum isolate heap size. when this value reached,
+ * the isolate will try to perform GC. If GC do not help free the memory, the isolate
+ * will abort the processes with OOM error. */
 v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap_size_in_bytes);
+
+/* Free the give isolate */
 void v8_FreeIsolate(v8_isolate* isolate);
+
 void v8_RequestInterrupt(v8_isolate* isolate, v8_InterruptCallback callback, void *data);
+
+/* Enter the given isolate. This function should be called before running any JS
+ * code on the isolate. */
 v8_isolate_scope* v8_IsolateEnter(v8_isolate *v8_isolate);
+
+/* Exit the isolate, after execute this function it is not allowed to run
+ * any more JS on this isolate until `v8_IsolateEnter` is called again. */
 void v8_IsolateExit(v8_isolate_scope *v8_isolate_scope);
+
+/* Raise an exception, the given value will be treated as the exception value. */
 void v8_IsolateRaiseException(v8_isolate *isolate, v8_local_value *value);
+
+/* Get current run context from the of this isolate */
 v8_context_ref* v8_GetCurrentCtxRef(v8_isolate *isolate);
+
 void v8_IdleNotificationDeadline(v8_isolate *isolate, double deadline_in_seconds);
 
+/* Create a new try catch object, any exception that will be raise during the JS execution
+ * will be catch by this object. */
 v8_trycatch* v8_NewTryCatch(v8_isolate *isolate);
+
+/* Return the exception that was catch by the try catch object */
 v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch);
+
+/* Free the try catch object */
 void v8_FreeTryCatch(v8_trycatch *trycatch);
 
+/* Create a new handlers scope, the handler scope is responsible to collect all local
+ * handlers that was created while this object is alive. When freed, mark all the local
+ * handlers that was collected for GC. */
 v8_handlers_scope* v8_NewHandlersScope(v8_isolate *v8_isolate);
+
+/* Free the given handlers crope */
 void v8_FreeHandlersScope(v8_handlers_scope* v8_handlersScope);
 
+/* Create a new JS context, a context is an isolate environment to run JS code.
+ * A context has his own globals which are not shared with other contexts.
+ * It is only possible to run a single context on a given time (per isolate). */
 v8_context* v8_NewContext(v8_isolate* v8_isolate, v8_local_object_template *globals);
+
+/* Free the given context */
 void v8_FreeContext(v8_context* ctx);
+
+/* Set a private data on the given context.
+ * The private data can later be retrieve using `v8_GetPrivateData`.
+ * Note: index 0 is saves for v8 internals. */
 void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd);
+
+/* Return the private data that was set using `v8_SetPrivateData` or NULL
+ * if no data was set on the given slot. */
 void* v8_GetPrivateData(v8_context* ctx, size_t index);
+
+/* Enter the given context, this function must be called befor running any
+ * JS code on the given context. */
 v8_context_ref* v8_ContextEnter(v8_context *v8_ctx);
+
+/* Exit the JS context */
 void v8_FreeContextRef(v8_context_ref *v8_ctx_ref);
+
+/* Same as `v8_GetPrivateData` but works on `v8_context_ref` */
 void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index);
 
+/* Create a new JS string object */
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);
+
+/* Convert the JS string to JS generic value */
 v8_local_value* v8_StringToValue(v8_local_string *str);
+
+/* Free the given JS string */
 void v8_FreeString(v8_local_string *str);
 
+/* Native function callback definition */
 typedef v8_local_value* (*native_funcion)(v8_local_value_arr *args, size_t len, void *pd);
+
+/* Create a native function callback template */
 v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* v8_isolate, native_funcion func, void *pd);
+
+/* Create a native JS function from the given JS native function template */
 v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ctx_ref, v8_local_native_function_template *func);
+
+/* Free the given native function template */
 void v8_FreeNativeFunctionTemplate(v8_local_native_function_template *func);
+
+/* Free the given native function */
 void v8_FreeNativeFunction(v8_local_native_function *func);
+
+/* Convert the native function into a generic JS value */
 v8_local_value* v8_NativeFunctionToValue(v8_local_native_function *func);
 
+/* Return the i-th index from the native function arguments */
 v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i);
+
+/* Return current isolate from the native function arguments */
 v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args);
 
+/* Create a new JS object template */
 v8_local_object_template* v8_NewObjectTemplate(v8_isolate* v8_isolate);
+
+/* Free the given JS object template */
 void v8_FreeObjectTemplate(v8_local_object_template *obj);
+
+/* Set a function template on the given object template at the given key */
 void v8_ObjectTemplateSetFunction(v8_local_object_template *obj, v8_local_string *name, v8_local_native_function_template *f);
+
+/* Set an object template on the given object template at the given key */
 void v8_ObjectTemplateSetObject(v8_local_object_template *obj, v8_local_string *name, v8_local_object_template *o);
+
+/* Set a generic JS value on the given object template at the given key */
 void v8_ObjectTemplateSetValue(v8_local_object_template *obj, v8_local_string *name, v8_local_value *val);
+
+/* Convert the given object template to a generic JS value */
 v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_object_template *obj);
 
+/* Compile the given code into a script object */
 v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str);
+
+/* Free the given script object */
 void v8_FreeScript(v8_local_script *script);
 
+/* Run the given script object */
 v8_local_value* v8_Run(v8_context_ref* v8_ctx_ref, v8_local_script* script);
 
+/* Return 1 if the given JS value is a function and 0 otherwise */
 int v8_ValueIsFunction(v8_local_value *val);
+
+/* Invoke the given function */
 v8_local_value* v8_FunctionCall(v8_context_ref *v8_ctx_ref, v8_local_value *val, size_t argc, v8_local_value* const* argv);
+
+/* Return 1 if the given JS value is an async function and 0 otherwise */
 int v8_ValueIsAsyncFunction(v8_local_value *val);
+
+/* Return 1 if the given JS value is a string and 0 otherwise */
 int v8_ValueIsString(v8_local_value *val);
+
+/* Convert the generic JS value into a JS string */
 v8_local_string* v8_ValueAsString(v8_local_value *val);
+
+/* Return 1 if the given JS value is a big integer and 0 otherwise */
 int v8_ValueIsBigInt(v8_local_value *val);
+
+/* Return 1 if the given JS value is a number and 0 otherwise */
 int v8_ValueIsNumber(v8_local_value *val);
+
+/* Return 1 if the given JS value is a promise and 0 otherwise */
 int v8_ValueIsPromise(v8_local_value *val);
+
+/* Convert the generic JS value into a JS promise */
 v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
+
+/* Return 1 if the given JS value is an object and 0 otherwise */
 int v8_ValueIsObject(v8_local_value *val);
+
+/* Convert the generic JS value into a JS object */
 v8_local_object* v8_ValueAsObject(v8_local_value *val);
 
+/* Return the value of a given key from the given JS object */
 v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key);
+
+/* Free the given JS object */
 void v8_FreeObject(v8_local_object *obj);
+
+/* Convert the given JS object into JS generic value */
 v8_local_value* v8_ObjectToValue(v8_local_object *obj);
 
+/* Promise state */
 typedef enum v8_PromiseState{
 	v8_PromiseState_Unknown, v8_PromiseState_Fulfilled, v8_PromiseState_Rejected, v8_PromiseState_Pending
 }v8_PromiseState;
 
+/* Free the given promise object */
 void v8_FreePromise(v8_local_promise* promise);
+
+/* Return the state of the given promise object */
 v8_PromiseState v8_PromiseGetState(v8_local_promise* promise);
+
+/* Return the result of the given promise object
+ * Only applicable when the promise state is v8_PromiseState_Fulfilled or v8_PromiseState_Rejected*/
 v8_local_value* v8_PromiseGetResult(v8_local_promise* promise);
+
+/* Set the promise fulfilled/rejected callbacks */
 void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local_native_function *resolve, v8_local_native_function *reject);
+
+/* Convert the given promise object into a generic JS value. */
 v8_local_value* v8_PromiseToValue(v8_local_promise *promise);
 
+/* Create a new resolver object */
 v8_local_resolver* v8_NewResolver(v8_context_ref *ctx_ref);
+
+/* Free the given resolver object */
 void v8_FreeResolver(v8_local_resolver *resolver);
+
+/* Return a promise object attached to this resolver */
 v8_local_promise* v8_ResolverGetPromise(v8_local_resolver *resolver);
+
+/* Resolve the resolver object with the given value */
 void v8_ResolverResolve(v8_context_ref *ctx_ref, v8_local_resolver *resolver, v8_local_value *val);
+
+/* Reject the resolver object with the given value */
 void v8_ResolverReject(v8_context_ref *ctx_ref, v8_local_resolver *resolver, v8_local_value *val);
+
+/* Convert the given resolver object into a generic JS value */
 v8_local_value* v8_ResolverToValue(v8_local_resolver *resolver);
 
+/* Persist the generic JS value, this function allows to escape the handlers scope and save
+ * the given object for unlimited time with out worry about GC. */
 v8_persisted_value* v8_PersistValue(v8_isolate *i, v8_local_value *val);
+
+/* Turn the persisted value back to local value */
 v8_local_value* v8_PersistedValueToLocal(v8_isolate *i, v8_persisted_value *val);
+
+/* Free the given persisted value */
 void v8_FreePersistedValue(v8_persisted_value *val);
+
+/* Free the given generic JS value */
 void v8_FreeValue(v8_local_value *val);
 
+/* Convert the given generic JS value to utf8.
+ * On failure, returns NULL.*/
 v8_utf8_value* v8_ToUtf8(v8_isolate *isolate, v8_local_value *val);
+
+/* Free the given uft8 object */
 void v8_FreeUtf8(v8_utf8_value *val);
+
+/* Return const pointer and length of the utf8 object */
 const char* v8_Utf8PtrLen(v8_utf8_value *val, size_t *len);
 
 #endif /* SRC_V8_C_API_H_ */

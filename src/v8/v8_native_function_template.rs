@@ -15,10 +15,12 @@ use crate::v8::v8_value::V8LocalValue;
 use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_context_scope::V8ContextScope;
 
+/// Native function template object
 pub struct V8LocalNativeFunctionTemplate {
     pub (crate) inner_func: *mut v8_local_native_function_template,
 }
 
+/// Native function args
 pub struct V8LocalNativeFunctionArgs {
     pub (crate) inner_arr: *mut v8_local_value_arr,
     len: usize,
@@ -55,6 +57,7 @@ pub (crate)extern "C" fn native_basic_function<T:Fn(&V8LocalNativeFunctionArgs, 
 }
 
 impl V8LocalNativeFunctionArgs {
+    /// Return the i-th argument from the native function args
     pub fn get(&self, i: usize) -> V8LocalValue {
         assert!(i <= self.len);
         let val = unsafe{v8_ArgsGet(self.inner_arr, i)};
@@ -63,6 +66,7 @@ impl V8LocalNativeFunctionArgs {
         }
     }
 
+    /// Return the amount of arguments passed to the native function
     pub fn len(&self) -> usize {
         self.len
     }

@@ -64,7 +64,7 @@ mod json_path_tests {
         let _h_scope = isolate.new_handlers_scope();
         let native = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
-            let s = v.to_utf8(isolate);
+            let s = v.to_utf8(isolate).unwrap();
             assert_eq!(s.as_str(), "2");
             None
         });
@@ -94,7 +94,7 @@ mod json_path_tests {
         
         let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
-            let s = v.to_utf8(isolate);
+            let s = v.to_utf8(isolate).unwrap();
             assert_eq!(s.as_str(), "2");
             None
         });
@@ -129,7 +129,7 @@ mod json_path_tests {
         
         let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
-            let s = v.to_utf8(&isolate);
+            let s = v.to_utf8(&isolate).unwrap();
             assert_eq!(s.as_str(), "foo");
             None
         });
@@ -168,7 +168,7 @@ mod json_path_tests {
         let trycatch = isolate.new_try_catch();
         assert!(script.run(&ctx_scope).is_none());
         let exception = trycatch.get_exception();
-        let exception_msg = exception.to_utf8(&isolate);
+        let exception_msg = exception.to_utf8(&isolate).unwrap();
         assert_eq!(exception_msg.as_str(), "this is an error");
     }
 
@@ -183,7 +183,7 @@ mod json_path_tests {
         let ctx_scope = ctx.enter();
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
-        let res_utf8 = res.to_utf8(&isolate);
+        let res_utf8 = res.to_utf8(&isolate).unwrap();
         assert_eq!(res_utf8.as_str(), "2");
     }
 
@@ -204,7 +204,7 @@ mod json_path_tests {
         let promise = async_res.as_promise();
         assert_eq!(promise.state(), crate::v8::v8_promise::V8PromiseState::Fulfilled);
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.to_utf8(&isolate);
+        let res_utf8 = promise_res.to_utf8(&isolate).unwrap();
         assert_eq!(res_utf8.as_str(), "1");
     }
 
@@ -225,12 +225,12 @@ mod json_path_tests {
         let ctx_scope = ctx.enter();
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
-        println!("{}", res.to_utf8(&isolate).as_str());
+        println!("{}", res.to_utf8(&isolate).unwrap().as_str());
         assert!(res.is_promise());
         let promise = res.as_promise();
         assert_eq!(promise.state(), crate::v8::v8_promise::V8PromiseState::Fulfilled);
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.to_utf8(&isolate);
+        let res_utf8 = promise_res.to_utf8(&isolate).unwrap();
         assert_eq!(res_utf8.as_str(), "foo");
     }
 
@@ -246,7 +246,7 @@ mod json_path_tests {
         let trycatch = isolate.new_try_catch();
         let script = ctx_scope.compile(&code_str);
         assert!(script.is_none());
-        assert_eq!(trycatch.get_exception().to_utf8(&isolate).as_str(), "SyntaxError: Unexpected end of input");
+        assert_eq!(trycatch.get_exception().to_utf8(&isolate).unwrap().as_str(), "SyntaxError: Unexpected end of input");
     }
 
     #[test]
@@ -262,7 +262,7 @@ mod json_path_tests {
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope);
         assert!(res.is_none());
-        assert_eq!(trycatch.get_exception().to_utf8(&isolate).as_str(), "ReferenceError: foo is not defined");
+        assert_eq!(trycatch.get_exception().to_utf8(&isolate).unwrap().as_str(), "ReferenceError: foo is not defined");
     }
 
     fn test_value_is_functions<F:Fn(&v8_native_function_template::V8LocalNativeFunctionArgs, &isolate::V8Isolate, &v8_context_scope::V8ContextScope) -> Option<v8_value::V8LocalValue>>(code: &str, f: F) {

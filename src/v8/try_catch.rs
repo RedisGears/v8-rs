@@ -6,11 +6,15 @@ use crate::v8_c_raw::bindings::{
 
 use crate::v8::v8_value::V8LocalValue;
 
+/// An object that responsible to catch any exception which raised
+/// during the JS code invocation.
 pub struct V8TryCatch {
     pub (crate) inner_trycatch: *mut v8_trycatch,
 }
 
 impl V8TryCatch {
+
+    /// Return the exception that was raise during the JS code invocation.
     pub fn get_exception(&self) -> V8LocalValue {
         let inner_val = unsafe{v8_TryCatchGetException(self.inner_trycatch)};
         V8LocalValue {

@@ -16,6 +16,7 @@ pub struct V8ContextScope {
 }
 
 impl V8ContextScope {
+    /// Compile the given code into a script object.
     pub fn compile(&self, s: &V8LocalString) -> Option<V8LocalScript>{
         let inner_script = unsafe{v8_Compile(self.inner_ctx_ref, s.inner_string)};
         if inner_script.is_null() {
@@ -27,6 +28,7 @@ impl V8ContextScope {
         }
     }
 
+    /// Return the private data that was set on the context
     pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
         let pd = unsafe{v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index)};
         if pd.is_null() {
@@ -36,6 +38,7 @@ impl V8ContextScope {
         }
     }
 
+    /// Return the private data that was set on the context as a mut reference
     pub fn get_private_data_mut<T>(&self, index: usize) -> Option<&mut T> {
         let pd = unsafe{v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index)};
         if pd.is_null() {
@@ -45,6 +48,7 @@ impl V8ContextScope {
         }
     }
 
+    /// Create a new resolver object
     pub fn new_resolver(&self) -> V8LocalResolver{
         let inner_resolver = unsafe{v8_NewResolver(self.inner_ctx_ref)};
         V8LocalResolver {
