@@ -6,7 +6,7 @@ use crate::v8_c_raw::bindings::{
     v8_RequestInterrupt, v8_StringToValue, v8_isolate,
 };
 
-use std::os::raw::{c_char, c_void};
+use std::os::raw::c_void;
 
 use crate::v8::handler_scope::V8HandlersScope;
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -42,13 +42,15 @@ impl Default for V8Isolate {
 
 impl V8Isolate {
     /// Create a new v8 isolate with default heap size (up to 1G).
+    #[must_use]
     pub fn new() -> Self {
         Self::new_with_limits(0, 1024 * 1024 * 1024) /* default max heap: 1G */
     }
 
     /// Create a new isolate with the given heap limits
-    /// initial_heap_size_in_bytes - heap initial size
-    /// maximum_heap_size_in_bytes - heap max size
+    /// `initial_heap_size_in_bytes` - heap initial size
+    /// `maximum_heap_size_in_bytes` - heap max size
+    #[must_use]
     pub fn new_with_limits(
         initial_heap_size_in_bytes: usize,
         maximum_heap_size_in_bytes: usize,
@@ -59,10 +61,11 @@ impl V8Isolate {
     }
 
     /// Enter the isolate for code invocation.
-    /// Return an V8IsolateScope object, when the returned
+    /// Return an `V8IsolateScope` object, when the returned
     /// object is destroy the code will exit the isolate.
     ///
     /// An isolate must be entered before running any JS code.
+    #[must_use]
     pub fn enter(&self) -> V8IsolateScope {
         V8IsolateScope::new(self)
     }
@@ -70,6 +73,7 @@ impl V8Isolate {
     /// Create a new handlers scope. The handler scope will
     /// collect all the local handlers which was created after
     /// the handlers scope creation and will free them when destroyed.
+    #[must_use]
     pub fn new_handlers_scope(&self) -> V8HandlersScope {
         V8HandlersScope::new(self)
     }
@@ -82,13 +86,14 @@ impl V8Isolate {
     /// Same as `raise_exception` but raise exception with the given massage.
     pub fn raise_exception_str(&self, msg: &str) {
         let inner_string =
-            unsafe { v8_NewString(self.inner_isolate, msg.as_ptr() as *const c_char, msg.len()) };
+            unsafe { v8_NewString(self.inner_isolate, msg.as_ptr().cast::<i8>(), msg.len()) };
         let inner_val = unsafe { v8_StringToValue(inner_string) };
         unsafe { v8_IsolateRaiseException(self.inner_isolate, inner_val) };
     }
 
     /// Return a new try catch object. The object will catch any exception that was
     /// raised during the JS code invocation.
+    #[must_use]
     pub fn new_try_catch(&self) -> V8TryCatch {
         let inner_trycatch = unsafe { v8_NewTryCatch(self.inner_isolate) };
         V8TryCatch { inner_trycatch }
@@ -114,6 +119,7 @@ impl V8Isolate {
     }
 
     /// Create a new string object.
+    #[must_use]
     pub fn new_string(&self, s: &str) -> V8LocalString {
         let inner_string =
             unsafe { v8_NewString(self.inner_isolate, s.as_ptr().cast::<i8>(), s.len()) };
@@ -121,6 +127,7 @@ impl V8Isolate {
     }
 
     /// Create a new JS object template.
+    #[must_use]
     pub fn new_object_template(&self) -> V8LocalObjectTemplate {
         let inner_obj = unsafe { v8_NewObjectTemplate(self.inner_isolate) };
         V8LocalObjectTemplate { inner_obj }

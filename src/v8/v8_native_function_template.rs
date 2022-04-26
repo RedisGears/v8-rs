@@ -57,6 +57,7 @@ pub(crate) extern "C" fn native_basic_function<
 
 impl V8LocalNativeFunctionArgs {
     /// Return the i-th argument from the native function args
+    #[must_use]
     pub fn get(&self, i: usize) -> V8LocalValue {
         assert!(i <= self.len);
         let val = unsafe { v8_ArgsGet(self.inner_arr, i) };
@@ -64,11 +65,13 @@ impl V8LocalNativeFunctionArgs {
     }
 
     /// Return the amount of arguments passed to the native function
+    #[must_use]
     pub const fn len(&self) -> usize {
         self.len
     }
 
     /// Checks if the list of args is empty
+    #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.len > 0
     }

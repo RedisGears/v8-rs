@@ -25,6 +25,7 @@ pub struct V8PersistValue {
 
 impl V8LocalValue {
     /// Return string representation of the value or None on failure
+    #[must_use]
     pub fn to_utf8(&self, isolate: &V8Isolate) -> Option<V8LocalUtf8> {
         let inner_val = unsafe { v8_ToUtf8(isolate.inner_isolate, self.inner_val) };
         if inner_val.is_null() {
@@ -35,11 +36,13 @@ impl V8LocalValue {
     }
 
     /// Return true if the value is string and false otherwise.
+    #[must_use]
     pub fn is_string(&self) -> bool {
         (unsafe { v8_ValueIsString(self.inner_val) } != 0)
     }
 
     /// Convert the object into a string, applicable only if the value is string.
+    #[must_use]
     pub fn as_string(&self) -> V8LocalString {
         let inner_str = unsafe { v8_ValueAsString(self.inner_val) };
         V8LocalString {
@@ -48,43 +51,51 @@ impl V8LocalValue {
     }
 
     /// Return true if the value is function and false otherwise.
+    #[must_use]
     pub fn is_function(&self) -> bool {
         (unsafe { v8_ValueIsFunction(self.inner_val) } != 0)
     }
 
     /// Return true if the value is async function and false otherwise.
+    #[must_use]
     pub fn is_async_function(&self) -> bool {
         (unsafe { v8_ValueIsAsyncFunction(self.inner_val) } != 0)
     }
 
     /// Return true if the value is number and false otherwise.
+    #[must_use]
     pub fn is_number(&self) -> bool {
         (unsafe { v8_ValueIsNumber(self.inner_val) } != 0)
     }
 
     /// Return true if the value is promise and false otherwise.
+    #[must_use]
     pub fn is_promise(&self) -> bool {
         (unsafe { v8_ValueIsPromise(self.inner_val) } != 0)
     }
 
     /// Convert the object into a promise, applicable only if the object is promise.
+    #[must_use]
     pub fn as_promise(&self) -> V8LocalPromise {
         let inner_promise = unsafe { v8_ValueAsPromise(self.inner_val) };
         V8LocalPromise { inner_promise }
     }
 
     /// Return true if the value is object and false otherwise.
+    #[must_use]
     pub fn is_object(&self) -> bool {
         (unsafe { v8_ValueIsObject(self.inner_val) } != 0)
     }
 
     /// Persist the local object so it can be saved beyond the current handlers scope.
+    #[must_use]
     pub fn persist(&self, isolate: &V8Isolate) -> V8PersistValue {
         let inner_val = unsafe { v8_PersistValue(isolate.inner_isolate, self.inner_val) };
         V8PersistValue { inner_val }
     }
 
     /// Run the value, applicable only if the value is a function or async function.
+    #[must_use]
     pub fn call(&self, ctx: &V8ContextScope, args: Option<&[&Self]>) -> Option<Self> {
         let res = match args {
             Some(args) => {
@@ -108,6 +119,7 @@ impl V8LocalValue {
 
 impl V8PersistValue {
     /// Convert the persisted value back to local value.
+    #[must_use]
     pub fn as_local(&self, isolate: &V8Isolate) -> V8LocalValue {
         let inner_val = unsafe { v8_PersistedValueToLocal(isolate.inner_isolate, self.inner_val) };
         V8LocalValue { inner_val }

@@ -19,6 +19,7 @@ impl<'a> V8IsolateScope<'a> {
     }
 
     /// Creating a new context for JS code invocation.
+    #[must_use]
     pub fn new_context(&self, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         V8Context::new(self.isolate, globals)
     }

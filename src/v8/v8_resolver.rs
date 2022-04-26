@@ -14,6 +14,7 @@ pub struct V8LocalResolver {
 
 impl V8LocalResolver {
     /// Get the promise object assosiated with this resolver.
+    #[must_use]
     pub fn get_promise(&self) -> V8LocalPromise {
         let inner_promise = unsafe { v8_ResolverGetPromise(self.inner_resolver) };
         V8LocalPromise { inner_promise }
@@ -30,6 +31,7 @@ impl V8LocalResolver {
     }
 
     /// Convert the resolver into a generic JS value.
+    #[must_use]
     pub fn to_value(&self) -> V8LocalValue {
         let inner_val = unsafe { v8_ResolverToValue(self.inner_resolver) };
         V8LocalValue { inner_val }

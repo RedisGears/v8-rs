@@ -63,12 +63,11 @@ impl V8LocalObjectTemplate {
     }
 
     /// Convert the object template into a generic JS value
+    #[must_use]
     pub fn to_value(&self, ctx_scope: &V8ContextScope) -> V8LocalValue {
-        let innver_val =
+        let inner_val =
             unsafe { v8_ObjectTemplateToValue(ctx_scope.inner_ctx_ref, self.inner_obj) };
-        V8LocalValue {
-            inner_val: innver_val,
-        }
+        V8LocalValue { inner_val }
     }
 }
 

@@ -11,6 +11,7 @@ pub struct V8LocalNativeFunction {
 
 impl V8LocalNativeFunction {
     /// Convert the native function into a JS generic value
+    #[must_use]
     pub fn to_value(&self) -> V8LocalValue {
         let inner_val = unsafe { v8_NativeFunctionToValue(self.inner_func) };
         V8LocalValue { inner_val }

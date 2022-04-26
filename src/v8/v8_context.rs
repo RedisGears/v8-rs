@@ -24,9 +24,10 @@ impl V8Context {
     }
 
     /// Enter the context for JS code invocation.
-    /// Returns a V8ContextScope object. The context will
-    /// be automatically exit when the returned V8ContextScope
+    /// Returns a `V8ContextScope` object. The context will
+    /// be automatically exit when the returned `V8ContextScope`
     /// will be destroyed.
+    #[must_use]
     pub fn enter(&self) -> V8ContextScope {
         let inner_ctx_ref = unsafe { v8_ContextEnter(self.inner_ctx) };
         V8ContextScope {
@@ -48,6 +49,7 @@ impl V8Context {
     }
 
     /// Return the private data that was set using `set_private_data`
+    #[must_use]
     pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
         let pd = unsafe { v8_GetPrivateData(self.inner_ctx, index) };
         if pd.is_null() {

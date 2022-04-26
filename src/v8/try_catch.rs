@@ -10,6 +10,7 @@ pub struct V8TryCatch {
 
 impl V8TryCatch {
     /// Return the exception that was raise during the JS code invocation.
+    #[must_use]
     pub fn get_exception(&self) -> V8LocalValue {
         let inner_val = unsafe { v8_TryCatchGetException(self.inner_trycatch) };
         V8LocalValue { inner_val }

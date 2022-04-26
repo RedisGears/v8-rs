@@ -3,7 +3,7 @@ mod v8_c_raw;
 
 #[cfg(test)]
 mod json_path_tests {
-    use crate::v8::*;
+    use crate::v8::{isolate, v8_context_scope, v8_init, v8_native_function_template, v8_value};
 
     static mut IS_INITIALIZED: bool = false;
 
@@ -128,7 +128,7 @@ mod json_path_tests {
 
         let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
             let v = args.get(0);
-            let s = v.to_utf8(&isolate).unwrap();
+            let s = v.to_utf8(isolate).unwrap();
             assert_eq!(s.as_str(), "foo");
             None
         });
