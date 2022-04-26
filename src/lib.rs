@@ -86,7 +86,7 @@ mod json_path_tests {
 
         let foo1 = isolate.new_native_function_template(|args, _isolate, ctx_scope| {
             let v = args.get(0);
-            v.call(ctx_scope, None);
+            let _res = v.call(ctx_scope, None);
             None
         });
         let foo1_name = isolate.new_string("foo1");
@@ -121,7 +121,7 @@ mod json_path_tests {
             let _h_scope = isolate.new_handlers_scope();
             let foo = isolate.new_string("foo");
             let v = args.get(0);
-            v.call(ctx_scope, Some(&[&foo.to_value()]));
+            let _res = v.call(ctx_scope, Some(&[&foo.to_value()]));
             None
         });
         let foo1_name = isolate.new_string("foo1");
