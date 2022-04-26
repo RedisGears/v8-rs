@@ -31,9 +31,7 @@ pub(crate) extern "C" fn interrupt_callback<T: Fn(&V8Isolate)>(
     data: *mut ::std::os::raw::c_void,
 ) {
     let func = unsafe { &*(data.cast::<T>()) };
-    func(&V8Isolate {
-        inner_isolate,
-    });
+    func(&V8Isolate { inner_isolate });
 }
 
 impl Default for V8Isolate {
