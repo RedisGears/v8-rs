@@ -3,6 +3,7 @@ extern crate bindgen;
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
+use std::path::Path;
 
 fn main() {
     println!("cargo:rerun-if-changed=v8_c_api/src/v8_c_api.h");
@@ -33,12 +34,19 @@ fn main() {
         Err(_) => "v8_c_api/libv8_monolith.a".to_string(),
     };
 
-    if !Command::new("cp")
-        .args(&[&v8_monolith_path, &output_dir])
-        .status()
-        .expect("failed copy libv8_monolith.a to output directory")
-        .success()
-    {
+    let v8_monolith_url = match env::var("V8_MONOLITH_URL") {
+        Ok(path) => path,
+        Err(_) => "https://s3.eu-west-1.amazonaws.com/dev.cto.redis/libv8_monolith.a".to_string(),
+    };
+
+    if !Path::new(&v8_monolith_path).exists() {
+        // download libv8_monolith.a
+        if !Command::new("wget").args(&["-O", &v8_monolith_path, &v8_monolith_url]).status().expect("failed downloading libv8_monolith.a").success() {
+            panic!("failed downloading libv8_monolith.a");
+        }
+    }
+
+    if !Command::new("cp").args(&[&v8_monolith_path, &output_dir]).status().expect("failed copy libv8_monolith.a to output directory").success() {
         panic!("failed copy libv8_monolith.a to output directory");
     }
 
