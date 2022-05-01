@@ -2,7 +2,7 @@
 
 use crate::v8_c_raw::bindings::{
     v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException, v8_NewIsolate,
-    v8_NewNativeFunctionTemplate, v8_NewObjectTemplate, v8_NewString, v8_NewTryCatch,
+    v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString, v8_NewTryCatch,
     v8_RequestInterrupt, v8_StringToValue, v8_isolate,
 };
 
@@ -15,6 +15,7 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_native_function_template::{
     native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
 };
+use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_object_template::V8LocalObjectTemplate;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
@@ -124,6 +125,12 @@ impl V8Isolate {
         let inner_string =
             unsafe { v8_NewString(self.inner_isolate, s.as_ptr().cast::<i8>(), s.len()) };
         V8LocalString { inner_string }
+    }
+
+    #[must_use]
+    pub fn new_object(&self) -> V8LocalObject {
+        let inner_obj = unsafe { v8_NewObject(self.inner_isolate) };
+        V8LocalObject { inner_obj }
     }
 
     /// Create a new JS object template.

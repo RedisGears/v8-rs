@@ -1,5 +1,6 @@
 use crate::v8_c_raw::bindings::{
-    v8_Compile, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_NewResolver, v8_context_ref,
+    v8_Compile, v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_NewResolver,
+    v8_context_ref,
 };
 
 use crate::v8::v8_resolver::V8LocalResolver;
@@ -56,7 +57,8 @@ impl V8ContextScope {
 impl Drop for V8ContextScope {
     fn drop(&mut self) {
         if self.exit_on_drop {
-            unsafe { v8_FreeContextRef(self.inner_ctx_ref) }
+            unsafe { v8_ExitContextRef(self.inner_ctx_ref) }
         }
+        unsafe { v8_FreeContextRef(self.inner_ctx_ref) }
     }
 }

@@ -1,4 +1,6 @@
-use crate::v8_c_raw::bindings::{v8_FreeObject, v8_ObjectGet, v8_ObjectToValue, v8_local_object};
+use crate::v8_c_raw::bindings::{
+    v8_FreeObject, v8_ObjectGet, v8_ObjectSet, v8_ObjectToValue, v8_local_object,
+};
 
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
@@ -15,6 +17,17 @@ impl V8LocalObject {
         let inner_val =
             unsafe { v8_ObjectGet(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
         V8LocalValue { inner_val }
+    }
+
+    pub fn set(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue, val: &V8LocalValue) {
+        unsafe {
+            v8_ObjectSet(
+                ctx_scope.inner_ctx_ref,
+                self.inner_obj,
+                key.inner_val,
+                val.inner_val,
+            )
+        };
     }
 
     /// Convert the object into a generic JS value

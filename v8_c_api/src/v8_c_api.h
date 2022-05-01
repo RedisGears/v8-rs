@@ -154,6 +154,9 @@ void* v8_GetPrivateData(v8_context* ctx, size_t index);
 v8_context_ref* v8_ContextEnter(v8_context *v8_ctx);
 
 /* Exit the JS context */
+void v8_ExitContextRef(v8_context_ref *v8_ctx_ref);
+
+/* Free the JS context */
 void v8_FreeContextRef(v8_context_ref *v8_ctx_ref);
 
 /* Same as `v8_GetPrivateData` but works on `v8_context_ref` */
@@ -249,11 +252,17 @@ v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
 /* Return 1 if the given JS value is an object and 0 otherwise */
 int v8_ValueIsObject(v8_local_value *val);
 
+/* Create a new JS object */
+v8_local_object* v8_NewObject(v8_isolate *i);
+
 /* Convert the generic JS value into a JS object */
 v8_local_object* v8_ValueAsObject(v8_local_value *val);
 
 /* Return the value of a given key from the given JS object */
 v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key);
+
+/* Set a value inside the object at a given key */
+void v8_ObjectSet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key, v8_local_value *val);
 
 /* Free the given JS object */
 void v8_FreeObject(v8_local_object *obj);

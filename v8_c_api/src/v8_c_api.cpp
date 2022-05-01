@@ -253,8 +253,11 @@ v8_context_ref* v8_ContextEnter(v8_context *v8_ctx) {
 	return ref;
 }
 
-void v8_FreeContextRef(v8_context_ref *v8_ctx_ref) {
+void v8_ExitContextRef(v8_context_ref *v8_ctx_ref) {
 	v8_ctx_ref->context->Exit();
+}
+
+void v8_FreeContextRef(v8_context_ref *v8_ctx_ref) {
 	V8_FREE(v8_ctx_ref);
 }
 
@@ -527,6 +530,14 @@ int v8_ValueIsObject(v8_local_value *val) {
 	return val->val->IsObject();
 }
 
+v8_local_object* v8_NewObject(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Object> obj = v8::Object::New(isolate);
+	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_object(obj);
+	return res;
+}
+
 v8_local_object* v8_ValueAsObject(v8_local_value *val) {
 	v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(val->val);
 	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));
@@ -543,6 +554,10 @@ v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_l
 	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_value(val);
 	return res;
+}
+
+void v8_ObjectSet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key, v8_local_value *val) {
+	v8::Maybe<bool> res = obj->obj->Set(ctx_ref->context, key->val, val->val);
 }
 
 void v8_FreeObject(v8_local_object *obj) {
