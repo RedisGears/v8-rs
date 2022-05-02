@@ -1,11 +1,18 @@
 use crate::v8_c_raw::bindings::{
-    v8_Compile, v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_NewResolver,
-    v8_context_ref,
+    v8_Compile, v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef,
+    v8_NewNativeFunction, v8_NewResolver, v8_context_ref,
 };
 
+use std::os::raw::c_void;
+
+use crate::v8::isolate::V8Isolate;
+use crate::v8::v8_native_function::V8LocalNativeFunction;
+use crate::v8::v8_native_function_template::native_basic_function;
+use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgs;
 use crate::v8::v8_resolver::V8LocalResolver;
 use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
+use crate::v8::v8_value::V8LocalValue;
 
 pub struct V8ContextScope {
     pub(crate) inner_ctx_ref: *mut v8_context_ref,
@@ -51,6 +58,25 @@ impl V8ContextScope {
     pub fn new_resolver(&self) -> V8LocalResolver {
         let inner_resolver = unsafe { v8_NewResolver(self.inner_ctx_ref) };
         V8LocalResolver { inner_resolver }
+    }
+
+    #[must_use]
+    pub fn new_native_function<
+        T: Fn(&V8LocalNativeFunctionArgs, &V8Isolate, &V8ContextScope) -> Option<V8LocalValue>,
+    >(
+        &self,
+        func: T,
+    ) -> V8LocalNativeFunction {
+        let inner_func = unsafe {
+            v8_NewNativeFunction(
+                self.inner_ctx_ref,
+                Some(native_basic_function::<T>),
+                Box::into_raw(Box::new(func)).cast::<c_void>(),
+            )
+        };
+        V8LocalNativeFunction {
+            inner_func: inner_func,
+        }
     }
 }
 

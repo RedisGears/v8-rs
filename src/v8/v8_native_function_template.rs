@@ -1,6 +1,7 @@
 use crate::v8_c_raw::bindings::{
     v8_ArgsGet, v8_FreeNativeFunctionTemplate, v8_GetCurrentCtxRef, v8_GetCurrentIsolate,
-    v8_local_native_function_template, v8_local_value, v8_local_value_arr,
+    v8_NativeFunctionTemplateToFunction, v8_local_native_function_template, v8_local_value,
+    v8_local_value_arr,
 };
 
 use std::os::raw::c_void;
@@ -8,6 +9,7 @@ use std::ptr;
 
 use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_context_scope::V8ContextScope;
+use crate::v8::v8_native_function::V8LocalNativeFunction;
 use crate::v8::v8_value::V8LocalValue;
 
 /// Native function template object
@@ -52,6 +54,17 @@ pub(crate) extern "C" fn native_basic_function<
             inner_val
         }
         None => ptr::null_mut(),
+    }
+}
+
+impl V8LocalNativeFunctionTemplate {
+    pub fn to_function(&self, ctx_scope: &V8ContextScope) -> V8LocalNativeFunction {
+        let inner_func = unsafe {
+            v8_NativeFunctionTemplateToFunction(ctx_scope.inner_ctx_ref, self.inner_func)
+        };
+        V8LocalNativeFunction {
+            inner_func: inner_func,
+        }
     }
 }
 

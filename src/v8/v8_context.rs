@@ -14,6 +14,9 @@ pub struct V8Context {
     pub(crate) inner_ctx: *mut v8_context,
 }
 
+unsafe impl Sync for V8Context {}
+unsafe impl Send for V8Context {}
+
 impl V8Context {
     pub(crate) fn new(isolate: &V8Isolate, globals: Option<&V8LocalObjectTemplate>) -> Self {
         let inner_ctx = match globals {

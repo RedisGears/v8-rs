@@ -318,6 +318,20 @@ v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ct
 	return ret;
 }
 
+v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_funcion func, void *pd) {
+	v8::Isolate *isolate = ctx_ref->context->GetIsolate();
+	v8_native_function_pd *nf_pd = (v8_native_function_pd*)V8_ALLOC(sizeof(*nf_pd));
+	nf_pd->func = func;
+	nf_pd->pd = pd;
+
+	v8::Local<v8::External> data = v8::External::New(ctx_ref->context->GetIsolate(), (void*)nf_pd);
+	v8::Local<v8::Function> f = v8::Function::New(ctx_ref->context, v8_NativeBaseFunction, data).ToLocalChecked();
+
+	v8_local_native_function *ret = (v8_local_native_function*) V8_ALLOC(sizeof(*ret));
+	ret = new (ret) v8_local_native_function(f);
+	return ret;
+}
+
 void v8_FreeNativeFunctionTemplate(v8_local_native_function_template *func) {
 	V8_FREE(func);
 }

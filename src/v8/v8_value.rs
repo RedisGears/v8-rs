@@ -126,6 +126,9 @@ impl V8PersistValue {
     }
 }
 
+unsafe impl Sync for V8PersistValue {}
+unsafe impl Send for V8PersistValue {}
+
 impl Drop for V8LocalValue {
     fn drop(&mut self) {
         if !self.inner_val.is_null() {
