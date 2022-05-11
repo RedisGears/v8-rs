@@ -187,6 +187,40 @@ mod json_path_tests {
     }
 
     #[test]
+    fn test_simple_module_run() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let _h_scope = isolate.new_handlers_scope();
+
+        let mut globals = isolate.new_object_template();
+        globals.add_native_function(&isolate, "log", |args, isolate, _ctx_scope| {
+            assert_eq!(args.len(), 1);
+            let v = args.get(0);
+            let res_utf8 = v.to_utf8(&isolate).unwrap();
+            assert_eq!(res_utf8.as_str(), "foo");
+            None
+        });
+
+        let code_name = isolate.new_string("base_module");
+        let code_str = isolate.new_string("import {msg} from \"foo\"; log(msg);");
+        let i_scope = isolate.enter();
+        let ctx = i_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter();
+
+        let module = ctx_scope.compile_as_module(&code_name, &code_str).unwrap();
+        module.initialize(&ctx_scope, |ctx_scope, name_to_load| {
+            let code_str = isolate.new_string("export let msg = \"foo\";");
+            ctx_scope.compile_as_module(name_to_load, &code_str)
+        });
+        let res = module.evaluate(&ctx_scope).unwrap();
+        let res = res.as_promise();
+        assert_eq!(
+            res.state(),
+            crate::v8::v8_promise::V8PromiseState::Fulfilled
+        );
+    }
+
+    #[test]
     fn test_async_function() {
         initialize();
         let isolate = isolate::V8Isolate::new();

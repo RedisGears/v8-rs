@@ -40,12 +40,11 @@ impl V8Context {
     }
 
     /// Set a private data on the context that can later be retieve with `get_private_data`.
-    /// Note: index 0 is saved for v8 internals.
     pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
         unsafe {
             v8_SetPrivateData(
                 self.inner_ctx,
-                index,
+                index + 1,
                 pd.map_or(ptr::null_mut(), |p| p as *const T as *mut c_void),
             );
         };
@@ -54,7 +53,7 @@ impl V8Context {
     /// Return the private data that was set using `set_private_data`
     #[must_use]
     pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
-        let pd = unsafe { v8_GetPrivateData(self.inner_ctx, index) };
+        let pd = unsafe { v8_GetPrivateData(self.inner_ctx, index + 1) };
         if pd.is_null() {
             None
         } else {

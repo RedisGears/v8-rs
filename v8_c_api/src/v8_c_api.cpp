@@ -60,6 +60,11 @@ struct v8_local_script {
 	}
 };
 
+struct v8_local_module {
+	v8::Local<v8::Module> mod;
+	v8_local_module(v8::Local<v8::Module> m): mod(m) {}
+};
+
 struct v8_local_value {
 	v8::Local<v8::Value> val;
 	v8_local_value(v8::Local<v8::Value> value): val(value) {}
@@ -237,12 +242,12 @@ void v8_FreeContext(v8_context* ctx) {
 void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd) {
 	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
 	v8::Local<v8::External> data = v8::External::New(ctx->isolate, (void*)pd);
-	v8_ctx->SetEmbedderData(index, data);
+	v8_ctx->SetEmbedderData(index + 2, data);
 }
 
 void* v8_GetPrivateData(v8_context* ctx, size_t index) {
 	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
-	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(v8_ctx->GetEmbedderData(index));
+	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(v8_ctx->GetEmbedderData(index + 2));
 	return data->Value();
 }
 
@@ -262,8 +267,14 @@ void v8_FreeContextRef(v8_context_ref *v8_ctx_ref) {
 }
 
 void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index) {
-	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(ctx_ref->context->GetEmbedderData(index));
+	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(ctx_ref->context->GetEmbedderData(index + 2));
 	return data->Value();
+}
+
+void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd) {
+	v8::Isolate *isolate = ctx_ref->context->GetIsolate();
+	v8::Local<v8::External> data = v8::External::New(isolate, (void*)pd);
+	ctx_ref->context->SetEmbedderData(index + 2, data);
 }
 
 v8_local_string* v8_NewString(v8_isolate* i, const char *str, size_t len) {
@@ -400,6 +411,68 @@ v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str) {
 		return NULL;
 	}
 	return v8_script;
+}
+
+static v8::MaybeLocal<v8::Module> v8_ResolveModules(v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
+													v8::Local<v8::FixedArray> import_assertions, v8::Local<v8::Module> referrer) {
+	v8::Local<v8::External> external = v8::Local<v8::External>::Cast(context->GetEmbedderData(1));
+	V8_LoadModuleCallback load_module_callback = (V8_LoadModuleCallback)external->Value();
+
+	v8_context_ref *v8_ctx_ref = (struct v8_context_ref*)V8_ALLOC(sizeof(*v8_ctx_ref));
+	v8_ctx_ref = new (v8_ctx_ref) v8_context_ref(context);
+
+	v8_local_string* name = (struct v8_local_string*)V8_ALLOC(sizeof(*name));
+
+	name = new (name) v8_local_string(specifier);
+
+	v8_local_module* m = load_module_callback(v8_ctx_ref, name);
+
+	v8::MaybeLocal<v8::Module> res;
+	if (m) {
+		res = m->mod;
+		v8_FreeModule(m);
+	}
+
+	return res;
+}
+
+v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string* name, v8_local_string* code) {
+	v8::Isolate *isolate = v8_ctx_ref->context->GetIsolate();
+	v8::ScriptOrigin origin(isolate, name->str, 0, 0, false, -1, v8::Local<v8::Value>(), false, false, true, v8::Local<v8::Data>());
+
+	v8::ScriptCompiler::Source source(code->str, origin);
+	v8::MaybeLocal<v8::Module> mod = v8::ScriptCompiler::CompileModule(isolate, &source);
+
+	if (mod.IsEmpty()) {
+		return NULL;
+	}
+
+	v8_local_module *ret = (struct v8_local_module*)V8_ALLOC(sizeof(*ret));
+	ret = new (ret) v8_local_module(mod.ToLocalChecked());
+	return ret;
+}
+
+int v8_InitiateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref, V8_LoadModuleCallback load_module_callback) {
+	v8::Isolate *isolate = v8_ctx_ref->context->GetIsolate();
+	v8::Local<v8::External> data = v8::External::New(isolate, (void*)load_module_callback);
+	v8_ctx_ref->context->SetEmbedderData(1, data);
+	v8::Maybe<bool> res = m->mod->InstantiateModule(v8_ctx_ref->context, v8_ResolveModules);
+	return res.IsNothing() ? 0 : 1;
+}
+
+v8_local_value* v8_EvaluateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref) {
+	v8::MaybeLocal<v8::Value> res = m->mod->Evaluate(v8_ctx_ref->context);
+	if (res.IsEmpty()) {
+		return NULL;
+	}
+
+	v8_local_value *val = (struct v8_local_value*)V8_ALLOC(sizeof(*val));
+	val = new (val) v8_local_value(res.ToLocalChecked());
+	return val;
+}
+
+void v8_FreeModule(v8_local_module* m) {
+	V8_FREE(m);
 }
 
 void v8_FreeScript(v8_local_script *script) {

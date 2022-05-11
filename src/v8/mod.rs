@@ -8,6 +8,7 @@ pub mod isolate_scope;
 pub mod try_catch;
 pub mod v8_context;
 pub mod v8_context_scope;
+pub mod v8_module;
 pub mod v8_native_function;
 pub mod v8_native_function_template;
 pub mod v8_object;

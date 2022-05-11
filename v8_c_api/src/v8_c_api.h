@@ -58,6 +58,9 @@ typedef struct v8_local_object v8_local_object;
 /* JS script object */
 typedef struct v8_local_script v8_local_script;
 
+/* JS module object */
+typedef struct v8_local_module v8_local_module;
+
 /* JS generic value */
 typedef struct v8_local_value v8_local_value;
 
@@ -141,8 +144,7 @@ v8_context* v8_NewContext(v8_isolate* v8_isolate, v8_local_object_template *glob
 void v8_FreeContext(v8_context* ctx);
 
 /* Set a private data on the given context.
- * The private data can later be retrieve using `v8_GetPrivateData`.
- * Note: index 0 is saves for v8 internals. */
+ * The private data can later be retrieve using `v8_GetPrivateData`. */
 void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd);
 
 /* Return the private data that was set using `v8_SetPrivateData` or NULL
@@ -161,6 +163,9 @@ void v8_FreeContextRef(v8_context_ref *v8_ctx_ref);
 
 /* Same as `v8_GetPrivateData` but works on `v8_context_ref` */
 void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index);
+
+/* Same as `v8_SetPrivateData` but works on `v8_context_ref` */
+void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd);
 
 /* Create a new JS string object */
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);
@@ -217,6 +222,20 @@ v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_objec
 
 /* Compile the given code into a script object */
 v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str);
+
+typedef v8_local_module* (*V8_LoadModuleCallback)(v8_context_ref* v8_ctx_ref, v8_local_string* name);
+
+/* Compile the given code as a module */
+v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string* name, v8_local_string* code);
+
+/* Initialize the module, return 1 on success and 0 on failure */
+int v8_InitiateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref, V8_LoadModuleCallback load_module_callback);
+
+/* Evaluate the module code */
+v8_local_value* v8_EvaluateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref);
+
+/* Evaluate the module code */
+void v8_FreeModule(v8_local_module* m);
 
 /* Free the given script object */
 void v8_FreeScript(v8_local_script *script);
