@@ -135,6 +135,10 @@ void v8_Initialize(v8_alloctor *alloc) {
 	}
 }
 
+const char* v8_Version() {
+	return v8::V8::GetVersion();
+}
+
 void v8_Dispose() {
 	v8::V8::Dispose();
 }

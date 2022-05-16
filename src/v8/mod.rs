@@ -1,5 +1,6 @@
-use crate::v8_c_raw::bindings::{v8_Dispose, v8_Initialize};
+use crate::v8_c_raw::bindings::{v8_Dispose, v8_Initialize, v8_Version};
 
+use std::ffi::CStr;
 use std::ptr;
 
 pub mod handler_scope;
@@ -28,4 +29,9 @@ pub fn v8_init() {
 /// Destroy v8, after called it is not allowed to use any v8 API anymore.
 pub fn v8_destroy() {
     unsafe { v8_Dispose() }
+}
+
+pub fn v8_version() -> &'static str {
+    let s = unsafe { CStr::from_ptr(v8_Version()) };
+    s.to_str().unwrap()
 }

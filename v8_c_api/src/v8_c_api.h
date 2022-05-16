@@ -90,6 +90,8 @@ typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
  * if allocator is NULL, use default memory functions. */
 void v8_Initialize(v8_alloctor *allocator);
 
+const char* v8_Version();
+
 /* Dispose v8 initialization */
 void v8_Dispose();
 
