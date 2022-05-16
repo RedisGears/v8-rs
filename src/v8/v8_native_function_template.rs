@@ -37,7 +37,10 @@ pub(crate) extern "C" fn native_basic_function<
     };
 
     let inner_isolate = unsafe { v8_GetCurrentIsolate(args.inner_arr) };
-    let isolate = V8Isolate { inner_isolate };
+    let isolate = V8Isolate {
+        inner_isolate: inner_isolate,
+        no_release: true,
+    };
 
     let inner_ctx_ref = unsafe { v8_GetCurrentCtxRef(inner_isolate) };
     let ctc_scope = V8ContextScope {

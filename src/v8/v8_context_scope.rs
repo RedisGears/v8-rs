@@ -1,7 +1,7 @@
 use crate::v8_c_raw::bindings::{
-    v8_Compile, v8_CompileAsModule, v8_ExitContextRef, v8_FreeContextRef,
-    v8_GetPrivateDataFromCtxRef, v8_NewNativeFunction, v8_NewResolver, v8_SetPrivateDataOnCtxRef,
-    v8_context_ref,
+    v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ContextRefGetIsolate,
+    v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_NewNativeFunction,
+    v8_NewResolver, v8_SetPrivateDataOnCtxRef, v8_context_ref,
 };
 
 use std::os::raw::c_void;
@@ -12,6 +12,7 @@ use crate::v8::v8_module::V8LocalModule;
 use crate::v8::v8_native_function::V8LocalNativeFunction;
 use crate::v8::v8_native_function_template::native_basic_function;
 use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgs;
+use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_resolver::V8LocalResolver;
 use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
@@ -34,15 +35,28 @@ impl V8ContextScope {
         }
     }
 
+    #[must_use]
+    pub fn get_globals(&self) -> V8LocalObject {
+        let inner_obj = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
+        V8LocalObject { inner_obj }
+    }
+
     /// Compile the given code as a module.
     #[must_use]
     pub fn compile_as_module(
         &self,
         name: &V8LocalString,
         code: &V8LocalString,
+        is_module: bool,
     ) -> Option<V8LocalModule> {
-        let inner_module =
-            unsafe { v8_CompileAsModule(self.inner_ctx_ref, name.inner_string, code.inner_string) };
+        let inner_module = unsafe {
+            v8_CompileAsModule(
+                self.inner_ctx_ref,
+                name.inner_string,
+                code.inner_string,
+                if is_module { 1 } else { 0 },
+            )
+        };
         if inner_module.is_null() {
             None
         } else {
@@ -88,6 +102,14 @@ impl V8ContextScope {
                 pd.map_or(ptr::null_mut(), |p| p as *const T as *mut c_void),
             );
         };
+    }
+
+    pub(crate) fn get_isolate(&self) -> V8Isolate {
+        let inner_isolate = unsafe { v8_ContextRefGetIsolate(self.inner_ctx_ref) };
+        V8Isolate {
+            inner_isolate: inner_isolate,
+            no_release: true,
+        }
     }
 
     pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {

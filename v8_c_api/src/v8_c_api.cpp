@@ -58,11 +58,15 @@ struct v8_local_script {
 			script = compilation_res.ToLocalChecked();
 		}
 	}
+	v8_local_script(v8::Local<v8::Script> s): script(s) {}
 };
 
 struct v8_local_module {
 	v8::Local<v8::Module> mod;
 	v8_local_module(v8::Local<v8::Module> m): mod(m) {}
+	v8_local_module(v8::Isolate *isolate, v8::Persistent<v8::Module> *m) {
+		mod = v8::Local<v8::Module>::New(isolate, *m);
+	}
 };
 
 struct v8_local_value {
@@ -258,6 +262,18 @@ v8_context_ref* v8_ContextEnter(v8_context *v8_ctx) {
 	return ref;
 }
 
+v8_isolate* v8_ContextRefGetIsolate(v8_context_ref *v8_ctx_ref) {
+	return (v8_isolate*)v8_ctx_ref->context->GetIsolate();
+}
+
+v8_local_object* v8_ContextRefGetGlobals(v8_context_ref *v8_ctx_ref) {
+	v8::Local<v8::Object> globals = v8_ctx_ref->context->Global();
+
+	v8_local_object *v8_globals = (struct v8_local_object*)V8_ALLOC(sizeof(*v8_globals));
+	v8_globals = new (v8_globals) v8_local_object(globals);
+	return v8_globals;
+}
+
 void v8_ExitContextRef(v8_context_ref *v8_ctx_ref) {
 	v8_ctx_ref->context->Exit();
 }
@@ -413,6 +429,26 @@ v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str) {
 	return v8_script;
 }
 
+v8_persisted_script* v8_ScriptPersist(v8_isolate *i, v8_local_script* script) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	return (v8_persisted_script*) new v8::Persistent<v8::Script>(isolate, script->script);
+}
+
+v8_local_script* v8_PersistedScriptToLocal(v8_isolate *i, v8_persisted_script* script) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Persistent<v8::Script> *persisted_script = (v8::Persistent<v8::Script>*)script;
+	v8::Local<v8::Script> s = v8::Local<v8::Script>::New(isolate, *persisted_script);
+	v8_local_script *local_script = (struct v8_local_script*)V8_ALLOC(sizeof(*local_script));
+	local_script = new (local_script) v8_local_script(s);
+	return local_script;
+}
+
+void v8_FreePersistedScript(v8_persisted_script* script) {
+	v8::Persistent<v8::Script> *persisted_script = (v8::Persistent<v8::Script>*)script;
+	persisted_script->Reset();
+	delete persisted_script;
+}
+
 static v8::MaybeLocal<v8::Module> v8_ResolveModules(v8::Local<v8::Context> context, v8::Local<v8::String> specifier,
 													v8::Local<v8::FixedArray> import_assertions, v8::Local<v8::Module> referrer) {
 	v8::Local<v8::External> external = v8::Local<v8::External>::Cast(context->GetEmbedderData(1));
@@ -422,10 +458,11 @@ static v8::MaybeLocal<v8::Module> v8_ResolveModules(v8::Local<v8::Context> conte
 	v8_ctx_ref = new (v8_ctx_ref) v8_context_ref(context);
 
 	v8_local_string* name = (struct v8_local_string*)V8_ALLOC(sizeof(*name));
+	int identity_hash = referrer->GetIdentityHash();
 
 	name = new (name) v8_local_string(specifier);
 
-	v8_local_module* m = load_module_callback(v8_ctx_ref, name);
+	v8_local_module* m = load_module_callback(v8_ctx_ref, name, identity_hash);
 
 	v8::MaybeLocal<v8::Module> res;
 	if (m) {
@@ -436,9 +473,9 @@ static v8::MaybeLocal<v8::Module> v8_ResolveModules(v8::Local<v8::Context> conte
 	return res;
 }
 
-v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string* name, v8_local_string* code) {
+v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string* name, v8_local_string* code, int is_module) {
 	v8::Isolate *isolate = v8_ctx_ref->context->GetIsolate();
-	v8::ScriptOrigin origin(isolate, name->str, 0, 0, false, -1, v8::Local<v8::Value>(), false, false, true, v8::Local<v8::Data>());
+	v8::ScriptOrigin origin(isolate, name->str, 0, 0, false, -1, v8::Local<v8::Value>(), false, false, is_module, v8::Local<v8::Data>());
 
 	v8::ScriptCompiler::Source source(code->str, origin);
 	v8::MaybeLocal<v8::Module> mod = v8::ScriptCompiler::CompileModule(isolate, &source);
@@ -460,6 +497,10 @@ int v8_InitiateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref, V8_LoadMod
 	return res.IsNothing() ? 0 : 1;
 }
 
+int v8_ModuleGetIdentityHash(v8_local_module* m) {
+	return m->mod->GetIdentityHash();
+}
+
 v8_local_value* v8_EvaluateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref) {
 	v8::MaybeLocal<v8::Value> res = m->mod->Evaluate(v8_ctx_ref->context);
 	if (res.IsEmpty()) {
@@ -469,6 +510,25 @@ v8_local_value* v8_EvaluateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref
 	v8_local_value *val = (struct v8_local_value*)V8_ALLOC(sizeof(*val));
 	val = new (val) v8_local_value(res.ToLocalChecked());
 	return val;
+}
+
+v8_persisted_module* v8_ModulePersist(v8_isolate *i, v8_local_module* m) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	return (v8_persisted_module*) new v8::Persistent<v8::Module>(isolate, m->mod);
+}
+
+v8_local_module* v8_ModuleToLocal(v8_isolate *i, v8_persisted_module* m) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Persistent<v8::Module> *persisted_module = (v8::Persistent<v8::Module>*)m;
+	v8_local_module *local_module = (struct v8_local_module*)V8_ALLOC(sizeof(*local_module));
+	local_module = new (local_module) v8_local_module(isolate, persisted_module);
+	return local_module;
+}
+
+void v8_FreePersistedModule(v8_persisted_module* m) {
+	v8::Persistent<v8::Module> *persisted_module = (v8::Persistent<v8::Module>*)m;
+	persisted_module->Reset();
+	delete persisted_module;
 }
 
 void v8_FreeModule(v8_local_module* m) {

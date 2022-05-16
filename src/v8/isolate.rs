@@ -25,14 +25,21 @@ use crate::v8::v8_value::V8LocalValue;
 /// In order to free an isolate, one must call `free_isolate`.
 pub struct V8Isolate {
     pub(crate) inner_isolate: *mut v8_isolate,
+    pub(crate) no_release: bool,
 }
+
+unsafe impl Sync for V8Isolate {}
+unsafe impl Send for V8Isolate {}
 
 pub(crate) extern "C" fn interrupt_callback<T: Fn(&V8Isolate)>(
     inner_isolate: *mut v8_isolate,
     data: *mut ::std::os::raw::c_void,
 ) {
     let func = unsafe { &*(data.cast::<T>()) };
-    func(&V8Isolate { inner_isolate });
+    func(&V8Isolate {
+        inner_isolate: inner_isolate,
+        no_release: true,
+    });
 }
 
 impl Default for V8Isolate {
@@ -58,7 +65,10 @@ impl V8Isolate {
     ) -> Self {
         let inner_isolate =
             unsafe { v8_NewIsolate(initial_heap_size_in_bytes, maximum_heap_size_in_bytes) };
-        Self { inner_isolate }
+        Self {
+            inner_isolate: inner_isolate,
+            no_release: false,
+        }
     }
 
     /// Enter the isolate for code invocation.
@@ -114,11 +124,6 @@ impl V8Isolate {
         };
     }
 
-    /// Free the isolate
-    pub fn free_isolate(&self) {
-        unsafe { v8_FreeIsolate(self.inner_isolate) }
-    }
-
     /// Create a new string object.
     #[must_use]
     pub fn new_string(&self, s: &str) -> V8LocalString {
@@ -155,5 +160,13 @@ impl V8Isolate {
             )
         };
         V8LocalNativeFunctionTemplate { inner_func }
+    }
+}
+
+impl Drop for V8Isolate {
+    fn drop(&mut self) {
+        if !self.no_release {
+            unsafe { v8_FreeIsolate(self.inner_isolate) }
+        }
     }
 }

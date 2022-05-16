@@ -58,8 +58,13 @@ typedef struct v8_local_object v8_local_object;
 /* JS script object */
 typedef struct v8_local_script v8_local_script;
 
+typedef struct v8_persisted_script v8_persisted_script;
+
 /* JS module object */
 typedef struct v8_local_module v8_local_module;
+
+/* JS persisted module object */
+typedef struct v8_persisted_module v8_persisted_module;
 
 /* JS generic value */
 typedef struct v8_local_value v8_local_value;
@@ -155,6 +160,10 @@ void* v8_GetPrivateData(v8_context* ctx, size_t index);
  * JS code on the given context. */
 v8_context_ref* v8_ContextEnter(v8_context *v8_ctx);
 
+v8_isolate* v8_ContextRefGetIsolate(v8_context_ref *v8_ctx_ref);
+
+v8_local_object* v8_ContextRefGetGlobals(v8_context_ref *v8_ctx_ref);
+
 /* Exit the JS context */
 void v8_ExitContextRef(v8_context_ref *v8_ctx_ref);
 
@@ -223,16 +232,30 @@ v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_objec
 /* Compile the given code into a script object */
 v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str);
 
-typedef v8_local_module* (*V8_LoadModuleCallback)(v8_context_ref* v8_ctx_ref, v8_local_string* name);
+v8_persisted_script* v8_ScriptPersist(v8_isolate *i, v8_local_script* script);
+
+v8_local_script* v8_PersistedScriptToLocal(v8_isolate *i, v8_persisted_script* script);
+
+void v8_FreePersistedScript(v8_persisted_script* script);
+
+typedef v8_local_module* (*V8_LoadModuleCallback)(v8_context_ref* v8_ctx_ref, v8_local_string* name, int identity_hash);
 
 /* Compile the given code as a module */
-v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string* name, v8_local_string* code);
+v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string* name, v8_local_string* code, int is_module);
 
 /* Initialize the module, return 1 on success and 0 on failure */
 int v8_InitiateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref, V8_LoadModuleCallback load_module_callback);
 
+int v8_ModuleGetIdentityHash(v8_local_module* m);
+
 /* Evaluate the module code */
 v8_local_value* v8_EvaluateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref);
+
+v8_persisted_module* v8_ModulePersist(v8_isolate *i, v8_local_module* m);
+
+v8_local_module* v8_ModuleToLocal(v8_isolate *i, v8_persisted_module* m);
+
+void v8_FreePersistedModule(v8_persisted_module* m);
 
 /* Evaluate the module code */
 void v8_FreeModule(v8_local_module* m);

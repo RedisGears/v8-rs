@@ -207,11 +207,16 @@ mod json_path_tests {
         let ctx = i_scope.new_context(Some(&globals));
         let ctx_scope = ctx.enter();
 
-        let module = ctx_scope.compile_as_module(&code_name, &code_str).unwrap();
-        module.initialize(&ctx_scope, |ctx_scope, name_to_load| {
-            let code_str = isolate.new_string("export let msg = \"foo\";");
-            ctx_scope.compile_as_module(name_to_load, &code_str)
-        });
+        let module = ctx_scope
+            .compile_as_module(&code_name, &code_str, true)
+            .unwrap();
+        module.initialize(
+            &ctx_scope,
+            |_isolate, ctx_scope, name_to_load, _identity_hash| {
+                let code_str = isolate.new_string("export let msg = \"foo\";");
+                ctx_scope.compile_as_module(name_to_load, &code_str, true)
+            },
+        );
         let res = module.evaluate(&ctx_scope).unwrap();
         let res = res.as_promise();
         assert_eq!(
