@@ -1,9 +1,10 @@
 // An isolate rust wrapper to v8 isolate.
 
 use crate::v8_c_raw::bindings::{
-    v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException, v8_NewIsolate,
-    v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString, v8_NewTryCatch,
-    v8_RequestInterrupt, v8_StringToValue, v8_isolate,
+    v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException, v8_NewArray,
+    v8_NewIsolate, v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString,
+    v8_NewTryCatch, v8_RequestInterrupt, v8_StringToValue, v8_ValueFromDouble, v8_ValueFromLong,
+    v8_isolate, v8_local_value,
 };
 
 use std::os::raw::c_void;
@@ -11,6 +12,7 @@ use std::os::raw::c_void;
 use crate::v8::handler_scope::V8HandlersScope;
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::try_catch::V8TryCatch;
+use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_native_function_template::{
     native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
@@ -132,10 +134,32 @@ impl V8Isolate {
         V8LocalString { inner_string }
     }
 
+    /// Create a new string object.
+    #[must_use]
+    pub fn new_array(&self, values: &[&V8LocalValue]) -> V8LocalArray {
+        let args = values
+            .iter()
+            .map(|v| v.inner_val)
+            .collect::<Vec<*mut v8_local_value>>();
+        let ptr = args.as_ptr();
+        let inner_array = unsafe { v8_NewArray(self.inner_isolate, ptr, values.len()) };
+        V8LocalArray { inner_array }
+    }
+
     #[must_use]
     pub fn new_object(&self) -> V8LocalObject {
         let inner_obj = unsafe { v8_NewObject(self.inner_isolate) };
         V8LocalObject { inner_obj }
+    }
+
+    pub fn new_long(&self, val: i64) -> V8LocalValue {
+        let inner_val = unsafe { v8_ValueFromLong(self.inner_isolate, val) };
+        V8LocalValue { inner_val }
+    }
+
+    pub fn new_double(&self, val: f64) -> V8LocalValue {
+        let inner_val = unsafe { v8_ValueFromDouble(self.inner_isolate, val) };
+        V8LocalValue { inner_val }
     }
 
     /// Create a new JS object template.

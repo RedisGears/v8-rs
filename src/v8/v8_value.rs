@@ -1,13 +1,15 @@
 use crate::v8_c_raw::bindings::{
-    v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_PersistValue,
-    v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsPromise, v8_ValueAsString,
-    v8_ValueIsAsyncFunction, v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject,
-    v8_ValueIsPromise, v8_ValueIsString, v8_local_value, v8_persisted_value,
+    v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetNumber,
+    v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsPromise,
+    v8_ValueAsString, v8_ValueIsArray, v8_ValueIsAsyncFunction, v8_ValueIsBigInt,
+    v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsString,
+    v8_local_value, v8_persisted_value,
 };
 
 use std::ptr;
 
 use crate::v8::isolate::V8Isolate;
+use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_promise::V8LocalPromise;
 use crate::v8::v8_string::V8LocalString;
@@ -50,6 +52,19 @@ impl V8LocalValue {
         }
     }
 
+    /// Return true if the value is string and false otherwise.
+    #[must_use]
+    pub fn is_array(&self) -> bool {
+        (unsafe { v8_ValueIsArray(self.inner_val) } != 0)
+    }
+
+    /// Convert the object into a string, applicable only if the value is string.
+    #[must_use]
+    pub fn as_array(&self) -> V8LocalArray {
+        let inner_array = unsafe { v8_ValueAsArray(self.inner_val) };
+        V8LocalArray { inner_array }
+    }
+
     /// Return true if the value is function and false otherwise.
     #[must_use]
     pub fn is_function(&self) -> bool {
@@ -66,6 +81,20 @@ impl V8LocalValue {
     #[must_use]
     pub fn is_number(&self) -> bool {
         (unsafe { v8_ValueIsNumber(self.inner_val) } != 0)
+    }
+
+    pub fn get_number(&self) -> f64 {
+        unsafe { v8_GetNumber(self.inner_val) }
+    }
+
+    /// Return true if the value is number and false otherwise.
+    #[must_use]
+    pub fn is_long(&self) -> bool {
+        (unsafe { v8_ValueIsBigInt(self.inner_val) } != 0)
+    }
+
+    pub fn get_long(&self) -> i64 {
+        unsafe { v8_GetBigInt(self.inner_val) }
     }
 
     /// Return true if the value is promise and false otherwise.

@@ -55,6 +55,9 @@ typedef struct v8_local_object_template v8_local_object_template;
 /* JS native object */
 typedef struct v8_local_object v8_local_object;
 
+/* JS native array*/
+typedef struct v8_local_array v8_local_array;
+
 /* JS script object */
 typedef struct v8_local_script v8_local_script;
 
@@ -283,11 +286,19 @@ int v8_ValueIsString(v8_local_value *val);
 /* Convert the generic JS value into a JS string */
 v8_local_string* v8_ValueAsString(v8_local_value *val);
 
+v8_local_value* v8_ValueFromLong(v8_isolate *i, long val);
+
 /* Return 1 if the given JS value is a big integer and 0 otherwise */
 int v8_ValueIsBigInt(v8_local_value *val);
 
+long v8_GetBigInt(v8_local_value *val);
+
 /* Return 1 if the given JS value is a number and 0 otherwise */
 int v8_ValueIsNumber(v8_local_value *val);
+
+double v8_GetNumber(v8_local_value *val);
+
+v8_local_value* v8_ValueFromDouble(v8_isolate *i, double val);
 
 /* Return 1 if the given JS value is a promise and 0 otherwise */
 int v8_ValueIsPromise(v8_local_value *val);
@@ -297,6 +308,9 @@ v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
 
 /* Return 1 if the given JS value is an object and 0 otherwise */
 int v8_ValueIsObject(v8_local_value *val);
+
+/* Return 1 if the given JS value is an array and 0 otherwise */
+int v8_ValueIsArray(v8_local_value *val);
 
 /* Create a new JS object */
 v8_local_object* v8_NewObject(v8_isolate *i);
@@ -315,6 +329,20 @@ void v8_FreeObject(v8_local_object *obj);
 
 /* Convert the given JS object into JS generic value */
 v8_local_value* v8_ObjectToValue(v8_local_object *obj);
+
+v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len);
+
+/* Free the given JS array */
+void v8_FreeArray(v8_local_array *arr);
+
+size_t v8_ArrayLen(v8_local_array *arr);
+
+v8_local_value* v8_ArrayGet(v8_context_ref *ctx_ref, v8_local_array *arr, size_t index);
+
+v8_local_value* v8_ArrayToValue(v8_local_array *obj);
+
+/* Convert the generic JS value into a JS array */
+v8_local_array* v8_ValueAsArray(v8_local_value *val);
 
 /* Promise state */
 typedef enum v8_PromiseState{

@@ -122,6 +122,11 @@ struct v8_local_object {
 	v8_local_object(v8::Local<v8::Object> o): obj(o) {}
 };
 
+struct v8_local_array {
+	v8::Local<v8::Array> arr;
+	v8_local_array(v8::Local<v8::Array> a): arr(a) {}
+};
+
 void v8_Initialize(v8_alloctor *alloc) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 //	v8::V8::SetFlagsFromString("--log-all");
@@ -592,12 +597,42 @@ v8_local_string* v8_ValueAsString(v8_local_value *val) {
 	return v8_str;
 }
 
+v8_local_value* v8_ValueFromLong(v8_isolate *i, long val) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::BigInt> big_int = v8::BigInt::New(isolate, val);
+	v8::Local<v8::Value> v = v8::Local<v8::Value>::Cast(big_int);
+
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(v);
+	return v8_val;
+}
+
 int v8_ValueIsBigInt(v8_local_value *val) {
-	return val->val->IsBigInt();
+	return val->val->IsBigInt() || val->val->IsInt32();
+}
+
+long v8_GetBigInt(v8_local_value *val) {
+	v8::Local<v8::BigInt> big_int = v8::Local<v8::BigInt>::Cast(val->val);
+	return big_int->Int64Value();
 }
 
 int v8_ValueIsNumber(v8_local_value *val) {
 	return val->val->IsNumber();
+}
+
+double v8_GetNumber(v8_local_value *val) {
+	v8::Local<v8::Number> number = v8::Local<v8::Number>::Cast(val->val);
+	return number->Value();
+}
+
+v8_local_value* v8_ValueFromDouble(v8_isolate *i, double val) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Number> number = v8::Number::New(isolate, val);
+	v8::Local<v8::Value> v = v8::Local<v8::Value>::Cast(number);
+
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(v);
+	return v8_val;
 }
 
 int v8_ValueIsPromise(v8_local_value *val) {
@@ -681,6 +716,10 @@ int v8_ValueIsObject(v8_local_value *val) {
 	return val->val->IsObject();
 }
 
+int v8_ValueIsArray(v8_local_value *val) {
+	return val->val->IsArray();
+}
+
 v8_local_object* v8_NewObject(v8_isolate *i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::Object> obj = v8::Object::New(isolate);
@@ -719,6 +758,51 @@ v8_local_value* v8_ObjectToValue(v8_local_object *obj) {
 	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(obj->obj);
 	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_value(val);
+	return res;
+}
+
+v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Value> vals_arr[len];
+	for (size_t i = 0 ; i < len ; ++i) {
+		vals_arr[i] = vals[i]->val;
+	}
+	v8::Local<v8::Array> arr = v8::Array::New(isolate, vals_arr, len);
+	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array(arr);
+	return res;
+}
+
+void v8_FreeArray(v8_local_array *arr) {
+	V8_FREE(arr);
+}
+
+size_t v8_ArrayLen(v8_local_array *arr) {
+	return arr->arr->Length();
+}
+
+v8_local_value* v8_ArrayGet(v8_context_ref *ctx_ref, v8_local_array *arr, size_t index) {
+	v8::MaybeLocal<v8::Value> maybe_val = arr->arr->Get(ctx_ref->context, index);
+	if (maybe_val.IsEmpty()) {
+		return NULL;
+	}
+	v8::Local<v8::Value> val = maybe_val.ToLocalChecked();
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+v8_local_value* v8_ArrayToValue(v8_local_array *arr) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(arr->arr);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+v8_local_array* v8_ValueAsArray(v8_local_value *val) {
+	v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(val->val);
+	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array(arr);
 	return res;
 }
 

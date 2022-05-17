@@ -7,6 +7,7 @@ pub mod handler_scope;
 pub mod isolate;
 pub mod isolate_scope;
 pub mod try_catch;
+pub mod v8_array;
 pub mod v8_context;
 pub mod v8_context_scope;
 pub mod v8_module;
