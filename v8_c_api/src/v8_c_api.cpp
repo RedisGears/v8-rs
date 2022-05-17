@@ -597,7 +597,7 @@ v8_local_string* v8_ValueAsString(v8_local_value *val) {
 	return v8_str;
 }
 
-v8_local_value* v8_ValueFromLong(v8_isolate *i, long val) {
+v8_local_value* v8_ValueFromLong(v8_isolate *i, long long val) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::BigInt> big_int = v8::BigInt::New(isolate, val);
 	v8::Local<v8::Value> v = v8::Local<v8::Value>::Cast(big_int);
@@ -611,9 +611,15 @@ int v8_ValueIsBigInt(v8_local_value *val) {
 	return val->val->IsBigInt() || val->val->IsInt32();
 }
 
-long v8_GetBigInt(v8_local_value *val) {
+long long v8_GetBigInt(v8_local_value *val) {
+	if (val->val->IsInt32()) {
+		v8::Local<v8::Int32> integer = v8::Local<v8::Int32>::Cast(val->val);
+		int64_t res = integer->Value();
+		return res;
+	}
 	v8::Local<v8::BigInt> big_int = v8::Local<v8::BigInt>::Cast(val->val);
-	return big_int->Int64Value();
+	int64_t res = big_int->Int64Value();
+	return res;
 }
 
 int v8_ValueIsNumber(v8_local_value *val) {
@@ -714,6 +720,17 @@ v8_local_value* v8_ResolverToValue(v8_local_resolver *resolver) {
 
 int v8_ValueIsObject(v8_local_value *val) {
 	return val->val->IsObject();
+}
+
+v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj) {
+	v8::MaybeLocal<v8::Array> maybe_res = obj->obj->GetPropertyNames(ctx_ref->context);
+	if (maybe_res.IsEmpty()) {
+		return NULL;
+	}
+	v8::Local<v8::Array> arr = maybe_res.ToLocalChecked();
+	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array(arr);
+	return res;
 }
 
 int v8_ValueIsArray(v8_local_value *val) {

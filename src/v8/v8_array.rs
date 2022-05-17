@@ -15,7 +15,7 @@ impl V8LocalArray {
         unsafe { v8_ArrayLen(self.inner_array) }
     }
 
-    pub fn get(&self, ctx_scope: V8ContextScope, index: usize) -> V8LocalValue {
+    pub fn get(&self, ctx_scope: &V8ContextScope, index: usize) -> V8LocalValue {
         let inner_val = unsafe { v8_ArrayGet(ctx_scope.inner_ctx_ref, self.inner_array, index) };
         V8LocalValue { inner_val }
     }

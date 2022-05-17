@@ -286,12 +286,12 @@ int v8_ValueIsString(v8_local_value *val);
 /* Convert the generic JS value into a JS string */
 v8_local_string* v8_ValueAsString(v8_local_value *val);
 
-v8_local_value* v8_ValueFromLong(v8_isolate *i, long val);
+v8_local_value* v8_ValueFromLong(v8_isolate *i, long long val);
 
 /* Return 1 if the given JS value is a big integer and 0 otherwise */
 int v8_ValueIsBigInt(v8_local_value *val);
 
-long v8_GetBigInt(v8_local_value *val);
+long long v8_GetBigInt(v8_local_value *val);
 
 /* Return 1 if the given JS value is a number and 0 otherwise */
 int v8_ValueIsNumber(v8_local_value *val);
@@ -308,6 +308,9 @@ v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
 
 /* Return 1 if the given JS value is an object and 0 otherwise */
 int v8_ValueIsObject(v8_local_value *val);
+
+/* Return an array contains the propery names of the given object */
+v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj);
 
 /* Return 1 if the given JS value is an array and 0 otherwise */
 int v8_ValueIsArray(v8_local_value *val);

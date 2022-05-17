@@ -1,7 +1,9 @@
 use crate::v8_c_raw::bindings::{
-    v8_FreeObject, v8_ObjectGet, v8_ObjectSet, v8_ObjectToValue, v8_local_object,
+    v8_FreeObject, v8_ObjectGet, v8_ObjectSet, v8_ObjectToValue, v8_ValueGetPropertyNames,
+    v8_local_object,
 };
 
+use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
 
@@ -35,6 +37,14 @@ impl V8LocalObject {
     pub fn to_value(&self) -> V8LocalValue {
         let inner_val = unsafe { v8_ObjectToValue(self.inner_obj) };
         V8LocalValue { inner_val }
+    }
+
+    /// Convert the object into a generic JS value
+    #[must_use]
+    pub fn get_property_names(&self, ctx_scope: &V8ContextScope) -> V8LocalArray {
+        let inner_array =
+            unsafe { v8_ValueGetPropertyNames(ctx_scope.inner_ctx_ref, self.inner_obj) };
+        V8LocalArray { inner_array }
     }
 }
 
