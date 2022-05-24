@@ -1,9 +1,9 @@
 use crate::v8_c_raw::bindings::{
-    v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetNumber,
+    v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetBool, v8_GetNumber,
     v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsObject,
     v8_ValueAsPromise, v8_ValueAsString, v8_ValueIsArray, v8_ValueIsAsyncFunction,
-    v8_ValueIsBigInt, v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise,
-    v8_ValueIsString, v8_local_value, v8_persisted_value, v8_ValueIsBool, v8_GetBool,
+    v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject,
+    v8_ValueIsPromise, v8_ValueIsString, v8_local_value, v8_persisted_value,
 };
 
 use std::ptr;
@@ -105,7 +105,11 @@ impl V8LocalValue {
     }
 
     pub fn get_boolean(&self) -> bool {
-        if unsafe { v8_GetBool(self.inner_val) } == 0 {false} else {true}
+        if unsafe { v8_GetBool(self.inner_val) } == 0 {
+            false
+        } else {
+            true
+        }
     }
 
     /// Return true if the value is promise and false otherwise.
