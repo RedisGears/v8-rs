@@ -298,6 +298,12 @@ int v8_ValueIsNumber(v8_local_value *val);
 
 double v8_GetNumber(v8_local_value *val);
 
+/* Return 1 if the given JS value is a number and 0 otherwise */
+int v8_ValueIsBool(v8_local_value *val);
+
+int v8_GetBool(v8_local_value *val);
+
+
 v8_local_value* v8_ValueFromDouble(v8_isolate *i, double val);
 
 /* Return 1 if the given JS value is a promise and 0 otherwise */

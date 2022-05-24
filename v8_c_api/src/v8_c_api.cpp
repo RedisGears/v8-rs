@@ -631,6 +631,16 @@ double v8_GetNumber(v8_local_value *val) {
 	return number->Value();
 }
 
+int v8_ValueIsBool(v8_local_value *val) {
+	return val->val->IsBoolean();
+}
+
+int v8_GetBool(v8_local_value *val){
+	v8::Local<v8::Boolean> boolean = v8::Local<v8::Boolean>::Cast(val->val);
+	return boolean->Value();
+}
+
+
 v8_local_value* v8_ValueFromDouble(v8_isolate *i, double val) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::Number> number = v8::Number::New(isolate, val);

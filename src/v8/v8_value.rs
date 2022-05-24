@@ -3,7 +3,7 @@ use crate::v8_c_raw::bindings::{
     v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsObject,
     v8_ValueAsPromise, v8_ValueAsString, v8_ValueIsArray, v8_ValueIsAsyncFunction,
     v8_ValueIsBigInt, v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise,
-    v8_ValueIsString, v8_local_value, v8_persisted_value,
+    v8_ValueIsString, v8_local_value, v8_persisted_value, v8_ValueIsBool, v8_GetBool,
 };
 
 use std::ptr;
@@ -96,6 +96,16 @@ impl V8LocalValue {
 
     pub fn get_long(&self) -> i64 {
         unsafe { v8_GetBigInt(self.inner_val) }
+    }
+
+    /// Return true if the value is boolean and false otherwise.
+    #[must_use]
+    pub fn is_boolean(&self) -> bool {
+        (unsafe { v8_ValueIsBool(self.inner_val) } != 0)
+    }
+
+    pub fn get_boolean(&self) -> bool {
+        if unsafe { v8_GetBool(self.inner_val) } == 0 {false} else {true}
     }
 
     /// Return true if the value is promise and false otherwise.
