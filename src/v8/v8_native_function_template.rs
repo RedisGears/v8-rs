@@ -23,6 +23,16 @@ pub struct V8LocalNativeFunctionArgs {
     len: usize,
 }
 
+pub(crate) extern "C" fn free_pd<
+    T: Fn(&V8LocalNativeFunctionArgs, &V8Isolate, &V8ContextScope) -> Option<V8LocalValue>,
+>(
+    pd: *mut c_void,
+) {
+    unsafe {
+        Box::from_raw(pd.cast::<T>());
+    }
+}
+
 pub(crate) extern "C" fn native_basic_function<
     T: Fn(&V8LocalNativeFunctionArgs, &V8Isolate, &V8ContextScope) -> Option<V8LocalValue>,
 >(

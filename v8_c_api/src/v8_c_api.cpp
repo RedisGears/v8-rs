@@ -322,6 +322,8 @@ void v8_FreeString(v8_local_string *str) {
 typedef struct v8_native_function_pd{
 	native_funcion func;
 	void *pd;
+	v8::Persistent<v8::External> *weak;
+	void(*freePD)(void *pd);
 }v8_native_function_pd;
 
 static void v8_NativeBaseFunction(const v8::FunctionCallbackInfo<v8::Value>& info) {
@@ -354,13 +356,25 @@ v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ct
 	return ret;
 }
 
-v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_funcion func, void *pd) {
+static void v8_FreeNativeFunctionPD(const v8::WeakCallbackInfo<v8_native_function_pd> &data) {
+    v8_native_function_pd *pd = data.GetParameter();
+    pd->freePD(pd->pd);
+    pd->weak->Reset();
+    delete pd->weak;
+    V8_FREE(pd);
+}
+
+v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_funcion func, void *pd, void(*freePD)(void *pd)) {
 	v8::Isolate *isolate = ctx_ref->context->GetIsolate();
 	v8_native_function_pd *nf_pd = (v8_native_function_pd*)V8_ALLOC(sizeof(*nf_pd));
 	nf_pd->func = func;
 	nf_pd->pd = pd;
+	nf_pd->freePD = freePD;
 
 	v8::Local<v8::External> data = v8::External::New(ctx_ref->context->GetIsolate(), (void*)nf_pd);
+	nf_pd->weak = new v8::Persistent<v8::External>(isolate, data);
+	nf_pd->weak->SetWeak<v8_native_function_pd>(nf_pd, v8_FreeNativeFunctionPD, v8::WeakCallbackType::kParameter);
+
 	v8::Local<v8::Function> f = v8::Function::New(ctx_ref->context, v8_NativeBaseFunction, data).ToLocalChecked();
 
 	v8_local_native_function *ret = (v8_local_native_function*) V8_ALLOC(sizeof(*ret));

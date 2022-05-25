@@ -199,7 +199,7 @@ v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* v8_i
 /* Create a native JS function from the given JS native function template */
 v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ctx_ref, v8_local_native_function_template *func);
 
-v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_funcion func, void *pd);
+v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_funcion func, void *pd, void(*freePD)(void *pd));
 
 /* Free the given native function template */
 void v8_FreeNativeFunctionTemplate(v8_local_native_function_template *func);

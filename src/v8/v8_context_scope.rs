@@ -10,6 +10,7 @@ use std::ptr;
 use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_module::V8LocalModule;
 use crate::v8::v8_native_function::V8LocalNativeFunction;
+use crate::v8::v8_native_function_template::free_pd;
 use crate::v8::v8_native_function_template::native_basic_function;
 use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgs;
 use crate::v8::v8_object::V8LocalObject;
@@ -135,6 +136,7 @@ impl V8ContextScope {
                 self.inner_ctx_ref,
                 Some(native_basic_function::<T>),
                 Box::into_raw(Box::new(func)).cast::<c_void>(),
+                Some(free_pd::<T>),
             )
         };
         V8LocalNativeFunction {
