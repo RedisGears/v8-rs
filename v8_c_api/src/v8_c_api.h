@@ -194,7 +194,7 @@ void v8_FreeString(v8_local_string *str);
 typedef v8_local_value* (*native_funcion)(v8_local_value_arr *args, size_t len, void *pd);
 
 /* Create a native function callback template */
-v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* v8_isolate, native_funcion func, void *pd);
+v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* v8_isolate, native_funcion func, void *pd, void(*freePD)(void *pd));
 
 /* Create a native JS function from the given JS native function template */
 v8_local_native_function* v8_NativeFunctionTemplateToFunction(v8_context_ref *ctx_ref, v8_local_native_function_template *func);

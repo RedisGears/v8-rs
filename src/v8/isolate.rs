@@ -15,7 +15,7 @@ use crate::v8::try_catch::V8TryCatch;
 use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_native_function_template::{
-    native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
+    free_pd, native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
 };
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_object_template::V8LocalObjectTemplate;
@@ -181,6 +181,7 @@ impl V8Isolate {
                 self.inner_isolate,
                 Some(native_basic_function::<T>),
                 Box::into_raw(Box::new(func)).cast::<c_void>(),
+                Some(free_pd::<T>),
             )
         };
         V8LocalNativeFunctionTemplate { inner_func }
