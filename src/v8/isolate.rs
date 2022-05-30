@@ -3,8 +3,8 @@
 use crate::v8_c_raw::bindings::{
     v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException, v8_NewArray,
     v8_NewIsolate, v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString,
-    v8_NewTryCatch, v8_RequestInterrupt, v8_StringToValue, v8_ValueFromDouble, v8_ValueFromLong,
-    v8_isolate, v8_local_value, v8_NewUnlocker,
+    v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue, v8_ValueFromDouble,
+    v8_ValueFromLong, v8_isolate, v8_local_value,
 };
 
 use std::os::raw::c_void;
@@ -20,8 +20,8 @@ use crate::v8::v8_native_function_template::{
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_object_template::V8LocalObjectTemplate;
 use crate::v8::v8_string::V8LocalString;
-use crate::v8::v8_value::V8LocalValue;
 use crate::v8::v8_unlocker::V8Unlocker;
+use crate::v8::v8_value::V8LocalValue;
 
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.

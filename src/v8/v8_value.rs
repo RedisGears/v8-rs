@@ -1,9 +1,10 @@
 use crate::v8_c_raw::bindings::{
     v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetBool, v8_GetNumber,
     v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsObject,
-    v8_ValueAsPromise, v8_ValueAsString, v8_ValueIsArray, v8_ValueIsAsyncFunction,
-    v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject,
-    v8_ValueIsPromise, v8_ValueIsString, v8_local_value, v8_persisted_value, v8_ValueAsResolver,
+    v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsString, v8_ValueIsArray,
+    v8_ValueIsAsyncFunction, v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction,
+    v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsString, v8_local_value,
+    v8_persisted_value,
 };
 
 use std::ptr;
@@ -13,9 +14,9 @@ use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_promise::V8LocalPromise;
+use crate::v8::v8_resolver::V8LocalResolver;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_utf8::V8LocalUtf8;
-use crate::v8::v8_resolver::V8LocalResolver;
 
 /// JS generic local value
 pub struct V8LocalValue {
