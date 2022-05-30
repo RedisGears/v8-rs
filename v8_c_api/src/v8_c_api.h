@@ -87,6 +87,9 @@ typedef struct v8_utf8_value v8_utf8_value;
 /* JS persisted object, can outlive the handlers score. */
 typedef struct v8_persisted_value v8_persisted_value;
 
+/* JS persisted object, can outlive the handlers score. */
+typedef struct v8_unlocker v8_unlocker;
+
 typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 
 /* Initialize v8, must be called before any v8 API.
@@ -327,6 +330,9 @@ v8_local_object* v8_NewObject(v8_isolate *i);
 /* Convert the generic JS value into a JS object */
 v8_local_object* v8_ValueAsObject(v8_local_value *val);
 
+/* Convert the generic JS value into a JS resolver*/
+v8_local_resolver* v8_ValueAsResolver(v8_local_value *val);
+
 /* Return the value of a given key from the given JS object */
 v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key);
 
@@ -414,5 +420,12 @@ void v8_FreeUtf8(v8_utf8_value *val);
 
 /* Return const pointer and length of the utf8 object */
 const char* v8_Utf8PtrLen(v8_utf8_value *val, size_t *len);
+
+/* Create an unlocker object that will unlock the v8 lock,
+ * to re-aquire the lock the unlocker need to be freed */
+v8_unlocker* v8_NewUnlocker(v8_isolate *i);
+
+/* Free the unlocker and re-aquire the lock */
+void v8_FreeUnlocker(v8_unlocker* unlocker);
 
 #endif /* SRC_V8_C_API_H_ */

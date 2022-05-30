@@ -21,6 +21,7 @@ pub mod v8_script;
 pub mod v8_string;
 pub mod v8_utf8;
 pub mod v8_value;
+pub mod v8_unlocker;
 
 /// Initialize the v8, must be called before any other v8 API.
 pub fn v8_init() {

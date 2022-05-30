@@ -780,6 +780,13 @@ v8_local_object* v8_ValueAsObject(v8_local_value *val) {
 	return res;
 }
 
+v8_local_resolver* v8_ValueAsResolver(v8_local_value *val) {
+	v8::Local<v8::Promise::Resolver> resolver = v8::Local<v8::Promise::Resolver>::Cast(val->val);
+	v8_local_resolver *res = (v8_local_resolver*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_resolver(resolver);
+	return res;
+}
+
 v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key) {
 	v8::MaybeLocal<v8::Value> maybe_val = obj->obj->Get(ctx_ref->context, key->val);
 	if (maybe_val.IsEmpty()) {
@@ -889,6 +896,17 @@ void v8_FreeUtf8(v8_utf8_value *val) {
 const char* v8_Utf8PtrLen(v8_utf8_value *val, size_t *len) {
 	*len = val->utf8_val.length();
 	return *val->utf8_val;
+}
+
+v8_unlocker* v8_NewUnlocker(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Unlocker *unlocker = new v8::Unlocker(isolate);
+	return (v8_unlocker*)unlocker;
+}
+
+void v8_FreeUnlocker(v8_unlocker* u) {
+	v8::Unlocker *unlocker = (v8::Unlocker*)u;
+	delete unlocker;
 }
 
 }

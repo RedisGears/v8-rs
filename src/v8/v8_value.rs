@@ -3,7 +3,7 @@ use crate::v8_c_raw::bindings::{
     v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsObject,
     v8_ValueAsPromise, v8_ValueAsString, v8_ValueIsArray, v8_ValueIsAsyncFunction,
     v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction, v8_ValueIsNumber, v8_ValueIsObject,
-    v8_ValueIsPromise, v8_ValueIsString, v8_local_value, v8_persisted_value,
+    v8_ValueIsPromise, v8_ValueIsString, v8_local_value, v8_persisted_value, v8_ValueAsResolver,
 };
 
 use std::ptr;
@@ -15,6 +15,7 @@ use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_promise::V8LocalPromise;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_utf8::V8LocalUtf8;
+use crate::v8::v8_resolver::V8LocalResolver;
 
 /// JS generic local value
 pub struct V8LocalValue {
@@ -123,6 +124,13 @@ impl V8LocalValue {
     pub fn as_promise(&self) -> V8LocalPromise {
         let inner_promise = unsafe { v8_ValueAsPromise(self.inner_val) };
         V8LocalPromise { inner_promise }
+    }
+
+    /// Convert the object into a resolver, applicable only if the object is resolver.
+    #[must_use]
+    pub fn as_resolver(&self) -> V8LocalResolver {
+        let inner_resolver = unsafe { v8_ValueAsResolver(self.inner_val) };
+        V8LocalResolver { inner_resolver }
     }
 
     /// Return true if the value is object and false otherwise.
