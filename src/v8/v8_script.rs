@@ -52,6 +52,9 @@ impl Drop for V8LocalScript {
     }
 }
 
+unsafe impl Sync for V8PersistedScript {}
+unsafe impl Send for V8PersistedScript {}
+
 impl Drop for V8PersistedScript {
     fn drop(&mut self) {
         unsafe { v8_FreePersistedScript(self.inner_persisted_script) }
