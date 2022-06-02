@@ -127,6 +127,87 @@ struct v8_local_array {
 	v8_local_array(v8::Local<v8::Array> a): arr(a) {}
 };
 
+typedef struct v8_native_function_pd v8_native_function_pd;
+typedef struct v8_pd_node v8_pd_node;
+typedef struct v8_pd_list v8_pd_list;
+
+struct v8_native_function_pd{
+	v8_pd_node *node;
+	native_funcion func;
+	void *pd;
+	v8::Persistent<v8::External> *weak;
+	void(*freePD)(void *pd);
+};
+
+void v8_FreeNaticeFunctionPD(v8_native_function_pd *pd) {
+	pd->freePD(pd->pd);
+	pd->weak->Reset();
+	delete pd->weak;
+	V8_FREE(pd);
+}
+
+struct v8_pd_node{
+	v8_pd_list *list;
+	v8_pd_node *prev;
+	v8_pd_node *next;
+	void *data;
+	void (*free_data)(void *data);
+};
+
+struct v8_pd_list{
+	v8_pd_node *start;
+	v8_pd_node *end;
+};
+
+void v8_ListNodeFree(v8_pd_node *node) {
+	if (node->free_data) {
+		node->free_data(node->data);
+	}
+	v8_pd_list *list = node->list;
+	if (list->start == node) {
+		list->start = node->next;
+	}
+	if (list->end == node) {
+		list->end = node->prev;
+	}
+	if (node->next) {
+		node->next->prev = node->prev;
+	}
+	if (node->prev) {
+		node->prev->next = node->next;
+	}
+	V8_FREE(node);
+}
+
+v8_pd_node* v8_PDListAdd(v8_pd_list *list, void *pd, void (*free_data)(void *data)) {
+	v8_pd_node *new_node = (v8_pd_node*)V8_ALLOC(sizeof(*new_node));
+	new_node->list = list;
+	new_node->prev = list->end;
+	new_node->next = NULL;
+	new_node->data = pd;
+	new_node->free_data = free_data;
+	list->end = new_node;
+	if (!list->start) {
+		list->start = new_node;
+	}
+
+	return new_node;
+}
+
+void v8_PDListFree(v8_pd_list* pd_list) {
+	while (pd_list->end) {
+		v8_ListNodeFree(pd_list->end);
+	}
+	V8_FREE(pd_list);
+}
+
+v8_pd_list* v8_PDListCreate() {
+	v8_pd_list *native_data = (v8_pd_list*)V8_ALLOC(sizeof(*native_data));
+	native_data->start = NULL;
+	native_data->end = NULL;
+	return native_data;
+}
+
 void v8_Initialize(v8_alloctor *alloc) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 //	v8::V8::SetFlagsFromString("--log-all");
@@ -148,16 +229,27 @@ void v8_Dispose() {
 	v8::V8::Dispose();
 }
 
+static void v8_FreeAllocator(v8::ArrayBuffer::Allocator* allocator) {
+	delete allocator;
+}
+
 v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap_size_in_bytes) {
 	v8::Isolate::CreateParams create_params;
 	create_params.array_buffer_allocator = v8::ArrayBuffer::Allocator::NewDefaultAllocator();
 	create_params.constraints.ConfigureDefaultsFromHeapSize(initial_heap_size_in_bytes, maximum_heap_size_in_bytes);
 	v8::Isolate *isolate = v8::Isolate::New(create_params);
+
+	v8_pd_list *native_data = v8_PDListCreate();
+	v8_PDListAdd(native_data, (void*)create_params.array_buffer_allocator, (void(*)(void*))v8_FreeAllocator);
+	isolate->SetData(0, native_data);
+
 	return (v8_isolate*)isolate;
 }
 
 void v8_FreeIsolate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_PDListFree(native_data);
 	isolate->Dispose();
 }
 
@@ -319,13 +411,6 @@ void v8_FreeString(v8_local_string *str) {
 	V8_FREE(str);
 }
 
-typedef struct v8_native_function_pd{
-	native_funcion func;
-	void *pd;
-	v8::Persistent<v8::External> *weak;
-	void(*freePD)(void *pd);
-}v8_native_function_pd;
-
 static void v8_NativeBaseFunction(const v8::FunctionCallbackInfo<v8::Value>& info) {
 	v8::Local<v8::External> data = v8::Handle<v8::External>::Cast(info.Data());
 	v8_native_function_pd *nf_pd = (v8_native_function_pd*)data->Value();
@@ -336,12 +421,9 @@ static void v8_NativeBaseFunction(const v8::FunctionCallbackInfo<v8::Value>& inf
 	}
 }
 
-static void v8_FreeNativeFunctionPD(const v8::WeakCallbackInfo<v8_native_function_pd> &data) {
-    v8_native_function_pd *pd = data.GetParameter();
-    pd->freePD(pd->pd);
-    pd->weak->Reset();
-    delete pd->weak;
-    V8_FREE(pd);
+static void v8_FreeNativeFunctionPD(const v8::WeakCallbackInfo<v8_pd_node> &data) {
+	v8_pd_node* node = data.GetParameter();
+    v8_ListNodeFree(node);
 }
 
 v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* i, native_funcion func, void *pd, void(*freePD)(void *pd)) {
@@ -351,9 +433,12 @@ v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* i, n
 	nf_pd->pd = pd;
 	nf_pd->freePD = freePD;
 
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
+
 	v8::Local<v8::External> data = v8::External::New(isolate, (void*)nf_pd);
 	nf_pd->weak = new v8::Persistent<v8::External>(isolate, data);
-    nf_pd->weak->SetWeak<v8_native_function_pd>(nf_pd, v8_FreeNativeFunctionPD, v8::WeakCallbackType::kParameter);
+    nf_pd->weak->SetWeak<v8_pd_node>(node, v8_FreeNativeFunctionPD, v8::WeakCallbackType::kParameter);
 
 	v8::Local<v8::FunctionTemplate> f = v8::FunctionTemplate::New(isolate, v8_NativeBaseFunction, data);
 	v8_local_native_function_template *v8_native = (struct v8_local_native_function_template*)V8_ALLOC(sizeof(*v8_native));
@@ -375,9 +460,12 @@ v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_f
 	nf_pd->pd = pd;
 	nf_pd->freePD = freePD;
 
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
+
 	v8::Local<v8::External> data = v8::External::New(ctx_ref->context->GetIsolate(), (void*)nf_pd);
 	nf_pd->weak = new v8::Persistent<v8::External>(isolate, data);
-	nf_pd->weak->SetWeak<v8_native_function_pd>(nf_pd, v8_FreeNativeFunctionPD, v8::WeakCallbackType::kParameter);
+	nf_pd->weak->SetWeak<v8_pd_node>(node, v8_FreeNativeFunctionPD, v8::WeakCallbackType::kParameter);
 
 	v8::Local<v8::Function> f = v8::Function::New(ctx_ref->context, v8_NativeBaseFunction, data).ToLocalChecked();
 
