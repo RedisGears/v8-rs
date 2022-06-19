@@ -339,6 +339,9 @@ v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_l
 /* Set a value inside the object at a given key */
 void v8_ObjectSet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key, v8_local_value *val);
 
+/* Freeze the object, same as Object.freeze. */
+void v8_ObjectFreeze(v8_context_ref *ctx_ref, v8_local_object *obj);
+
 /* Free the given JS object */
 void v8_FreeObject(v8_local_object *obj);
 

@@ -893,6 +893,10 @@ void v8_ObjectSet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value 
 	v8::Maybe<bool> res = obj->obj->Set(ctx_ref->context, key->val, val->val);
 }
 
+void v8_ObjectFreeze(v8_context_ref *ctx_ref, v8_local_object *obj) {
+	obj->obj->SetIntegrityLevel(ctx_ref->context, v8::IntegrityLevel::kFrozen);
+}
+
 void v8_FreeObject(v8_local_object *obj) {
 	V8_FREE(obj);
 }
