@@ -1,6 +1,6 @@
 use crate::v8_c_raw::bindings::{
-    v8_FreeObject, v8_ObjectGet, v8_ObjectSet, v8_ObjectToValue, v8_ValueGetPropertyNames,
-    v8_local_object, v8_ObjectFreeze,
+    v8_FreeObject, v8_ObjectFreeze, v8_ObjectGet, v8_ObjectSet, v8_ObjectToValue,
+    v8_ValueGetPropertyNames, v8_local_object,
 };
 
 use crate::v8::v8_array::V8LocalArray;
