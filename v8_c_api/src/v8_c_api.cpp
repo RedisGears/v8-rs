@@ -181,6 +181,9 @@ void v8_ListNodeFree(v8_pd_node *node) {
 
 v8_pd_node* v8_PDListAdd(v8_pd_list *list, void *pd, void (*free_data)(void *data)) {
 	v8_pd_node *new_node = (v8_pd_node*)V8_ALLOC(sizeof(*new_node));
+	if (list->end) {
+		list->end->next = new_node;
+	}
 	new_node->list = list;
 	new_node->prev = list->end;
 	new_node->next = NULL;
