@@ -1,4 +1,6 @@
-use crate::v8_c_raw::bindings::{v8_FreeTryCatch, v8_TryCatchGetException, v8_trycatch};
+use crate::v8_c_raw::bindings::{
+    v8_FreeTryCatch, v8_TryCatchGetException, v8_TryCatchHasTerminated, v8_trycatch,
+};
 
 use crate::v8::v8_value::V8LocalValue;
 
@@ -14,6 +16,12 @@ impl V8TryCatch {
     pub fn get_exception(&self) -> V8LocalValue {
         let inner_val = unsafe { v8_TryCatchGetException(self.inner_trycatch) };
         V8LocalValue { inner_val }
+    }
+
+    #[must_use]
+    pub fn has_terminated(&self) -> bool {
+        let res = unsafe { v8_TryCatchHasTerminated(self.inner_trycatch) };
+        res > 0
     }
 }
 

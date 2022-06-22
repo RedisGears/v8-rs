@@ -121,6 +121,9 @@ void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void
 /* Terminate the current JS code running on the given isolate */
 void v8_TerminateCurrExecution(v8_isolate* i);
 
+/* Cancel the termination triggered by v8_TerminateCurrExecution, after calling this API it is possible to continue using the isolate */
+void v8_CancelTerminateExecution(v8_isolate* i);
+
 /* Free the give isolate */
 void v8_FreeIsolate(v8_isolate* isolate);
 
@@ -148,6 +151,9 @@ v8_trycatch* v8_NewTryCatch(v8_isolate *isolate);
 
 /* Return the exception that was catch by the try catch object */
 v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch);
+
+/* Return true if the execution was terminated using v8_TerminateCurrExecution */
+int v8_TryCatchHasTerminated(v8_trycatch *trycatch);
 
 /* Free the try catch object */
 void v8_FreeTryCatch(v8_trycatch *trycatch);

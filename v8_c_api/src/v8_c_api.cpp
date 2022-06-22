@@ -264,11 +264,17 @@ void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void
 	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
 	v8_PDListAdd(native_data, pd, free_pd);
 	isolate->AddNearHeapLimitCallback(near_oom_callback, pd);
+	isolate->AutomaticallyRestoreInitialHeapLimit();
 }
 
 void v8_TerminateCurrExecution(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	isolate->TerminateExecution();
+}
+
+void v8_CancelTerminateExecution(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->CancelTerminateExecution();
 }
 
 void v8_FreeIsolate(v8_isolate* i) {
@@ -326,6 +332,10 @@ v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch) {
 	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
 	v8_val = new (v8_val) v8_local_value(exception);
 	return v8_val;
+}
+
+int v8_TryCatchHasTerminated(v8_trycatch *trycatch) {
+	return trycatch->trycatch.HasTerminated() ? 1 : 0;
 }
 
 void v8_FreeTryCatch(v8_trycatch *trycatch) {
