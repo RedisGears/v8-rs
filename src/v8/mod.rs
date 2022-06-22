@@ -31,7 +31,10 @@ pub fn v8_init() {
     unsafe { v8_Initialize(ptr::null_mut()) }
 }
 
-pub fn v8_init_with_error_handlers(fatal_error_hanlder: Box<dyn Fn(&str, &str)>, oom_error_handler: Box<dyn Fn(&str, bool)>) {
+pub fn v8_init_with_error_handlers(
+    fatal_error_hanlder: Box<dyn Fn(&str, &str)>,
+    oom_error_handler: Box<dyn Fn(&str, bool)>,
+) {
     v8_init();
     unsafe {
         FATAL_ERROR_CALLBACK = Some(fatal_error_hanlder);

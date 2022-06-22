@@ -1,10 +1,11 @@
 // An isolate rust wrapper to v8 isolate.
 
 use crate::v8_c_raw::bindings::{
-    v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException, v8_NewArray,
-    v8_NewIsolate, v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString,
-    v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue, v8_ValueFromDouble,
-    v8_ValueFromLong, v8_isolate, v8_local_value, v8_IsolateSetFatalErrorHandler, v8_IsolateSetOOMErrorHandler,
+    v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException,
+    v8_IsolateSetFatalErrorHandler, v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewIsolate,
+    v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString, v8_NewTryCatch,
+    v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue, v8_ValueFromDouble, v8_ValueFromLong,
+    v8_isolate, v8_local_value,
 };
 
 use std::os::raw::c_void;
@@ -23,8 +24,8 @@ use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_unlocker::V8Unlocker;
 use crate::v8::v8_value::V8LocalValue;
 
-use std::os::raw::{c_char, c_int};
 use std::ffi::CStr;
+use std::os::raw::{c_char, c_int};
 
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.
@@ -55,16 +56,16 @@ impl Default for V8Isolate {
 }
 
 extern "C" fn fatal_error_callback(location: *const c_char, message: *const c_char) {
-    if let Some(callback) = unsafe{crate::v8::FATAL_ERROR_CALLBACK.as_ref()} {
-        let location = unsafe{CStr::from_ptr(location)}.to_str().unwrap();
-        let message = unsafe{CStr::from_ptr(message)}.to_str().unwrap();
+    if let Some(callback) = unsafe { crate::v8::FATAL_ERROR_CALLBACK.as_ref() } {
+        let location = unsafe { CStr::from_ptr(location) }.to_str().unwrap();
+        let message = unsafe { CStr::from_ptr(message) }.to_str().unwrap();
         callback(location, message);
     }
 }
 
 extern "C" fn oom_error_callback(location: *const c_char, is_heap_oom: c_int) {
-    if let Some(callback) = unsafe{crate::v8::OOM_ERROR_CALLBACK.as_ref()} {
-        let location = unsafe{CStr::from_ptr(location)}.to_str().unwrap();
+    if let Some(callback) = unsafe { crate::v8::OOM_ERROR_CALLBACK.as_ref() } {
+        let location = unsafe { CStr::from_ptr(location) }.to_str().unwrap();
         let is_heap_oom = is_heap_oom != 0;
         callback(location, is_heap_oom);
     }
@@ -85,7 +86,7 @@ impl V8Isolate {
         initial_heap_size_in_bytes: usize,
         maximum_heap_size_in_bytes: usize,
     ) -> Self {
-        let inner_isolate =unsafe {
+        let inner_isolate = unsafe {
             let res = v8_NewIsolate(initial_heap_size_in_bytes, maximum_heap_size_in_bytes);
             if crate::v8::FATAL_ERROR_CALLBACK.is_some() {
                 v8_IsolateSetFatalErrorHandler(res, Some(fatal_error_callback))
@@ -95,7 +96,7 @@ impl V8Isolate {
             }
             res
         };
-        
+
         Self {
             inner_isolate: inner_isolate,
             no_release: false,
