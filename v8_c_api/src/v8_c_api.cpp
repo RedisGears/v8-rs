@@ -259,6 +259,18 @@ void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char*
 	isolate->SetOOMErrorHandler((v8::OOMErrorCallback)oom_hanlder);
 }
 
+void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void* data, size_t current_heap_limit, size_t initial_heap_limit), void *pd, void(*free_pd)(void*)) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_PDListAdd(native_data, pd, free_pd);
+	isolate->AddNearHeapLimitCallback(near_oom_callback, pd);
+}
+
+void v8_TerminateCurrExecution(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->TerminateExecution();
+}
+
 void v8_FreeIsolate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);

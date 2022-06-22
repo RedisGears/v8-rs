@@ -115,6 +115,12 @@ void v8_IsolateSetFatalErrorHandler(v8_isolate* i, void (*fatal_hanlder)(const c
 /* Set OOM error handler, this method should write the error to some log file, when return the processes will exit */
 void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char* location, int is_heap_oom));
 
+/* Set near OOM handler, the callback will be called when almost reaching OOM and allow to increase the max memory to avoid OOM error. */
+void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void* data, size_t current_heap_limit, size_t initial_heap_limit), void *pd, void(*free_pd)(void*));
+
+/* Terminate the current JS code running on the given isolate */
+void v8_TerminateCurrExecution(v8_isolate* i);
+
 /* Free the give isolate */
 void v8_FreeIsolate(v8_isolate* isolate);
 

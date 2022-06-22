@@ -2,10 +2,10 @@
 
 use crate::v8_c_raw::bindings::{
     v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateRaiseException,
-    v8_IsolateSetFatalErrorHandler, v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewIsolate,
-    v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewString, v8_NewTryCatch,
-    v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue, v8_ValueFromDouble, v8_ValueFromLong,
-    v8_isolate, v8_local_value,
+    v8_IsolateSetFatalErrorHandler, v8_IsolateSetNearOOMHandler, v8_IsolateSetOOMErrorHandler,
+    v8_NewArray, v8_NewIsolate, v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate,
+    v8_NewString, v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue,
+    v8_TerminateCurrExecution, v8_ValueFromDouble, v8_ValueFromLong, v8_isolate, v8_local_value,
 };
 
 use std::os::raw::c_void;
@@ -68,6 +68,21 @@ extern "C" fn oom_error_callback(location: *const c_char, is_heap_oom: c_int) {
         let location = unsafe { CStr::from_ptr(location) }.to_str().unwrap();
         let is_heap_oom = is_heap_oom != 0;
         callback(location, is_heap_oom);
+    }
+}
+
+extern "C" fn near_oom_callback<F: Fn(usize, usize) -> usize>(
+    data: *mut c_void,
+    current_heap_limit: usize,
+    initial_heap_limit: usize,
+) -> usize {
+    let callback = unsafe { &*(data as *mut F) };
+    callback(current_heap_limit, initial_heap_limit)
+}
+
+extern "C" fn near_oom_callback_free_pd<F: Fn(usize, usize) -> usize>(data: *mut c_void) {
+    unsafe {
+        Box::from_raw(data.cast::<F>());
     }
 }
 
@@ -223,6 +238,21 @@ impl V8Isolate {
     pub fn new_unlocker(&self) -> V8Unlocker {
         let inner_unlocker = unsafe { v8_NewUnlocker(self.inner_isolate) };
         V8Unlocker { inner_unlocker }
+    }
+
+    pub fn set_near_oom_callback<F: Fn(usize, usize) -> usize>(&self, callback: F) {
+        unsafe {
+            v8_IsolateSetNearOOMHandler(
+                self.inner_isolate,
+                Some(near_oom_callback::<F>),
+                Box::into_raw(Box::new(callback)) as *mut c_void,
+                Some(near_oom_callback_free_pd::<F>),
+            )
+        }
+    }
+
+    pub fn terminate_execution(&self) {
+        unsafe { v8_TerminateCurrExecution(self.inner_isolate) }
     }
 }
 
