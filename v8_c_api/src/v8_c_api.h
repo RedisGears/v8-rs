@@ -109,6 +109,12 @@ void v8_Dispose();
  * will abort the processes with OOM error. */
 v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap_size_in_bytes);
 
+/* Set fatal error handler, this method should write the error to some log file, when return the processes will exit */
+void v8_IsolateSetFatalErrorHandler(v8_isolate* i, void (*fatal_hanlder)(const char* location, const char* message));
+
+/* Set OOM error handler, this method should write the error to some log file, when return the processes will exit */
+void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char* location, int is_heap_oom));
+
 /* Free the give isolate */
 void v8_FreeIsolate(v8_isolate* isolate);
 

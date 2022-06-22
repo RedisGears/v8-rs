@@ -249,6 +249,16 @@ v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap
 	return (v8_isolate*)isolate;
 }
 
+void v8_IsolateSetFatalErrorHandler(v8_isolate* i, void (*fatal_hanlder)(const char* location, const char* message)) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->SetFatalErrorHandler(fatal_hanlder);
+}
+
+void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char* location, int is_heap_oom)) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->SetOOMErrorHandler((v8::OOMErrorCallback)oom_hanlder);
+}
+
 void v8_FreeIsolate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
