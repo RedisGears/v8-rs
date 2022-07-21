@@ -896,6 +896,17 @@ v8_local_object* v8_NewObject(v8_isolate *i) {
 	return res;
 }
 
+v8_local_value* v8_NewObjectFromJsonString(v8_context_ref *ctx_ref, v8_local_string *str) {
+	v8::MaybeLocal<v8::Value> result = v8::JSON::Parse(ctx_ref->context, str->str);
+	if (result.IsEmpty()) {
+		return NULL;
+	}
+	v8::Local<v8::Value> val = result.ToLocalChecked();
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
 v8_local_object* v8_ValueAsObject(v8_local_value *val) {
 	v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(val->val);
 	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));

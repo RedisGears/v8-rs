@@ -345,6 +345,9 @@ int v8_ValueIsArray(v8_local_value *val);
 /* Create a new JS object */
 v8_local_object* v8_NewObject(v8_isolate *i);
 
+/* create a js object form json string */
+v8_local_value* v8_NewObjectFromJsonString(v8_context_ref *ctx_ref, v8_local_string *str);
+
 /* Convert the generic JS value into a JS object */
 v8_local_object* v8_ValueAsObject(v8_local_value *val);
 
