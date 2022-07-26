@@ -15,10 +15,14 @@ pub struct V8LocalObject {
 impl V8LocalObject {
     /// Return the value of a given key
     #[must_use]
-    pub fn get(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue) -> V8LocalValue {
+    pub fn get(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue) -> Option<V8LocalValue> {
         let inner_val =
             unsafe { v8_ObjectGet(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
-        V8LocalValue { inner_val }
+        if inner_val.is_null() {
+            None
+        } else {
+            Some(V8LocalValue { inner_val })
+        }
     }
 
     pub fn set(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue, val: &V8LocalValue) {

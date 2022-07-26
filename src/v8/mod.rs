@@ -18,6 +18,7 @@ pub mod v8_object_template;
 pub mod v8_promise;
 pub mod v8_resolver;
 pub mod v8_script;
+pub mod v8_set;
 pub mod v8_string;
 pub mod v8_unlocker;
 pub mod v8_utf8;

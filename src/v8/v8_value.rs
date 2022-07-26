@@ -1,10 +1,10 @@
 use crate::v8_c_raw::bindings::{
     v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetBool, v8_GetNumber,
     v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsObject,
-    v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsString, v8_ValueIsArray,
+    v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsSet, v8_ValueAsString, v8_ValueIsArray,
     v8_ValueIsAsyncFunction, v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction,
-    v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsString, v8_local_value,
-    v8_persisted_value,
+    v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
+    v8_ValueIsStringObject, v8_local_value, v8_persisted_value,
 };
 
 use std::ptr;
@@ -15,6 +15,7 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_promise::V8LocalPromise;
 use crate::v8::v8_resolver::V8LocalResolver;
+use crate::v8::v8_set::V8LocalSet;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_utf8::V8LocalUtf8;
 
@@ -53,6 +54,12 @@ impl V8LocalValue {
         V8LocalString {
             inner_string: inner_str,
         }
+    }
+
+    /// Return true if the value is string object and false otherwise.
+    #[must_use]
+    pub fn is_string_object(&self) -> bool {
+        (unsafe { v8_ValueIsStringObject(self.inner_val) } != 0)
     }
 
     /// Return true if the value is string and false otherwise.
@@ -145,6 +152,19 @@ impl V8LocalValue {
     pub fn as_object(&self) -> V8LocalObject {
         let inner_obj = unsafe { v8_ValueAsObject(self.inner_val) };
         V8LocalObject { inner_obj }
+    }
+
+    /// Return true if the value is set and false otherwise.
+    #[must_use]
+    pub fn is_set(&self) -> bool {
+        (unsafe { v8_ValueIsSet(self.inner_val) } != 0)
+    }
+
+    /// Convert the object into a promise, applicable only if the object is promise.
+    #[must_use]
+    pub fn as_set(&self) -> V8LocalSet {
+        let inner_set = unsafe { v8_ValueAsSet(self.inner_val) };
+        V8LocalSet { inner_set }
     }
 
     /// Persist the local object so it can be saved beyond the current handlers scope.

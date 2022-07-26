@@ -3,10 +3,10 @@
 use crate::v8_c_raw::bindings::{
     v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline,
     v8_IsolateRaiseException, v8_IsolateSetFatalErrorHandler, v8_IsolateSetNearOOMHandler,
-    v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewIsolate, v8_NewNativeFunctionTemplate,
-    v8_NewObject, v8_NewObjectTemplate, v8_NewString, v8_NewTryCatch, v8_NewUnlocker,
-    v8_RequestInterrupt, v8_StringToValue, v8_TerminateCurrExecution, v8_ValueFromDouble,
-    v8_ValueFromLong, v8_isolate, v8_local_value,
+    v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewBool, v8_NewIsolate,
+    v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewSet, v8_NewString,
+    v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue,
+    v8_TerminateCurrExecution, v8_ValueFromDouble, v8_ValueFromLong, v8_isolate, v8_local_value,
 };
 
 use std::os::raw::c_void;
@@ -21,6 +21,7 @@ use crate::v8::v8_native_function_template::{
 };
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_object_template::V8LocalObjectTemplate;
+use crate::v8::v8_set::V8LocalSet;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_unlocker::V8Unlocker;
 use crate::v8::v8_value::V8LocalValue;
@@ -196,6 +197,18 @@ impl V8Isolate {
     pub fn new_object(&self) -> V8LocalObject {
         let inner_obj = unsafe { v8_NewObject(self.inner_isolate) };
         V8LocalObject { inner_obj }
+    }
+
+    #[must_use]
+    pub fn new_set(&self) -> V8LocalSet {
+        let inner_set = unsafe { v8_NewSet(self.inner_isolate) };
+        V8LocalSet { inner_set }
+    }
+
+    #[must_use]
+    pub fn new_bool(&self, val: bool) -> V8LocalValue {
+        let inner_val = unsafe { v8_NewBool(self.inner_isolate, val as i32) };
+        V8LocalValue { inner_val }
     }
 
     pub fn new_long(&self, val: i64) -> V8LocalValue {

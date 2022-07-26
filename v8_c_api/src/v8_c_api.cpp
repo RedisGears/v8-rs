@@ -122,6 +122,11 @@ struct v8_local_object {
 	v8_local_object(v8::Local<v8::Object> o): obj(o) {}
 };
 
+struct v8_local_set {
+	v8::Local<v8::Set> set;
+	v8_local_set(v8::Local<v8::Set> o): set(o) {}
+};
+
 struct v8_local_array {
 	v8::Local<v8::Array> arr;
 	v8_local_array(v8::Local<v8::Array> a): arr(a) {}
@@ -442,6 +447,15 @@ v8_local_value* v8_StringToValue(v8_local_string *str) {
 	return v8_val;
 }
 
+v8_local_object* v8_StringToStringObject(v8_isolate* i, v8_local_string *str) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Value> str_obj = v8::StringObject::New(isolate, str->str);
+	v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(str_obj);
+	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_object(obj);
+	return res;
+}
+
 void v8_FreeString(v8_local_string *str) {
 	V8_FREE(str);
 }
@@ -732,6 +746,10 @@ int v8_ValueIsString(v8_local_value *val) {
 	return val->val->IsString();
 }
 
+int v8_ValueIsStringObject(v8_local_value *val) {
+	return val->val->IsStringObject();
+}
+
 v8_local_string* v8_ValueAsString(v8_local_value *val) {
 	v8_local_string *v8_str = (struct v8_local_string*)V8_ALLOC(sizeof(*v8_str));
 	v8_str = new (v8_str) v8_local_string(v8::Local<v8::String>::Cast(val->val));
@@ -948,6 +966,53 @@ v8_local_value* v8_ObjectToValue(v8_local_object *obj) {
 	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(obj->obj);
 	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_value(val);
+	return res;
+}
+
+v8_local_set* v8_NewSet(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Set> set = v8::Set::New(isolate);
+	v8_local_set *res = (v8_local_set*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_set(set);
+	return res;
+}
+
+/* Add a value to the set */
+void v8_SetAdd(v8_context_ref *ctx_ref, v8_local_set *set, v8_local_value *val) {
+	v8::MaybeLocal<v8::Set> res = set->set->Add(ctx_ref->context, val->val);
+}
+
+/* Convert the given JS set into JS generic value */
+v8_local_value* v8_SetToValue(v8_local_set *set) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(set->set);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+/* Convert the generic JS value into a JS set */
+v8_local_set* v8_ValueAsSet(v8_local_value *val) {
+	v8::Local<v8::Set> set = v8::Local<v8::Set>::Cast(val->val);
+	v8_local_set *res = (v8_local_set*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_set(set);
+	return res;
+}
+
+/* Return 1 if the given JS value is a set and 0 otherwise */
+int v8_ValueIsSet(v8_local_value *val) {
+	return val->val->IsSet();
+}
+
+void v8_FreeSet(v8_local_set *set) {
+	V8_FREE(set);
+}
+
+v8_local_value* v8_NewBool(v8_isolate *i, int val) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Boolean> b = v8::Boolean::New(isolate, val);
+	v8::Local<v8::Value> v = v8::Local<v8::Value>::Cast(b);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(v);
 	return res;
 }
 

@@ -55,6 +55,9 @@ typedef struct v8_local_object_template v8_local_object_template;
 /* JS native object */
 typedef struct v8_local_object v8_local_object;
 
+/* JS native set */
+typedef struct v8_local_set v8_local_set;
+
 /* JS native array*/
 typedef struct v8_local_array v8_local_array;
 
@@ -208,6 +211,9 @@ v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t le
 /* Convert the JS string to JS generic value */
 v8_local_value* v8_StringToValue(v8_local_string *str);
 
+/* Convert the JS string to JS string object (same as writing 'new String(...)')*/
+v8_local_object* v8_StringToStringObject(v8_isolate* v8_isolate, v8_local_string *str);
+
 /* Free the given JS string */
 void v8_FreeString(v8_local_string *str);
 
@@ -304,6 +310,9 @@ int v8_ValueIsAsyncFunction(v8_local_value *val);
 /* Return 1 if the given JS value is a string and 0 otherwise */
 int v8_ValueIsString(v8_local_value *val);
 
+/* Return 1 if the given JS value is a string object */
+int v8_ValueIsStringObject(v8_local_value *val);
+
 /* Convert the generic JS value into a JS string */
 v8_local_string* v8_ValueAsString(v8_local_value *val);
 
@@ -368,6 +377,27 @@ void v8_FreeObject(v8_local_object *obj);
 
 /* Convert the given JS object into JS generic value */
 v8_local_value* v8_ObjectToValue(v8_local_object *obj);
+
+/* Create a new set */
+v8_local_set* v8_NewSet(v8_isolate *i);
+
+/* Add a value to the set */
+void v8_SetAdd(v8_context_ref *ctx_ref, v8_local_set *set, v8_local_value *val);
+
+/* Convert the given JS set into JS generic value */
+v8_local_value* v8_SetToValue(v8_local_set *set);
+
+/* Convert the generic JS value into a JS set */
+v8_local_set* v8_ValueAsSet(v8_local_value *val);
+
+/* Return 1 if the given JS value is a set and 0 otherwise */
+int v8_ValueIsSet(v8_local_value *val);
+
+/* Free the given JS set */
+void v8_FreeSet(v8_local_set *set);
+
+/* Create a new set */
+v8_local_value* v8_NewBool(v8_isolate *i, int val);
 
 v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len);
 
