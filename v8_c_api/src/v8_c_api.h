@@ -396,8 +396,14 @@ int v8_ValueIsSet(v8_local_value *val);
 /* Free the given JS set */
 void v8_FreeSet(v8_local_set *set);
 
-/* Create a new set */
+/* Create a new boolean */
 v8_local_value* v8_NewBool(v8_isolate *i, int val);
+
+/* Create a new JS null */
+v8_local_value* v8_NewNull(v8_isolate *i);
+
+/* Return 1 if the given JS value is null 0 otherwise */
+int v8_ValueIsNull(v8_local_value *val);
 
 v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len);
 

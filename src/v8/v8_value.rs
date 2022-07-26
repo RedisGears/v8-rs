@@ -4,7 +4,7 @@ use crate::v8_c_raw::bindings::{
     v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsSet, v8_ValueAsString, v8_ValueIsArray,
     v8_ValueIsAsyncFunction, v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction,
     v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
-    v8_ValueIsStringObject, v8_local_value, v8_persisted_value,
+    v8_ValueIsStringObject, v8_local_value, v8_persisted_value, v8_ValueIsNull,
 };
 
 use std::ptr;
@@ -73,6 +73,12 @@ impl V8LocalValue {
     pub fn as_array(&self) -> V8LocalArray {
         let inner_array = unsafe { v8_ValueAsArray(self.inner_val) };
         V8LocalArray { inner_array }
+    }
+
+    /// Return true if the value is null and false otherwise.
+    #[must_use]
+    pub fn is_null(&self) -> bool {
+        (unsafe { v8_ValueIsNull(self.inner_val) } != 0)
     }
 
     /// Return true if the value is function and false otherwise.

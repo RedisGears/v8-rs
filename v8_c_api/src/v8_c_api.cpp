@@ -1016,6 +1016,20 @@ v8_local_value* v8_NewBool(v8_isolate *i, int val) {
 	return res;
 }
 
+v8_local_value* v8_NewNull(v8_isolate *i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::Primitive> n = v8::Null(isolate);
+	v8::Local<v8::Value> v = v8::Local<v8::Value>::Cast(n);
+
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(v);
+	return v8_val;
+}
+
+int v8_ValueIsNull(v8_local_value *val) {
+	return val->val->IsNull();
+}
+
 v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::Value> vals_arr[len];

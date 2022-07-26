@@ -7,6 +7,7 @@ use crate::v8_c_raw::bindings::{
     v8_NewNativeFunctionTemplate, v8_NewObject, v8_NewObjectTemplate, v8_NewSet, v8_NewString,
     v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue,
     v8_TerminateCurrExecution, v8_ValueFromDouble, v8_ValueFromLong, v8_isolate, v8_local_value,
+    v8_NewNull,
 };
 
 use std::os::raw::c_void;
@@ -218,6 +219,11 @@ impl V8Isolate {
 
     pub fn new_double(&self, val: f64) -> V8LocalValue {
         let inner_val = unsafe { v8_ValueFromDouble(self.inner_isolate, val) };
+        V8LocalValue { inner_val }
+    }
+
+    pub fn new_null(&self) -> V8LocalValue {
+        let inner_val = unsafe { v8_NewNull(self.inner_isolate) };
         V8LocalValue { inner_val }
     }
 
