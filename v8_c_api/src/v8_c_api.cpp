@@ -160,6 +160,7 @@ struct v8_pd_node{
 };
 
 struct v8_pd_list{
+	v8::ArrayBuffer::Allocator *allocator;
 	v8_pd_node *start;
 	v8_pd_node *end;
 };
@@ -209,10 +210,11 @@ void v8_PDListFree(v8_pd_list* pd_list) {
 	V8_FREE(pd_list);
 }
 
-v8_pd_list* v8_PDListCreate() {
+v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 	v8_pd_list *native_data = (v8_pd_list*)V8_ALLOC(sizeof(*native_data));
 	native_data->start = NULL;
 	native_data->end = NULL;
+	native_data->allocator = alloc;
 	return native_data;
 }
 
@@ -247,8 +249,7 @@ v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap
 	create_params.constraints.ConfigureDefaultsFromHeapSize(initial_heap_size_in_bytes, maximum_heap_size_in_bytes);
 	v8::Isolate *isolate = v8::Isolate::New(create_params);
 
-	v8_pd_list *native_data = v8_PDListCreate();
-	v8_PDListAdd(native_data, (void*)create_params.array_buffer_allocator, (void(*)(void*))v8_FreeAllocator);
+	v8_pd_list *native_data = v8_PDListCreate(create_params.array_buffer_allocator);
 	isolate->SetData(0, native_data);
 
 	return (v8_isolate*)isolate;
@@ -285,8 +286,10 @@ void v8_CancelTerminateExecution(v8_isolate* i) {
 void v8_FreeIsolate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8::ArrayBuffer::Allocator *allocator = native_data->allocator;
 	v8_PDListFree(native_data);
 	isolate->Dispose();
+	v8_FreeAllocator(allocator);
 }
 
 void v8_RequestInterrupt(v8_isolate* i, v8_InterruptCallback callback, void *data) {
