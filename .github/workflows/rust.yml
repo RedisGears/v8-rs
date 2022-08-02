@@ -33,8 +33,8 @@ jobs:
           key: ${{matrix.image}}-cargo-${{hashFiles('**/Cargo.lock')}}
       - name: install rust
         run: |
-          if [ -f /usr/bin/apt ]; then apt update -q ; apt install -y curl; fi
-          if [ -f /usr/bin/yum ]; then yum install -y curl tar zip; fi
+          if [ -f /usr/bin/apt ]; then apt update -q ; apt install -y curl build-essential; fi
+          if [ -f /usr/bin/yum ]; then yum install -y curl gcc; fi
           curl https://sh.rustup.rs -o rusty.sh
           sh ./rusty.sh -q -y
       - name: format
