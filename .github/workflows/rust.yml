@@ -34,7 +34,7 @@ jobs:
       - name: install rust
         run: |
           if [ -f /usr/bin/apt ]; then apt update -q ; apt install -y curl; fi
-          if [ -f /usr/bin/yum ]; then yum install -y curl; fi
+          if [ -f /usr/bin/yum ]; then yum install -y curl tar zip; fi
           curl https://sh.rustup.rs -O rusty.sh
           sh ./rusty.sh -q -y
       - name: format
