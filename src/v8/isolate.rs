@@ -3,7 +3,7 @@
 use crate::v8_c_raw::bindings::{
     v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline,
     v8_IsolateRaiseException, v8_IsolateSetFatalErrorHandler, v8_IsolateSetNearOOMHandler,
-    v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewBool, v8_NewIsolate,
+    v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewArrayBuffer, v8_NewBool, v8_NewIsolate,
     v8_NewNativeFunctionTemplate, v8_NewNull, v8_NewObject, v8_NewObjectTemplate, v8_NewSet,
     v8_NewString, v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue,
     v8_TerminateCurrExecution, v8_ValueFromDouble, v8_ValueFromLong, v8_isolate, v8_local_value,
@@ -15,6 +15,7 @@ use crate::v8::handler_scope::V8HandlersScope;
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::try_catch::V8TryCatch;
 use crate::v8::v8_array::V8LocalArray;
+use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_native_function_template::{
     free_pd, native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
@@ -191,6 +192,18 @@ impl V8Isolate {
         let ptr = args.as_ptr();
         let inner_array = unsafe { v8_NewArray(self.inner_isolate, ptr, values.len()) };
         V8LocalArray { inner_array }
+    }
+
+    #[must_use]
+    pub fn new_array_buffer(&self, buff: &[u8]) -> V8LocalArrayBuffer {
+        let inner_array_buffer = unsafe {
+            v8_NewArrayBuffer(
+                self.inner_isolate,
+                buff.as_ptr() as *const c_char,
+                buff.len(),
+            )
+        };
+        V8LocalArrayBuffer { inner_array_buffer }
     }
 
     #[must_use]

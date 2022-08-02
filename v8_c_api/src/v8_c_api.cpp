@@ -132,6 +132,11 @@ struct v8_local_array {
 	v8_local_array(v8::Local<v8::Array> a): arr(a) {}
 };
 
+struct v8_local_array_buff {
+	v8::Local<v8::ArrayBuffer> arr_buff;
+	v8_local_array_buff(v8::Local<v8::ArrayBuffer> a): arr_buff(a) {}
+};
+
 typedef struct v8_native_function_pd v8_native_function_pd;
 typedef struct v8_pd_node v8_pd_node;
 typedef struct v8_pd_list v8_pd_list;
@@ -909,6 +914,10 @@ int v8_ValueIsArray(v8_local_value *val) {
 	return val->val->IsArray();
 }
 
+int v8_ValueIsArrayBuffer(v8_local_value *val) {
+	return val->val->IsArrayBuffer();
+}
+
 v8_local_object* v8_NewObject(v8_isolate *i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::Object> obj = v8::Object::New(isolate);
@@ -1033,6 +1042,32 @@ int v8_ValueIsNull(v8_local_value *val) {
 	return val->val->IsNull();
 }
 
+v8_local_array_buff* v8_NewArrayBuffer(v8_isolate *i, const char *data, size_t len) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Local<v8::ArrayBuffer> arr_buff = v8::ArrayBuffer::New(isolate, len);
+	void *buff = arr_buff->GetBackingStore()->Data();
+	memcpy(buff, data, len);
+	v8_local_array_buff *res = (v8_local_array_buff*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array_buff(arr_buff);
+	return res;
+}
+
+v8_local_value* v8_ArrayBufferToValue(v8_local_array_buff *arr_buffer) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(arr_buffer->arr_buff);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+const void* v8_ArrayBufferGetData(v8_local_array_buff *arr_buffer, size_t *len) {
+	*len = arr_buffer->arr_buff->ByteLength();
+	return arr_buffer->arr_buff->GetBackingStore()->Data();
+}
+
+void v8_FreeArrayBuffer(v8_local_array_buff *arr_buffer) {
+	V8_FREE(arr_buffer);
+}
+
 v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::Value> vals_arr[len];
@@ -1075,6 +1110,13 @@ v8_local_array* v8_ValueAsArray(v8_local_value *val) {
 	v8::Local<v8::Array> arr = v8::Local<v8::Array>::Cast(val->val);
 	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_array(arr);
+	return res;
+}
+
+v8_local_array_buff* v8_ValueAsArrayBuffer(v8_local_value *val) {
+	v8::Local<v8::ArrayBuffer> arr = v8::Local<v8::ArrayBuffer>::Cast(val->val);
+	v8_local_array_buff *res = (v8_local_array_buff*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array_buff(arr);
 	return res;
 }
 

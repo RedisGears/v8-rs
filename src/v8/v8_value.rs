@@ -1,16 +1,18 @@
 use crate::v8_c_raw::bindings::{
     v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetBool, v8_GetNumber,
-    v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsObject,
-    v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsSet, v8_ValueAsString, v8_ValueIsArray,
-    v8_ValueIsAsyncFunction, v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsFunction, v8_ValueIsNull,
-    v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
-    v8_ValueIsStringObject, v8_local_value, v8_persisted_value,
+    v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsArrayBuffer,
+    v8_ValueAsObject, v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsSet, v8_ValueAsString,
+    v8_ValueIsArray, v8_ValueIsArrayBuffer, v8_ValueIsAsyncFunction, v8_ValueIsBigInt,
+    v8_ValueIsBool, v8_ValueIsFunction, v8_ValueIsNull, v8_ValueIsNumber, v8_ValueIsObject,
+    v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString, v8_ValueIsStringObject, v8_local_value,
+    v8_persisted_value,
 };
 
 use std::ptr;
 
 use crate::v8::isolate::V8Isolate;
 use crate::v8::v8_array::V8LocalArray;
+use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_promise::V8LocalPromise;
@@ -73,6 +75,19 @@ impl V8LocalValue {
     pub fn as_array(&self) -> V8LocalArray {
         let inner_array = unsafe { v8_ValueAsArray(self.inner_val) };
         V8LocalArray { inner_array }
+    }
+
+    /// Return true if the value is string and false otherwise.
+    #[must_use]
+    pub fn is_array_buffer(&self) -> bool {
+        (unsafe { v8_ValueIsArrayBuffer(self.inner_val) } != 0)
+    }
+
+    /// Convert the object into a string, applicable only if the value is string.
+    #[must_use]
+    pub fn as_array_buffer(&self) -> V8LocalArrayBuffer {
+        let inner_array_buffer = unsafe { v8_ValueAsArrayBuffer(self.inner_val) };
+        V8LocalArrayBuffer { inner_array_buffer }
     }
 
     /// Return true if the value is null and false otherwise.

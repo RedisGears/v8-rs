@@ -61,6 +61,9 @@ typedef struct v8_local_set v8_local_set;
 /* JS native array*/
 typedef struct v8_local_array v8_local_array;
 
+/* JS native array buffer*/
+typedef struct v8_local_array_buff v8_local_array_buff;
+
 /* JS script object */
 typedef struct v8_local_script v8_local_script;
 
@@ -351,6 +354,9 @@ v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_objec
 /* Return 1 if the given JS value is an array and 0 otherwise */
 int v8_ValueIsArray(v8_local_value *val);
 
+/* Return 1 if the given JS value is an array buffer and 0 otherwise */
+int v8_ValueIsArrayBuffer(v8_local_value *val);
+
 /* Create a new JS object */
 v8_local_object* v8_NewObject(v8_isolate *i);
 
@@ -405,6 +411,17 @@ v8_local_value* v8_NewNull(v8_isolate *i);
 /* Return 1 if the given JS value is null 0 otherwise */
 int v8_ValueIsNull(v8_local_value *val);
 
+/* Create a js ArrayBuffer */
+v8_local_array_buff* v8_NewArrayBuffer(v8_isolate *i, const char *data, size_t len);
+
+v8_local_value* v8_ArrayBufferToValue(v8_local_array_buff *arr_buffer);
+
+/* Return the underline data of an array buffer */
+const void* v8_ArrayBufferGetData(v8_local_array_buff *arr_buffer, size_t *len);
+
+/* Free a js ArrayBuffer */
+void v8_FreeArrayBuffer(v8_local_array_buff *arr_buffer);
+
 v8_local_array* v8_NewArray(v8_isolate *i, v8_local_value *const *vals, size_t len);
 
 /* Free the given JS array */
@@ -418,6 +435,9 @@ v8_local_value* v8_ArrayToValue(v8_local_array *obj);
 
 /* Convert the generic JS value into a JS array */
 v8_local_array* v8_ValueAsArray(v8_local_value *val);
+
+/* Convert the generic JS value into a JS array buffer */
+v8_local_array_buff* v8_ValueAsArrayBuffer(v8_local_value *val);
 
 /* Promise state */
 typedef enum v8_PromiseState{
