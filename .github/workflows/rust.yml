@@ -14,7 +14,7 @@ jobs:
   build:
     strategy:
       matrix:
-        image: ['ubuntu:jammy', 'ubuntu:focal', 'ubuntu:bionic', 'ubuntu:xenial', 'centos:7', 'oraclelinux:8', 'debian:bullseye']
+        image: ['ubuntu:jammy', 'ubuntu:focal', 'ubuntu:bionic', 'ubuntu:xenial', 'centos:7', 'rockylinux:8', 'debian:bullseye']
 
     name: Linux ${{matrix.image}} x86
     runs-on: ubuntu-latest
@@ -35,7 +35,7 @@ jobs:
         run: |
           if [ -f /usr/bin/apt ]; then apt update -q ; apt install -y curl; fi
           if [ -f /usr/bin/yum ]; then yum install -y curl tar zip; fi
-          curl https://sh.rustup.rs -O rusty.sh
+          curl https://sh.rustup.rs -o rusty.sh
           sh ./rusty.sh -q -y
       - name: format
         run: ${HOME}/.cargo/bin/cargo fmt -- --check
