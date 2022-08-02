@@ -11,10 +11,11 @@ env:
 
 jobs:
 
-  strategy:
-    matrix:
-      image: ['ubuntu:jammy', 'ubuntu:focal', 'ubuntu:bionic', 'ubuntu:xenial', 'centos:7', 'oraclelinux:8', 'debian:bullseye']
   build:
+    strategy:
+      matrix:
+        image: ['ubuntu:jammy', 'ubuntu:focal', 'ubuntu:bionic', 'ubuntu:xenial', 'centos:7', 'oraclelinux:8', 'debian:bullseye']
+
     name: Linux ${{matrix.image}} x86
     runs-on: ubuntu-latest
     container: ${{matrix.image}}
@@ -29,7 +30,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             target/
-        key: "${{matrix.image}}"-cargo-${{hashFiles('**/Cargo.lock')}}
+          key: ${{matrix.image}}-cargo-${{hashFiles('**/Cargo.lock')}}
       - name: install rust
         run: |
           if [ -f /usr/bin/apt ]; then apt update -q ; apt install -y curl; fi
