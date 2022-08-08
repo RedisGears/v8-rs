@@ -10,15 +10,36 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
 
+  build:
+    strategy:
+      matrix:
+        image: ['ubuntu:jammy', 'ubuntu:focal', 'ubuntu:bionic', 'ubuntu:xenial', 'centos:7', 'rockylinux:8', 'debian:bullseye']
+
+    name: Linux ${{matrix.image}} x86
     runs-on: ubuntu-latest
+    container: ${{matrix.image}}
 
     steps:
-    - uses: actions/checkout@v3
-    - name: format
-      run: cargo fmt -- --check
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: cargo test --verbose -- --test-threads 1
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{matrix.image}}-cargo-${{hashFiles('**/Cargo.lock')}}
+      - name: install rust
+        run: |
+          if [ -f /usr/bin/apt ]; then apt update -q ; apt install -y curl build-essential; fi
+          if [ -f /usr/bin/yum ]; then yum install -y curl gcc; fi
+          curl https://sh.rustup.rs -o rusty.sh
+          sh ./rusty.sh -q -y
+      - name: format
+        run: ${HOME}/.cargo/bin/cargo fmt -- --check
+      - name: Build
+        run: ${HOME}/.cargo/bin/cargo build --verbose
+      - name: Run tests
+        run: ${HOME}/.cargo/bin/cargo test --verbose -- --test-threads 1
