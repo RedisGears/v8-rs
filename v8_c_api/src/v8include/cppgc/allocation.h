@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_ALLOCATION_H_
-#define V8INCLUDE_CPPGC_ALLOCATION_H_
+#ifndef INCLUDE_CPPGC_ALLOCATION_H_
+#define INCLUDE_CPPGC_ALLOCATION_H_
 
 #include <atomic>
 #include <cstddef>
@@ -12,11 +12,11 @@
 #include <type_traits>
 #include <utility>
 
-#include "../../v8include/cppgc/custom-space.h"
-#include "../../v8include/cppgc/internal/api-constants.h"
-#include "../../v8include/cppgc/internal/gc-info.h"
-#include "../../v8include/cppgc/type-traits.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/custom-space.h"
+#include "cppgc/internal/api-constants.h"
+#include "cppgc/internal/gc-info.h"
+#include "cppgc/type-traits.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 #if defined(__has_attribute)
 #if __has_attribute(assume_aligned)
@@ -307,4 +307,4 @@ V8_INLINE T* MakeGarbageCollected(AllocationHandle& handle,
 #undef CPPGC_DEFAULT_ALIGNED
 #undef CPPGC_DOUBLE_WORD_ALIGNED
 
-#endif  // V8INCLUDE_CPPGC_ALLOCATION_H_
+#endif  // INCLUDE_CPPGC_ALLOCATION_H_

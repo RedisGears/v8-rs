@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_EMBEDDER_STATE_SCOPE_H_
-#define V8INCLUDE_V8_EMBEDDER_STATE_SCOPE_H_
+#ifndef INCLUDE_V8_EMBEDDER_STATE_SCOPE_H_
+#define INCLUDE_V8_EMBEDDER_STATE_SCOPE_H_
 
 #include <memory>
 
-#include "../v8include/v8-context.h"       // NOLINT(build/include_directory)
-#include "../v8include/v8-internal.h"      // NOLINT(build/include_directory)
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-context.h"       // NOLINT(build/include_directory)
+#include "v8-internal.h"      // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -48,4 +48,4 @@ class V8_EXPORT EmbedderStateScope {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_EMBEDDER_STATE_SCOPE_H_
+#endif  // INCLUDE_V8_EMBEDDER_STATE_SCOPE_H_

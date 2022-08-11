@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_TESTING_H_
-#define V8INCLUDE_CPPGC_TESTING_H_
+#ifndef INCLUDE_CPPGC_TESTING_H_
+#define INCLUDE_CPPGC_TESTING_H_
 
-#include "../../v8include/cppgc/common.h"
-#include "../../v8include/cppgc/macros.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/common.h"
+#include "cppgc/macros.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -19,8 +19,13 @@ class HeapHandle;
 namespace testing {
 
 /**
- * Overrides the state of the stack with the provided value. Takes precedence
- * over other parameters that set the stack state. Must no be nested.
+ * Overrides the state of the stack with the provided value. Parameters passed
+ * to explicit garbage collection calls still take precedence. Must not be
+ * nested.
+ *
+ * This scope is useful to make the garbage collector consider the stack when
+ * tasks that invoke garbage collection (through the provided platform) contain
+ * interesting pointers on its stack.
  */
 class V8_EXPORT V8_NODISCARD OverrideEmbedderStackStateScope final {
   CPPGC_STACK_ALLOCATED();
@@ -98,4 +103,4 @@ V8_EXPORT bool IsHeapObjectOld(void*);
 }  // namespace testing
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_TESTING_H_
+#endif  // INCLUDE_CPPGC_TESTING_H_

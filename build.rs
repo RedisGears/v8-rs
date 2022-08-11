@@ -36,7 +36,7 @@ fn main() {
 
     let v8_monolith_url = match env::var("V8_MONOLITH_URL") {
         Ok(path) => path,
-        Err(_) => "https://s3.eu-west-1.amazonaws.com/dev.cto.redis/libv8_monolith.a".to_string(),
+        Err(_) => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.4.132.20.x64.linux.a".to_string(),
     };
 
     if !Path::new(&v8_monolith_path).exists() {
@@ -75,7 +75,7 @@ fn main() {
         .expect("failed to write bindings to file");
 
     println!(
-        "cargo:rustc-flags=-L{} -lv8 -lv8_monolith -lstdc++",
+        "cargo:rustc-flags=-L{} -lv8 -lv8_monolith -lstdc++ -ldl -lc",
         output_dir
     );
 }

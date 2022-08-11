@@ -2,20 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_CPPGC_H_
-#define V8INCLUDE_V8_CPPGC_H_
+#ifndef INCLUDE_V8_CPPGC_H_
+#define INCLUDE_V8_CPPGC_H_
 
 #include <cstdint>
 #include <memory>
 #include <vector>
 
-#include "../v8include/cppgc/common.h"
-#include "../v8include/cppgc/custom-space.h"
-#include "../v8include/cppgc/heap-statistics.h"
-#include "../v8include/cppgc/visitor.h"
-#include "../v8include/v8-internal.h"       // NOLINT(build/include_directory)
-#include "../v8include/v8-platform.h"       // NOLINT(build/include_directory)
-#include "../v8include/v8-traced-handle.h"  // NOLINT(build/include_directory)
+#include "cppgc/common.h"
+#include "cppgc/custom-space.h"
+#include "cppgc/heap-statistics.h"
+#include "cppgc/visitor.h"
+#include "v8-internal.h"       // NOLINT(build/include_directory)
+#include "v8-platform.h"       // NOLINT(build/include_directory)
+#include "v8-traced-handle.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 class AllocationHandle;
@@ -161,6 +161,7 @@ class V8_EXPORT CppHeap {
 class JSVisitor : public cppgc::Visitor {
  public:
   explicit JSVisitor(cppgc::Visitor::Key key) : cppgc::Visitor(key) {}
+  ~JSVisitor() override = default;
 
   void Trace(const TracedReferenceBase& ref) {
     if (ref.IsEmptyThreadSafe()) return;
@@ -211,4 +212,4 @@ struct TraceTrait<v8::TracedReference<T>> {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_V8_CPPGC_H_
+#endif  // INCLUDE_V8_CPPGC_H_

@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_TRACE_TRAIT_H_
-#define V8INCLUDE_CPPGC_TRACE_TRAIT_H_
+#ifndef INCLUDE_CPPGC_TRACE_TRAIT_H_
+#define INCLUDE_CPPGC_TRACE_TRAIT_H_
 
 #include <type_traits>
 
-#include "../../v8include/cppgc/type-traits.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/type-traits.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -113,4 +113,4 @@ struct TraceTraitImpl<T, true> {
 }  // namespace internal
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_TRACE_TRAIT_H_
+#endif  // INCLUDE_CPPGC_TRACE_TRAIT_H_

@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_GARBAGE_COLLECTED_H_
-#define V8INCLUDE_CPPGC_GARBAGE_COLLECTED_H_
+#ifndef INCLUDE_CPPGC_GARBAGE_COLLECTED_H_
+#define INCLUDE_CPPGC_GARBAGE_COLLECTED_H_
 
-#include "../../v8include/cppgc/internal/api-constants.h"
-#include "../../v8include/cppgc/platform.h"
-#include "../../v8include/cppgc/trace-trait.h"
-#include "../../v8include/cppgc/type-traits.h"
+#include "cppgc/internal/api-constants.h"
+#include "cppgc/platform.h"
+#include "cppgc/trace-trait.h"
+#include "cppgc/type-traits.h"
 
 namespace cppgc {
 
@@ -62,7 +62,8 @@ class GarbageCollected {
   // virtual destructor requires an unambiguous, accessible 'operator delete'.
   void operator delete(void*) {
 #ifdef V8_ENABLE_CHECKS
-    internal::Abort();
+    internal::Fatal(
+        "Manually deleting a garbage collected object is not allowed");
 #endif  // V8_ENABLE_CHECKS
   }
   void operator delete[](void*) = delete;
@@ -102,4 +103,4 @@ class GarbageCollectedMixin {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_GARBAGE_COLLECTED_H_
+#endif  // INCLUDE_CPPGC_GARBAGE_COLLECTED_H_

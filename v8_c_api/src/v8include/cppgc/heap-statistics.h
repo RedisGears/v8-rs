@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_HEAP_STATISTICS_H_
-#define V8INCLUDE_CPPGC_HEAP_STATISTICS_H_
+#ifndef INCLUDE_CPPGC_HEAP_STATISTICS_H_
+#define INCLUDE_CPPGC_HEAP_STATISTICS_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -56,7 +56,7 @@ struct HeapStatistics final {
     /** Amount of memory actually used on the page. */
     size_t used_size_bytes = 0;
     /** Statistics for object allocated on the page. Filled only when
-     * NameProvider::HideInternalNames() is false. */
+     * NameProvider::SupportsCppClassNamesAsObjectNames() is true. */
     std::vector<ObjectStatsEntry> object_statistics;
   };
 
@@ -117,4 +117,4 @@ struct HeapStatistics final {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_HEAP_STATISTICS_H_
+#endif  // INCLUDE_CPPGC_HEAP_STATISTICS_H_

@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_EXPLICIT_MANAGEMENT_H_
-#define V8INCLUDE_CPPGC_EXPLICIT_MANAGEMENT_H_
+#ifndef INCLUDE_CPPGC_EXPLICIT_MANAGEMENT_H_
+#define INCLUDE_CPPGC_EXPLICIT_MANAGEMENT_H_
 
 #include <cstddef>
 
-#include "../../v8include/cppgc/allocation.h"
-#include "../../v8include/cppgc/internal/logging.h"
-#include "../../v8include/cppgc/type-traits.h"
+#include "cppgc/allocation.h"
+#include "cppgc/internal/logging.h"
+#include "cppgc/type-traits.h"
 
 namespace cppgc {
 
@@ -97,4 +97,4 @@ bool Resize(T& object, AdditionalBytes additional_bytes) {
 }  // namespace subtle
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_EXPLICIT_MANAGEMENT_H_
+#endif  // INCLUDE_CPPGC_EXPLICIT_MANAGEMENT_H_

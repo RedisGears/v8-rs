@@ -2,15 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_HEAP_CONSISTENCY_H_
-#define V8INCLUDE_CPPGC_HEAP_CONSISTENCY_H_
+#ifndef INCLUDE_CPPGC_HEAP_CONSISTENCY_H_
+#define INCLUDE_CPPGC_HEAP_CONSISTENCY_H_
 
 #include <cstddef>
 
-#include "../../v8include/cppgc/internal/write-barrier.h"
-#include "../../v8include/cppgc/macros.h"
-#include "../../v8include/cppgc/trace-trait.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/internal/write-barrier.h"
+#include "cppgc/macros.h"
+#include "cppgc/trace-trait.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -263,4 +263,4 @@ class V8_EXPORT V8_NODISCARD NoGarbageCollectionScope final {
 }  // namespace subtle
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_HEAP_CONSISTENCY_H_
+#endif  // INCLUDE_CPPGC_HEAP_CONSISTENCY_H_

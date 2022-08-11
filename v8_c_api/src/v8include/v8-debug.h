@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_DEBUG_H_
-#define V8INCLUDE_V8_DEBUG_H_
+#ifndef INCLUDE_V8_DEBUG_H_
+#define INCLUDE_V8_DEBUG_H_
 
 #include <stdint.h>
 
-#include "../v8include/v8-script.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"   // NOLINT(build/include_directory)
+#include "v8-script.h"  // NOLINT(build/include_directory)
+#include "v8config.h"   // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -165,4 +165,4 @@ class V8_EXPORT StackTrace {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_DEBUG_H_
+#endif  // INCLUDE_V8_DEBUG_H_

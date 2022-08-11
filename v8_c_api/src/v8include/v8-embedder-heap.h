@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_EMBEDDER_HEAP_H_
-#define V8INCLUDE_V8_EMBEDDER_HEAP_H_
+#ifndef INCLUDE_V8_EMBEDDER_HEAP_H_
+#define INCLUDE_V8_EMBEDDER_HEAP_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -11,10 +11,10 @@
 #include <utility>
 #include <vector>
 
-#include "../v8include/cppgc/common.h"
-#include "../v8include/v8-local-handle.h"   // NOLINT(build/include_directory)
-#include "../v8include/v8-traced-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"          // NOLINT(build/include_directory)
+#include "cppgc/common.h"
+#include "v8-local-handle.h"   // NOLINT(build/include_directory)
+#include "v8-traced-handle.h"  // NOLINT(build/include_directory)
+#include "v8config.h"          // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -34,28 +34,21 @@ class V8_EXPORT EmbedderRootsHandler {
   virtual ~EmbedderRootsHandler() = default;
 
   /**
-   * Returns true if the TracedGlobal handle should be considered as root for
-   * the currently running non-tracing garbage collection and false otherwise.
-   * The default implementation will keep all TracedGlobal references as roots.
+   * Returns true if the |TracedReference| handle should be considered as root
+   * for the currently running non-tracing garbage collection and false
+   * otherwise. The default implementation will keep all |TracedReference|
+   * references as roots.
    *
    * If this returns false, then V8 may decide that the object referred to by
-   * such a handle is reclaimed. In that case:
-   * - No action is required if handles are used with destructors, i.e., by just
-   *   using |TracedGlobal|.
-   * - When run without destructors, i.e., by using |TracedReference|, V8 calls
-   *  |ResetRoot|.
+   * such a handle is reclaimed. In that case, V8 calls |ResetRoot()| for the
+   * |TracedReference|.
    *
-   * Note that the |handle| is different from the handle that the embedder holds
+   * Note that the `handle` is different from the handle that the embedder holds
    * for retaining the object. The embedder may use |WrapperClassId()| to
    * distinguish cases where it wants handles to be treated as roots from not
    * being treated as roots.
    */
   virtual bool IsRoot(const v8::TracedReference<v8::Value>& handle) = 0;
-
-  V8_DEPRECATE_SOON("See v8::TracedGlobal class comment.")
-  virtual bool IsRoot(const v8::TracedGlobal<v8::Value>& handle) {
-    return true;
-  }
 
   /**
    * Used in combination with |IsRoot|. Called by V8 when an
@@ -87,13 +80,11 @@ class V8_EXPORT EmbedderHeapTracer {
   };
 
   /**
-   * Interface for iterating through TracedGlobal handles.
+   * Interface for iterating through |TracedReference| handles.
    */
   class V8_EXPORT TracedGlobalHandleVisitor {
    public:
     virtual ~TracedGlobalHandleVisitor() = default;
-    V8_DEPRECATE_SOON("See v8::TracedGlobal class comment.")
-    virtual void VisitTracedGlobalHandle(const TracedGlobal<Value>& handle) {}
     virtual void VisitTracedReference(const TracedReference<Value>& handle) {}
   };
 
@@ -118,8 +109,8 @@ class V8_EXPORT EmbedderHeapTracer {
   virtual ~EmbedderHeapTracer() = default;
 
   /**
-   * Iterates all TracedGlobal handles created for the v8::Isolate the tracer is
-   * attached to.
+   * Iterates all |TracedReference| handles created for the |v8::Isolate| the
+   * tracer is attached to.
    */
   void IterateTracedGlobalHandles(TracedGlobalHandleVisitor* visitor);
 
@@ -194,22 +185,12 @@ class V8_EXPORT EmbedderHeapTracer {
    */
   virtual bool IsRootForNonTracingGC(
       const v8::TracedReference<v8::Value>& handle);
-  V8_DEPRECATE_SOON("See v8::TracedGlobal class comment.")
-  virtual bool IsRootForNonTracingGC(const v8::TracedGlobal<v8::Value>& handle);
 
   /**
    * See documentation on EmbedderRootsHandler.
    */
   virtual void ResetHandleInNonTracingGC(
       const v8::TracedReference<v8::Value>& handle);
-
-  /*
-   * Called by the embedder to immediately perform a full garbage collection.
-   *
-   * Should only be used in testing code.
-   */
-  V8_DEPRECATED("Use Isolate::RequestGarbageCollectionForTesting instead")
-  void GarbageCollectionForTesting(EmbedderStackState stack_state);
 
   /*
    * Called by the embedder to signal newly allocated or freed memory. Not bound
@@ -224,14 +205,14 @@ class V8_EXPORT EmbedderHeapTracer {
    * Returns the v8::Isolate this tracer is attached too and |nullptr| if it
    * is not attached to any v8::Isolate.
    */
-  v8::Isolate* isolate() const { return isolate_; }
+  v8::Isolate* isolate() const { return v8_isolate_; }
 
  protected:
-  v8::Isolate* isolate_ = nullptr;
+  v8::Isolate* v8_isolate_ = nullptr;
 
   friend class internal::LocalEmbedderHeapTracer;
 };
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_EMBEDDER_HEAP_H_
+#endif  // INCLUDE_V8_EMBEDDER_HEAP_H_

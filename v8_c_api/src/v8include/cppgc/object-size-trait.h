@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_OBJECT_SIZE_TRAIT_H_
-#define V8INCLUDE_CPPGC_OBJECT_SIZE_TRAIT_H_
+#ifndef INCLUDE_CPPGC_OBJECT_SIZE_TRAIT_H_
+#define INCLUDE_CPPGC_OBJECT_SIZE_TRAIT_H_
 
 #include <cstddef>
 
-#include "../../v8include/cppgc/type-traits.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/type-traits.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -55,4 +55,4 @@ struct ObjectSizeTrait<T, true> : cppgc::internal::BaseObjectSizeTrait {
 }  // namespace subtle
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_OBJECT_SIZE_TRAIT_H_
+#endif  // INCLUDE_CPPGC_OBJECT_SIZE_TRAIT_H_

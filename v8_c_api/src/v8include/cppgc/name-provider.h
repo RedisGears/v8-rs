@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_NAME_PROVIDER_H_
-#define V8INCLUDE_CPPGC_NAME_PROVIDER_H_
+#ifndef INCLUDE_CPPGC_NAME_PROVIDER_H_
+#define INCLUDE_CPPGC_NAME_PROVIDER_H_
 
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -37,15 +37,15 @@ class V8_EXPORT NameProvider {
   static constexpr const char kNoNameDeducible[] = "<No name>";
 
   /**
-   * Indicating whether internal names are hidden or not.
+   * Indicating whether the build supports extracting C++ names as object names.
    *
    * @returns true if C++ names should be hidden and represented by kHiddenName.
    */
-  static constexpr bool HideInternalNames() {
+  static constexpr bool SupportsCppClassNamesAsObjectNames() {
 #if CPPGC_SUPPORTS_OBJECT_NAMES
-    return false;
-#else   // !CPPGC_SUPPORTS_OBJECT_NAMES
     return true;
+#else   // !CPPGC_SUPPORTS_OBJECT_NAMES
+    return false;
 #endif  // !CPPGC_SUPPORTS_OBJECT_NAMES
   }
 
@@ -62,4 +62,4 @@ class V8_EXPORT NameProvider {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_NAME_PROVIDER_H_
+#endif  // INCLUDE_CPPGC_NAME_PROVIDER_H_

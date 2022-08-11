@@ -2,16 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_OBJECT_H_
-#define V8INCLUDE_V8_OBJECT_H_
+#ifndef INCLUDE_V8_OBJECT_H_
+#define INCLUDE_V8_OBJECT_H_
 
-#include "../v8include/v8-local-handle.h"       // NOLINT(build/include_directory)
-#include "../v8include/v8-maybe.h"              // NOLINT(build/include_directory)
-#include "../v8include/v8-persistent-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-primitive.h"          // NOLINT(build/include_directory)
-#include "../v8include/v8-traced-handle.h"      // NOLINT(build/include_directory)
-#include "../v8include/v8-value.h"              // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"              // NOLINT(build/include_directory)
+#include "v8-local-handle.h"       // NOLINT(build/include_directory)
+#include "v8-maybe.h"              // NOLINT(build/include_directory)
+#include "v8-persistent-handle.h"  // NOLINT(build/include_directory)
+#include "v8-primitive.h"          // NOLINT(build/include_directory)
+#include "v8-traced-handle.h"      // NOLINT(build/include_directory)
+#include "v8-value.h"              // NOLINT(build/include_directory)
+#include "v8config.h"              // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -493,7 +493,7 @@ class V8_EXPORT Object : public Value {
     return object.val_->GetAlignedPointerFromInternalField(index);
   }
 
-  /** Same as above, but works for TracedGlobal. */
+  /** Same as above, but works for TracedReference. */
   V8_INLINE static void* GetAlignedPointerFromInternalField(
       const BasicTracedReference<Object>& object, int index) {
     return object->GetAlignedPointerFromInternalField(index);
@@ -594,8 +594,6 @@ class V8_EXPORT Object : public Value {
   /**
    * Returns the context in which the object was created.
    */
-  V8_DEPRECATED("Use MaybeLocal<Context> GetCreationContext()")
-  Local<Context> CreationContext();
   MaybeLocal<Context> GetCreationContext();
 
   /**
@@ -604,10 +602,6 @@ class V8_EXPORT Object : public Value {
   Local<Context> GetCreationContextChecked();
 
   /** Same as above, but works for Persistents */
-  V8_DEPRECATED(
-      "Use MaybeLocal<Context> GetCreationContext(const "
-      "PersistentBase<Object>& object)")
-  static Local<Context> CreationContext(const PersistentBase<Object>& object);
   V8_INLINE static MaybeLocal<Context> GetCreationContext(
       const PersistentBase<Object>& object) {
     return object.val_->GetCreationContext();
@@ -735,18 +729,18 @@ Local<Value> Object::GetInternalField(int index) {
 }
 
 void* Object::GetAlignedPointerFromInternalField(int index) {
-  using I = internal::Internals;
-  static_assert(I::kEmbedderDataSlotSize == internal::kApiSystemPointerSize,
-                "Enable fast path with sandboxed external pointers enabled "
-                "once embedder data slots are 32 bits large");
-#if !defined(V8_ENABLE_CHECKS) && !defined(V8_SANDBOXED_EXTERNAL_POINTERS)
+#if !defined(V8_ENABLE_CHECKS)
   using A = internal::Address;
+  using I = internal::Internals;
   A obj = *reinterpret_cast<A*>(this);
   // Fast path: If the object is a plain JSObject, which is the common case, we
   // know where to find the internal fields and can return the value directly.
   auto instance_type = I::GetInstanceType(obj);
   if (v8::internal::CanHaveInternalField(instance_type)) {
     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
+#ifdef V8_SANDBOXED_EXTERNAL_POINTERS
+    offset += I::kEmbedderDataSlotRawPayloadOffset;
+#endif
     internal::Isolate* isolate = I::GetIsolateForSandbox(obj);
     A value = I::ReadExternalPointerField(
         isolate, obj, offset, internal::kEmbedderDataSlotPayloadTag);
@@ -772,4 +766,4 @@ Object* Object::Cast(v8::Value* value) {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_OBJECT_H_
+#endif  // INCLUDE_V8_OBJECT_H_

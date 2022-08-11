@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_LIVENESS_BROKER_H_
-#define V8INCLUDE_CPPGC_LIVENESS_BROKER_H_
+#ifndef INCLUDE_CPPGC_LIVENESS_BROKER_H_
+#define INCLUDE_CPPGC_LIVENESS_BROKER_H_
 
-#include "../../v8include/cppgc/heap.h"
-#include "../../v8include/cppgc/member.h"
-#include "../../v8include/cppgc/trace-trait.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/heap.h"
+#include "cppgc/member.h"
+#include "cppgc/trace-trait.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -74,4 +74,4 @@ class V8_EXPORT LivenessBroker final {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_LIVENESS_BROKER_H_
+#endif  // INCLUDE_CPPGC_LIVENESS_BROKER_H_

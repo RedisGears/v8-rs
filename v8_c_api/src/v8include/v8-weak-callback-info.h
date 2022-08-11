@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_WEAK_CALLBACK_INFO_H_
-#define V8INCLUDE_V8_WEAK_CALLBACK_INFO_H_
+#ifndef INCLUDE_V8_WEAK_CALLBACK_INFO_H_
+#define INCLUDE_V8_WEAK_CALLBACK_INFO_H_
 
-#include "../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -51,12 +51,19 @@ class WeakCallbackInfo {
   void* embedder_fields_[kEmbedderFieldsInWeakCallback];
 };
 
-// kParameter will pass a void* parameter back to the callback, kInternalFields
-// will pass the first two internal fields back to the callback, kFinalizer
-// will pass a void* parameter back, but is invoked before the object is
-// actually collected, so it can be resurrected. In the last case, it is not
-// possible to request a second pass callback.
-enum class WeakCallbackType { kParameter, kInternalFields, kFinalizer };
+/**
+ * Weakness type for weak handles.
+ */
+enum class WeakCallbackType {
+  /**
+   * Passes a user-defined void* parameter back to the callback.
+   */
+  kParameter,
+  /**
+   * Passes the first two internal fields of the object back to the callback.
+   */
+  kInternalFields,
+};
 
 template <class T>
 void* WeakCallbackInfo<T>::GetInternalField(int index) const {
@@ -70,4 +77,4 @@ void* WeakCallbackInfo<T>::GetInternalField(int index) const {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_WEAK_CALLBACK_INFO_H_
+#endif  // INCLUDE_V8_WEAK_CALLBACK_INFO_H_

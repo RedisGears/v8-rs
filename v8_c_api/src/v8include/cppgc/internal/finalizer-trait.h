@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_INTERNAL_FINALIZER_TRAIT_H_
-#define V8INCLUDE_CPPGC_INTERNAL_FINALIZER_TRAIT_H_
+#ifndef INCLUDE_CPPGC_INTERNAL_FINALIZER_TRAIT_H_
+#define INCLUDE_CPPGC_INTERNAL_FINALIZER_TRAIT_H_
 
 #include <type_traits>
 
-#include "../../../v8include/cppgc/type-traits.h"
+#include "cppgc/type-traits.h"
 
 namespace cppgc {
 namespace internal {
@@ -19,7 +19,8 @@ struct HasFinalizeGarbageCollectedObject : std::false_type {};
 
 template <typename T>
 struct HasFinalizeGarbageCollectedObject<
-    T, void_t<decltype(std::declval<T>().FinalizeGarbageCollectedObject())>>
+    T,
+    std::void_t<decltype(std::declval<T>().FinalizeGarbageCollectedObject())>>
     : std::true_type {};
 
 // The FinalizerTraitImpl specifies how to finalize objects.
@@ -89,4 +90,4 @@ constexpr FinalizationCallback FinalizerTrait<T>::kCallback;
 }  // namespace internal
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_INTERNAL_FINALIZER_TRAIT_H_
+#endif  // INCLUDE_CPPGC_INTERNAL_FINALIZER_TRAIT_H_

@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_SCRIPT_H_
-#define V8INCLUDE_V8_SCRIPT_H_
+#ifndef INCLUDE_V8_SCRIPT_H_
+#define INCLUDE_V8_SCRIPT_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -11,11 +11,11 @@
 #include <memory>
 #include <vector>
 
-#include "../v8include/v8-data.h"          // NOLINT(build/include_directory)
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-maybe.h"         // NOLINT(build/include_directory)
-#include "../v8include/v8-message.h"       // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"         // NOLINT(build/include_directory)
+#include "v8-data.h"          // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-maybe.h"         // NOLINT(build/include_directory)
+#include "v8-message.h"       // NOLINT(build/include_directory)
+#include "v8config.h"         // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -78,7 +78,13 @@ class V8_EXPORT UnboundScript {
    * Returns zero based line number of the code_pos location in the script.
    * -1 will be returned if no information available.
    */
-  int GetLineNumber(int code_pos);
+  int GetLineNumber(int code_pos = 0);
+
+  /**
+   * Returns zero based column number of the code_pos location in the script.
+   * -1 will be returned if no information available.
+   */
+  int GetColumnNumber(int code_pos = 0);
 
   static const int kNoScriptId = 0;
 };
@@ -581,7 +587,8 @@ class V8_EXPORT ScriptCompiler {
    */
   static ScriptStreamingTask* StartStreaming(
       Isolate* isolate, StreamedSource* source,
-      ScriptType type = ScriptType::kClassic);
+      ScriptType type = ScriptType::kClassic,
+      CompileOptions options = kNoCompileOptions);
 
   static ConsumeCodeCacheTask* StartConsumingCodeCache(
       Isolate* isolate, std::unique_ptr<CachedData> source);
@@ -745,4 +752,4 @@ Module* Module::Cast(Data* data) {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_SCRIPT_H_
+#endif  // INCLUDE_V8_SCRIPT_H_

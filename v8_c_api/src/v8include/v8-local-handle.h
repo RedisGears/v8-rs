@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_LOCAL_HANDLE_H_
-#define V8INCLUDE_V8_LOCAL_HANDLE_H_
+#ifndef INCLUDE_V8_LOCAL_HANDLE_H_
+#define INCLUDE_V8_LOCAL_HANDLE_H_
 
 #include <stddef.h>
 
 #include <type_traits>
 
-#include "../v8include/v8-internal.h"  // NOLINT(build/include_directory)
+#include "v8-internal.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -45,8 +45,6 @@ class ReturnValue;
 class String;
 template <class F>
 class Traced;
-template <class F>
-class TracedGlobal;
 template <class F>
 class TracedReference;
 class TracedReferenceBase;
@@ -88,7 +86,7 @@ class V8_EXPORT V8_NODISCARD HandleScope {
   static int NumberOfHandles(Isolate* isolate);
 
   V8_INLINE Isolate* GetIsolate() const {
-    return reinterpret_cast<Isolate*>(isolate_);
+    return reinterpret_cast<Isolate*>(i_isolate_);
   }
 
   HandleScope(const HandleScope&) = delete;
@@ -99,7 +97,7 @@ class V8_EXPORT V8_NODISCARD HandleScope {
 
   void Initialize(Isolate* isolate);
 
-  static internal::Address* CreateHandle(internal::Isolate* isolate,
+  static internal::Address* CreateHandle(internal::Isolate* i_isolate,
                                          internal::Address value);
 
  private:
@@ -110,7 +108,7 @@ class V8_EXPORT V8_NODISCARD HandleScope {
   void operator delete(void*, size_t);
   void operator delete[](void*, size_t);
 
-  internal::Isolate* isolate_;
+  internal::Isolate* i_isolate_;
   internal::Address* prev_next_;
   internal::Address* prev_limit_;
 
@@ -312,8 +310,6 @@ class Local {
   template <class F>
   friend class Traced;
   template <class F>
-  friend class TracedGlobal;
-  template <class F>
   friend class BasicTracedReference;
   template <class F>
   friend class TracedReference;
@@ -358,7 +354,7 @@ class MaybeLocal {
 
   /**
    * Converts this MaybeLocal<> to a Local<>. If this MaybeLocal<> is empty,
-   * |false| is returned and |out| is left untouched.
+   * |false| is returned and |out| is assigned with nullptr.
    */
   template <class S>
   V8_WARN_UNUSED_RESULT V8_INLINE bool ToLocal(Local<S>* out) const {
@@ -449,11 +445,11 @@ class V8_EXPORT V8_NODISCARD SealHandleScope {
   void operator delete(void*, size_t);
   void operator delete[](void*, size_t);
 
-  internal::Isolate* const isolate_;
+  internal::Isolate* const i_isolate_;
   internal::Address* prev_limit_;
   int prev_sealed_level_;
 };
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_LOCAL_HANDLE_H_
+#endif  // INCLUDE_V8_LOCAL_HANDLE_H_

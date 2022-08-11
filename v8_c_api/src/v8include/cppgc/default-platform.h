@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_DEFAULT_PLATFORM_H_
-#define V8INCLUDE_CPPGC_DEFAULT_PLATFORM_H_
+#ifndef INCLUDE_CPPGC_DEFAULT_PLATFORM_H_
+#define INCLUDE_CPPGC_DEFAULT_PLATFORM_H_
 
 #include <memory>
 
-#include "../../v8include/cppgc/platform.h"
-#include "../../v8include/libplatform/libplatform.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/platform.h"
+#include "libplatform/libplatform.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -19,15 +19,6 @@ namespace cppgc {
  */
 class V8_EXPORT DefaultPlatform : public Platform {
  public:
-  /**
-   * Use this method instead of 'cppgc::InitializeProcess' when using
-   * 'cppgc::DefaultPlatform'. 'cppgc::DefaultPlatform::InitializeProcess'
-   * will initialize cppgc and v8 if needed (for non-standalone builds).
-   *
-   * \param platform DefaultPlatform instance used to initialize cppgc/v8.
-   */
-  static void InitializeProcess(DefaultPlatform* platform);
-
   using IdleTaskSupport = v8::platform::IdleTaskSupport;
   explicit DefaultPlatform(
       int thread_pool_size = 0,
@@ -73,4 +64,4 @@ class V8_EXPORT DefaultPlatform : public Platform {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_DEFAULT_PLATFORM_H_
+#endif  // INCLUDE_CPPGC_DEFAULT_PLATFORM_H_

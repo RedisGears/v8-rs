@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_COMMON_H_
-#define V8INCLUDE_CPPGC_COMMON_H_
+#ifndef INCLUDE_CPPGC_COMMON_H_
+#define INCLUDE_CPPGC_COMMON_H_
 
 // TODO(chromium:1056170): Remove dependency on v8.
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -26,4 +26,4 @@ enum class EmbedderStackState {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_COMMON_H_
+#endif  // INCLUDE_CPPGC_COMMON_H_

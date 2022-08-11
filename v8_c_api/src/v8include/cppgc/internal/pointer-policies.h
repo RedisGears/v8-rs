@@ -2,17 +2,17 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_INTERNAL_POINTER_POLICIES_H_
-#define V8INCLUDE_CPPGC_INTERNAL_POINTER_POLICIES_H_
+#ifndef INCLUDE_CPPGC_INTERNAL_POINTER_POLICIES_H_
+#define INCLUDE_CPPGC_INTERNAL_POINTER_POLICIES_H_
 
 #include <cstdint>
 #include <type_traits>
 
-#include "../../../v8include/cppgc/internal/write-barrier.h"
-#include "../../../v8include/cppgc/sentinel-pointer.h"
-#include "../../../v8include/cppgc/source-location.h"
-#include "../../../v8include/cppgc/type-traits.h"
-#include "../../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/internal/write-barrier.h"
+#include "cppgc/sentinel-pointer.h"
+#include "cppgc/source-location.h"
+#include "cppgc/type-traits.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 namespace internal {
@@ -183,4 +183,4 @@ class BasicMember;
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_INTERNAL_POINTER_POLICIES_H_
+#endif  // INCLUDE_CPPGC_INTERNAL_POINTER_POLICIES_H_

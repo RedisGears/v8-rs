@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_EXTERNAL_H_
-#define V8INCLUDE_V8_EXTERNAL_H_
+#ifndef INCLUDE_V8_EXTERNAL_H_
+#define INCLUDE_V8_EXTERNAL_H_
 
-#include "../v8include/v8-value.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8-value.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -34,4 +34,4 @@ class V8_EXPORT External : public Value {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_EXTERNAL_H_
+#endif  // INCLUDE_V8_EXTERNAL_H_

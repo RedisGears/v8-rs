@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_FORWARD_H_
-#define V8INCLUDE_V8_FORWARD_H_
+#ifndef INCLUDE_V8_FORWARD_H_
+#define INCLUDE_V8_FORWARD_H_
 
 // This header is intended to be used by headers that pass around V8 types,
 // either by pointer or using Local<Type>. The full definitions can be included
 // either via v8.h or the more fine-grained headers.
 
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -78,4 +78,4 @@ class WasmModuleObject;
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_FORWARD_H_
+#endif  // INCLUDE_V8_FORWARD_H_

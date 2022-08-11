@@ -2,18 +2,18 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_HEAP_H_
-#define V8INCLUDE_CPPGC_HEAP_H_
+#ifndef INCLUDE_CPPGC_HEAP_H_
+#define INCLUDE_CPPGC_HEAP_H_
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
 
-#include "../../v8include/cppgc/common.h"
-#include "../../v8include/cppgc/custom-space.h"
-#include "../../v8include/cppgc/platform.h"
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/common.h"
+#include "cppgc/custom-space.h"
+#include "cppgc/platform.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 /**
  * cppgc - A C++ garbage collection library.
@@ -59,7 +59,7 @@ class V8_EXPORT Heap {
   };
 
   /**
-   * Specifies supported marking types
+   * Specifies supported marking types.
    */
   enum class MarkingType : uint8_t {
     /**
@@ -68,8 +68,8 @@ class V8_EXPORT Heap {
      */
     kAtomic,
     /**
-     * Incremental marking, i.e. interleave marking is the rest of the
-     * application on the same thread.
+     * Incremental marking interleaves marking with the rest of the application
+     * workload on the same thread.
      */
     kIncremental,
     /**
@@ -79,13 +79,18 @@ class V8_EXPORT Heap {
   };
 
   /**
-   * Specifies supported sweeping types
+   * Specifies supported sweeping types.
    */
   enum class SweepingType : uint8_t {
     /**
      * Atomic stop-the-world sweeping. All of sweeping is performed at once.
      */
     kAtomic,
+    /**
+     * Incremental sweeping interleaves sweeping with the rest of the
+     * application workload on the same thread.
+     */
+    kIncremental,
     /**
      * Incremental and concurrent sweeping. Sweeping is split and interleaved
      * with the rest of the application.
@@ -198,4 +203,4 @@ class V8_EXPORT Heap {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_HEAP_H_
+#endif  // INCLUDE_CPPGC_HEAP_H_

@@ -2,16 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_INTERNAL_PERSISTENT_NODE_H_
-#define V8INCLUDE_CPPGC_INTERNAL_PERSISTENT_NODE_H_
+#ifndef INCLUDE_CPPGC_INTERNAL_PERSISTENT_NODE_H_
+#define INCLUDE_CPPGC_INTERNAL_PERSISTENT_NODE_H_
 
 #include <array>
 #include <memory>
 #include <vector>
 
-#include "../../../v8include/cppgc/internal/logging.h"
-#include "../../../v8include/cppgc/trace-trait.h"
-#include "../../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "cppgc/internal/logging.h"
+#include "cppgc/trace-trait.h"
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace cppgc {
 
@@ -213,4 +213,4 @@ class V8_EXPORT CrossThreadPersistentRegion final
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_INTERNAL_PERSISTENT_NODE_H_
+#endif  // INCLUDE_CPPGC_INTERNAL_PERSISTENT_NODE_H_

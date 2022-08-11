@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_SENTINEL_POINTER_H_
-#define V8INCLUDE_CPPGC_SENTINEL_POINTER_H_
+#ifndef INCLUDE_CPPGC_SENTINEL_POINTER_H_
+#define INCLUDE_CPPGC_SENTINEL_POINTER_H_
 
 #include <cstdint>
 
@@ -13,9 +13,9 @@ namespace internal {
 // Special tag type used to denote some sentinel member. The semantics of the
 // sentinel is defined by the embedder.
 struct SentinelPointer {
+  static constexpr intptr_t kSentinelValue = 0b10;
   template <typename T>
   operator T*() const {
-    static constexpr intptr_t kSentinelValue = 1;
     return reinterpret_cast<T*>(kSentinelValue);
   }
   // Hidden friends.
@@ -29,4 +29,4 @@ constexpr internal::SentinelPointer kSentinelPointer;
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_SENTINEL_POINTER_H_
+#endif  // INCLUDE_CPPGC_SENTINEL_POINTER_H_

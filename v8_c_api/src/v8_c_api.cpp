@@ -1,5 +1,5 @@
-#include "v8include/v8.h"
-#include "v8include/libplatform/libplatform.h"
+#include "v8.h"
+#include "libplatform/libplatform.h"
 
 std::unique_ptr<v8::Platform> platform;
 

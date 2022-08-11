@@ -9,9 +9,9 @@
 
 #include <memory>
 
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-microtask.h"     // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"         // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-microtask.h"     // NOLINT(build/include_directory)
+#include "v8config.h"         // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -142,7 +142,7 @@ class V8_EXPORT V8_NODISCARD MicrotasksScope {
   MicrotasksScope& operator=(const MicrotasksScope&) = delete;
 
  private:
-  internal::Isolate* const isolate_;
+  internal::Isolate* const i_isolate_;
   internal::MicrotaskQueue* const microtask_queue_;
   bool run_;
 };

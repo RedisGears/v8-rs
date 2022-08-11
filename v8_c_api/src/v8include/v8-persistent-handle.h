@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_PERSISTENT_HANDLE_H_
-#define V8INCLUDE_V8_PERSISTENT_HANDLE_H_
+#ifndef INCLUDE_V8_PERSISTENT_HANDLE_H_
+#define INCLUDE_V8_PERSISTENT_HANDLE_H_
 
-#include "../v8include/v8-internal.h"            // NOLINT(build/include_directory)
-#include "../v8include/v8-local-handle.h"        // NOLINT(build/include_directory)
-#include "../v8include/v8-weak-callback-info.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"               // NOLINT(build/include_directory)
+#include "v8-internal.h"            // NOLINT(build/include_directory)
+#include "v8-local-handle.h"        // NOLINT(build/include_directory)
+#include "v8-weak-callback-info.h"  // NOLINT(build/include_directory)
+#include "v8config.h"               // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -587,4 +587,4 @@ Global<T>& Global<T>::operator=(Global<S>&& rhs) {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_PERSISTENT_HANDLE_H_
+#endif  // INCLUDE_V8_PERSISTENT_HANDLE_H_

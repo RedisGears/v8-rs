@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_STATISTICS_H_
-#define V8INCLUDE_V8_STATISTICS_H_
+#ifndef INCLUDE_V8_STATISTICS_H_
+#define INCLUDE_V8_STATISTICS_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -12,9 +12,9 @@
 #include <utility>
 #include <vector>
 
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-promise.h"       // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"         // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-promise.h"       // NOLINT(build/include_directory)
+#include "v8config.h"         // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -214,4 +214,4 @@ class V8_EXPORT HeapCodeStatistics {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_STATISTICS_H_
+#endif  // INCLUDE_V8_STATISTICS_H_

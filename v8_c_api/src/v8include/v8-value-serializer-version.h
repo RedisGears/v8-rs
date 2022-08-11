@@ -10,8 +10,8 @@
  * to V8.
  */
 
-#ifndef V8INCLUDE_V8_VALUE_SERIALIZER_VERSION_H_
-#define V8INCLUDE_V8_VALUE_SERIALIZER_VERSION_H_
+#ifndef INCLUDE_V8_VALUE_SERIALIZER_VERSION_H_
+#define INCLUDE_V8_VALUE_SERIALIZER_VERSION_H_
 
 #include <stdint.h>
 
@@ -21,4 +21,4 @@ constexpr uint32_t CurrentValueSerializerFormatVersion() { return 15; }
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_VALUE_SERIALIZER_VERSION_H_
+#endif  // INCLUDE_V8_VALUE_SERIALIZER_VERSION_H_

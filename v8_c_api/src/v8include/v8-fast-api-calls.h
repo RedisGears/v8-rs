@@ -216,8 +216,8 @@
  * associated SlowCallback.
  */
 
-#ifndef V8INCLUDE_V8_FAST_API_CALLS_H_
-#define V8INCLUDE_V8_FAST_API_CALLS_H_
+#ifndef INCLUDE_V8_FAST_API_CALLS_H_
+#define INCLUDE_V8_FAST_API_CALLS_H_
 
 #include <stddef.h>
 #include <stdint.h>
@@ -225,11 +225,11 @@
 #include <tuple>
 #include <type_traits>
 
-#include "../v8include/v8-internal.h"      // NOLINT(build/include_directory)
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-typed-array.h"   // NOLINT(build/include_directory)
-#include "../v8include/v8-value.h"         // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"         // NOLINT(build/include_directory)
+#include "v8-internal.h"      // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-typed-array.h"   // NOLINT(build/include_directory)
+#include "v8-value.h"         // NOLINT(build/include_directory)
+#include "v8config.h"         // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -881,31 +881,6 @@ static constexpr CTypeInfo kTypeInfoFloat64 =
  * to the requested destination type, is considered unsupported. The operation
  * returns true on success. `type_info` will be used for conversions.
  */
-template <const CTypeInfo* type_info, typename T>
-V8_DEPRECATED(
-    "Use TryToCopyAndConvertArrayToCppBuffer<CTypeInfo::Identifier, T>()")
-bool V8_EXPORT V8_WARN_UNUSED_RESULT
-    TryCopyAndConvertArrayToCppBuffer(Local<Array> src, T* dst,
-                                      uint32_t max_length);
-
-template <>
-V8_DEPRECATED(
-    "Use TryToCopyAndConvertArrayToCppBuffer<CTypeInfo::Identifier, T>()")
-inline bool V8_WARN_UNUSED_RESULT
-    TryCopyAndConvertArrayToCppBuffer<&kTypeInfoInt32, int32_t>(
-        Local<Array> src, int32_t* dst, uint32_t max_length) {
-  return false;
-}
-
-template <>
-V8_DEPRECATED(
-    "Use TryToCopyAndConvertArrayToCppBuffer<CTypeInfo::Identifier, T>()")
-inline bool V8_WARN_UNUSED_RESULT
-    TryCopyAndConvertArrayToCppBuffer<&kTypeInfoFloat64, double>(
-        Local<Array> src, double* dst, uint32_t max_length) {
-  return false;
-}
-
 template <CTypeInfo::Identifier type_info_id, typename T>
 bool V8_EXPORT V8_WARN_UNUSED_RESULT TryToCopyAndConvertArrayToCppBuffer(
     Local<Array> src, T* dst, uint32_t max_length);
@@ -936,4 +911,4 @@ TryToCopyAndConvertArrayToCppBuffer<CTypeInfoBuilder<double>::Build().GetId(),
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_FAST_API_CALLS_H_
+#endif  // INCLUDE_V8_FAST_API_CALLS_H_

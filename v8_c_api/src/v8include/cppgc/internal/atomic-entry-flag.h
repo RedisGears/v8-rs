@@ -2,8 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_INTERNAL_ATOMIC_ENTRY_FLAG_H_
-#define V8INCLUDE_CPPGC_INTERNAL_ATOMIC_ENTRY_FLAG_H_
+#ifndef INCLUDE_CPPGC_INTERNAL_ATOMIC_ENTRY_FLAG_H_
+#define INCLUDE_CPPGC_INTERNAL_ATOMIC_ENTRY_FLAG_H_
 
 #include <atomic>
 
@@ -45,4 +45,4 @@ class AtomicEntryFlag final {
 }  // namespace internal
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_INTERNAL_ATOMIC_ENTRY_FLAG_H_
+#endif  // INCLUDE_CPPGC_INTERNAL_ATOMIC_ENTRY_FLAG_H_

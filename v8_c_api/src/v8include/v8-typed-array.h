@@ -2,12 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_TYPED_ARRAY_H_
-#define V8INCLUDE_V8_TYPED_ARRAY_H_
+#ifndef INCLUDE_V8_TYPED_ARRAY_H_
+#define INCLUDE_V8_TYPED_ARRAY_H_
 
-#include "../v8include/v8-array-buffer.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"         // NOLINT(build/include_directory)
+#include "v8-array-buffer.h"  // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8config.h"         // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -279,4 +279,4 @@ class V8_EXPORT BigUint64Array : public TypedArray {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_TYPED_ARRAY_H_
+#endif  // INCLUDE_V8_TYPED_ARRAY_H_

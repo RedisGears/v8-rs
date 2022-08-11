@@ -7,7 +7,7 @@
 
 #include <windows.h>
 
-#include "../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 /**

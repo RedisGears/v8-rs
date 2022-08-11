@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_LOCKER_H_
-#define V8INCLUDE_V8_LOCKER_H_
+#ifndef INCLUDE_V8_LOCKER_H_
+#define INCLUDE_V8_LOCKER_H_
 
-#include "../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 namespace v8 {
 
@@ -127,10 +127,8 @@ class V8_EXPORT Locker {
    * The current implementation is quite confusing and leads to unexpected
    * results if anybody uses v8::Locker in the current process.
    */
-  V8_DEPRECATE_SOON("This method will be removed.")
+  V8_DEPRECATED("This method will be removed.")
   static bool WasEverUsed();
-  V8_DEPRECATED("Use WasEverUsed instead")
-  static bool IsActive();
 
   // Disallow copying and assigning.
   Locker(const Locker&) = delete;
@@ -146,4 +144,4 @@ class V8_EXPORT Locker {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_LOCKER_H_
+#endif  // INCLUDE_V8_LOCKER_H_

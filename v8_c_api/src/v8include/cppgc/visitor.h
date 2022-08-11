@@ -2,20 +2,20 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_VISITOR_H_
-#define V8INCLUDE_CPPGC_VISITOR_H_
+#ifndef INCLUDE_CPPGC_VISITOR_H_
+#define INCLUDE_CPPGC_VISITOR_H_
 
-#include "../../v8include/cppgc/custom-space.h"
-#include "../../v8include/cppgc/ephemeron-pair.h"
-#include "../../v8include/cppgc/garbage-collected.h"
-#include "../../v8include/cppgc/internal/logging.h"
-#include "../../v8include/cppgc/internal/pointer-policies.h"
-#include "../../v8include/cppgc/liveness-broker.h"
-#include "../../v8include/cppgc/member.h"
-#include "../../v8include/cppgc/sentinel-pointer.h"
-#include "../../v8include/cppgc/source-location.h"
-#include "../../v8include/cppgc/trace-trait.h"
-#include "../../v8include/cppgc/type-traits.h"
+#include "cppgc/custom-space.h"
+#include "cppgc/ephemeron-pair.h"
+#include "cppgc/garbage-collected.h"
+#include "cppgc/internal/logging.h"
+#include "cppgc/internal/pointer-policies.h"
+#include "cppgc/liveness-broker.h"
+#include "cppgc/member.h"
+#include "cppgc/sentinel-pointer.h"
+#include "cppgc/source-location.h"
+#include "cppgc/trace-trait.h"
+#include "cppgc/type-traits.h"
 
 namespace cppgc {
 
@@ -376,4 +376,4 @@ class V8_EXPORT Visitor {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_VISITOR_H_
+#endif  // INCLUDE_CPPGC_VISITOR_H_

@@ -11,8 +11,8 @@
 #include <unordered_set>
 #include <vector>
 
-#include "../../v8include/libplatform/libplatform-export.h"
-#include "../../v8include/v8-platform.h"  // NOLINT(build/include_directory)
+#include "libplatform/libplatform-export.h"
+#include "v8-platform.h"  // NOLINT(build/include_directory)
 
 namespace perfetto {
 namespace trace_processor {

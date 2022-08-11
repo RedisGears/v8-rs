@@ -2,14 +2,14 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_V8_VALUE_H_
-#define V8INCLUDE_V8_VALUE_H_
+#ifndef INCLUDE_V8_VALUE_H_
+#define INCLUDE_V8_VALUE_H_
 
-#include "../v8include/v8-data.h"          // NOLINT(build/include_directory)
-#include "../v8include/v8-internal.h"      // NOLINT(build/include_directory)
-#include "../v8include/v8-local-handle.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-maybe.h"         // NOLINT(build/include_directory)
-#include "../v8include/v8config.h"         // NOLINT(build/include_directory)
+#include "v8-data.h"          // NOLINT(build/include_directory)
+#include "v8-internal.h"      // NOLINT(build/include_directory)
+#include "v8-local-handle.h"  // NOLINT(build/include_directory)
+#include "v8-maybe.h"         // NOLINT(build/include_directory)
+#include "v8config.h"         // NOLINT(build/include_directory)
 
 /**
  * The v8 JavaScript engine.
@@ -523,4 +523,4 @@ bool Value::QuickIsString() const {
 
 }  // namespace v8
 
-#endif  // V8INCLUDE_V8_VALUE_H_
+#endif  // INCLUDE_V8_VALUE_H_

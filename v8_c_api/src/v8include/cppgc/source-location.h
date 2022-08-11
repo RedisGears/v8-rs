@@ -2,13 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_SOURCE_LOCATION_H_
-#define V8INCLUDE_CPPGC_SOURCE_LOCATION_H_
+#ifndef INCLUDE_CPPGC_SOURCE_LOCATION_H_
+#define INCLUDE_CPPGC_SOURCE_LOCATION_H_
 
 #include <cstddef>
 #include <string>
 
-#include "../../v8include/v8config.h"  // NOLINT(build/include_directory)
+#include "v8config.h"  // NOLINT(build/include_directory)
 
 #if defined(__has_builtin)
 #define CPPGC_SUPPORTS_SOURCE_LOCATION                                   \
@@ -89,4 +89,4 @@ class V8_EXPORT SourceLocation final {
 
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_SOURCE_LOCATION_H_
+#endif  // INCLUDE_CPPGC_SOURCE_LOCATION_H_

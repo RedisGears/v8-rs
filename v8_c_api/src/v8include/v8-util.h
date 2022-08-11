@@ -10,8 +10,8 @@
 #include <map>
 #include <vector>
 
-#include "../v8include/v8-function-callback.h"  // NOLINT(build/include_directory)
-#include "../v8include/v8-persistent-handle.h"  // NOLINT(build/include_directory)
+#include "v8-function-callback.h"  // NOLINT(build/include_directory)
+#include "v8-persistent-handle.h"  // NOLINT(build/include_directory)
 
 /**
  * Support for Persistent containers.

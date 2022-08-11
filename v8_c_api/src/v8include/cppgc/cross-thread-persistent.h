@@ -2,15 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef V8INCLUDE_CPPGC_CROSS_THREAD_PERSISTENT_H_
-#define V8INCLUDE_CPPGC_CROSS_THREAD_PERSISTENT_H_
+#ifndef INCLUDE_CPPGC_CROSS_THREAD_PERSISTENT_H_
+#define INCLUDE_CPPGC_CROSS_THREAD_PERSISTENT_H_
 
 #include <atomic>
 
-#include "../../v8include/cppgc/internal/persistent-node.h"
-#include "../../v8include/cppgc/internal/pointer-policies.h"
-#include "../../v8include/cppgc/persistent.h"
-#include "../../v8include/cppgc/visitor.h"
+#include "cppgc/internal/persistent-node.h"
+#include "cppgc/internal/pointer-policies.h"
+#include "cppgc/persistent.h"
+#include "cppgc/visitor.h"
 
 namespace cppgc {
 namespace internal {
@@ -462,4 +462,4 @@ using WeakCrossThreadPersistent = internal::BasicCrossThreadPersistent<
 }  // namespace subtle
 }  // namespace cppgc
 
-#endif  // V8INCLUDE_CPPGC_CROSS_THREAD_PERSISTENT_H_
+#endif  // INCLUDE_CPPGC_CROSS_THREAD_PERSISTENT_H_
