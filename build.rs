@@ -82,7 +82,8 @@ fn main() {
 
     println!(
         "cargo:rustc-flags=-L{} -lv8 -lv8_monolith {} -ldl -lc",
-        output_dir, {
+        output_dir,
+        {
             match std::env::consts::OS {
                 "linux" => "-lstdc++",
                 "macos" => "-lc++",
