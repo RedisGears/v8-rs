@@ -36,7 +36,13 @@ fn main() {
 
     let v8_monolith_url = match env::var("V8_MONOLITH_URL") {
         Ok(path) => path,
-        Err(_) => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.4.132.20.x64.linux.a".to_string(),
+        Err(_) => {
+            match std::env::consts::OS {
+                "linux" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.4.132.20.x64.linux.a".to_string(),
+                "macos" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.4.132.20.x64.apple-darwin.a".to_string(),
+                _ => panic!("Os '{}' are not supported", std::env::consts::OS),
+            }
+        }
     };
 
     if !Path::new(&v8_monolith_path).exists() {
@@ -75,7 +81,13 @@ fn main() {
         .expect("failed to write bindings to file");
 
     println!(
-        "cargo:rustc-flags=-L{} -lv8 -lv8_monolith -lstdc++ -ldl -lc",
-        output_dir
+        "cargo:rustc-flags=-L{} -lv8 -lv8_monolith {} -ldl -lc",
+        output_dir, {
+            match std::env::consts::OS {
+                "linux" => "-lstdc++",
+                "macos" => "-lc++",
+                _ => panic!("Os '{}' are not supported", std::env::consts::OS),
+            }
+        }
     );
 }
