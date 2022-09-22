@@ -38,8 +38,8 @@ fn main() {
         Ok(path) => path,
         Err(_) => {
             match std::env::consts::OS {
-                "linux" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.4.132.20.x64.linux.a".to_string(),
-                "macos" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.4.132.20.x64.apple-darwin.a".to_string(),
+                "linux" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.5.218.8.x64.linux.a".to_string(),
+                "macos" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.5.218.8.x64.apple-darwin.a".to_string(),
                 _ => panic!("Os '{}' are not supported", std::env::consts::OS),
             }
         }
