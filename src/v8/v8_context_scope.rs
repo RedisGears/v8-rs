@@ -1,7 +1,8 @@
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ContextRefGetIsolate,
-    v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_NewNativeFunction,
-    v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef, v8_context_ref, v8_JsonStringify,
+    v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_JsonStringify,
+    v8_NewNativeFunction, v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef,
+    v8_context_ref,
 };
 
 use std::os::raw::c_void;
