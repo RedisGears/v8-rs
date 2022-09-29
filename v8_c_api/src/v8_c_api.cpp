@@ -937,6 +937,16 @@ v8_local_value* v8_NewObjectFromJsonString(v8_context_ref *ctx_ref, v8_local_str
 	return res;
 }
 
+v8_local_string* v8_JsonStringify(v8_context_ref *ctx_ref, v8_local_value *val) {
+    v8::MaybeLocal<v8::String> result = v8::JSON::Stringify(ctx_ref->context, val->val);
+    if (result.IsEmpty()) {
+        return NULL;
+    }
+    v8_local_string *res = (v8_local_string*) V8_ALLOC(sizeof(*res));
+    res = new (res) v8_local_string(result.ToLocalChecked());
+    return res;
+}
+
 v8_local_object* v8_ValueAsObject(v8_local_value *val) {
 	v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(val->val);
 	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));

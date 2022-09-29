@@ -1,7 +1,7 @@
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ContextRefGetIsolate,
     v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_NewNativeFunction,
-    v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef, v8_context_ref,
+    v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef, v8_context_ref, v8_JsonStringify,
 };
 
 use std::os::raw::c_void;
@@ -131,6 +131,15 @@ impl V8ContextScope {
             return None;
         }
         Some(V8LocalValue { inner_val })
+    }
+
+    #[must_use]
+    pub fn json_stringify(&self, val: &V8LocalValue) -> Option<V8LocalString> {
+        let inner_string = unsafe { v8_JsonStringify(self.inner_ctx_ref, val.inner_val) };
+        if inner_string.is_null() {
+            return None;
+        }
+        Some(V8LocalString { inner_string })
     }
 
     #[must_use]
