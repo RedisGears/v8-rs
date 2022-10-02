@@ -193,7 +193,10 @@ impl V8LocalValue {
     #[must_use]
     pub fn persist(&self, isolate: &V8Isolate) -> V8PersistValue {
         let inner_val = unsafe { v8_PersistValue(isolate.inner_isolate, self.inner_val) };
-        V8PersistValue { inner_val, forget: false}
+        V8PersistValue {
+            inner_val,
+            forget: false,
+        }
     }
 
     /// Run the value, applicable only if the value is a function or async function.
