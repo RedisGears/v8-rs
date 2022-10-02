@@ -29,6 +29,7 @@ pub struct V8LocalValue {
 /// JS generic persisted value
 pub struct V8PersistValue {
     pub(crate) inner_val: *mut v8_persisted_value,
+    forget: bool,
 }
 
 impl V8LocalValue {
@@ -192,7 +193,7 @@ impl V8LocalValue {
     #[must_use]
     pub fn persist(&self, isolate: &V8Isolate) -> V8PersistValue {
         let inner_val = unsafe { v8_PersistValue(isolate.inner_isolate, self.inner_val) };
-        V8PersistValue { inner_val }
+        V8PersistValue { inner_val, forget: false}
     }
 
     /// Run the value, applicable only if the value is a function or async function.
@@ -222,8 +223,22 @@ impl V8PersistValue {
     /// Convert the persisted value back to local value.
     #[must_use]
     pub fn as_local(&self, isolate: &V8Isolate) -> V8LocalValue {
+        assert!(!self.inner_val.is_null());
         let inner_val = unsafe { v8_PersistedValueToLocal(isolate.inner_isolate, self.inner_val) };
         V8LocalValue { inner_val }
+    }
+
+    pub fn forget(&mut self) {
+        assert!(!self.inner_val.is_null());
+        self.forget = true;
+    }
+
+    pub fn take_local(&mut self, isolate: &V8Isolate) -> V8LocalValue {
+        let val = self.as_local(isolate);
+        unsafe { v8_FreePersistedValue(self.inner_val) }
+        self.forget();
+        self.inner_val = ptr::null_mut();
+        val
     }
 }
 
@@ -240,6 +255,9 @@ impl Drop for V8LocalValue {
 
 impl Drop for V8PersistValue {
     fn drop(&mut self) {
+        if self.forget {
+            return;
+        }
         unsafe { v8_FreePersistedValue(self.inner_val) }
     }
 }
