@@ -278,6 +278,29 @@ void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void
 	isolate->AutomaticallyRestoreInitialHeapLimit();
 }
 
+v8_isolate* v8_IsolateGetCurrent() {
+	return (v8_isolate*)v8::Isolate::GetCurrent();
+}
+
+size_t v8_IsolateUsedHeapSize(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::HeapStatistics heap;
+	isolate->GetHeapStatistics(&heap);
+	return heap.used_heap_size();
+}
+
+size_t v8_IsolateTotalHeapSize(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::HeapStatistics heap;
+	isolate->GetHeapStatistics(&heap);
+	return heap.total_heap_size();
+}
+
+void v8_IsolateNotifyMemoryPressure(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->MemoryPressureNotification(v8::MemoryPressureLevel::kCritical);
+}
+
 void v8_TerminateCurrExecution(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	isolate->TerminateExecution();

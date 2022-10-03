@@ -1,9 +1,10 @@
 // An isolate rust wrapper to v8 isolate.
 
 use crate::v8_c_raw::bindings::{
-    v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline,
-    v8_IsolateRaiseException, v8_IsolateSetFatalErrorHandler, v8_IsolateSetNearOOMHandler,
-    v8_IsolateSetOOMErrorHandler, v8_NewArray, v8_NewArrayBuffer, v8_NewBool, v8_NewIsolate,
+    v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateGetCurrent,
+    v8_IsolateNotifyMemoryPressure, v8_IsolateRaiseException, v8_IsolateSetFatalErrorHandler,
+    v8_IsolateSetNearOOMHandler, v8_IsolateSetOOMErrorHandler, v8_IsolateTotalHeapSize,
+    v8_IsolateUsedHeapSize, v8_NewArray, v8_NewArrayBuffer, v8_NewBool, v8_NewIsolate,
     v8_NewNativeFunctionTemplate, v8_NewNull, v8_NewObject, v8_NewObjectTemplate, v8_NewSet,
     v8_NewString, v8_NewTryCatch, v8_NewUnlocker, v8_RequestInterrupt, v8_StringToValue,
     v8_TerminateCurrExecution, v8_ValueFromDouble, v8_ValueFromLong, v8_isolate, v8_local_value,
@@ -280,6 +281,31 @@ impl V8Isolate {
                 Box::into_raw(Box::new(callback)) as *mut c_void,
                 Some(near_oom_callback_free_pd::<F>),
             )
+        }
+    }
+
+    pub fn used_heap_size(&self) -> usize {
+        unsafe { v8_IsolateUsedHeapSize(self.inner_isolate) }
+    }
+
+    pub fn total_heap_size(&self) -> usize {
+        unsafe { v8_IsolateTotalHeapSize(self.inner_isolate) }
+    }
+
+    pub fn memory_pressure_notification(&self) {
+        unsafe { v8_IsolateNotifyMemoryPressure(self.inner_isolate) }
+    }
+
+    pub fn current_isolate() -> Option<Self> {
+        let inner_isolate = unsafe { v8_IsolateGetCurrent() };
+
+        if inner_isolate.is_null() {
+            None
+        } else {
+            Some(Self {
+                inner_isolate: inner_isolate,
+                no_release: true,
+            })
         }
     }
 
