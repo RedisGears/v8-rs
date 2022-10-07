@@ -3,7 +3,6 @@ use crate::v8_c_raw::bindings::{v8_Dispose, v8_Initialize, v8_Version};
 use std::ffi::CStr;
 use std::ptr;
 
-pub mod handler_scope;
 pub mod isolate;
 pub mod isolate_scope;
 pub mod try_catch;

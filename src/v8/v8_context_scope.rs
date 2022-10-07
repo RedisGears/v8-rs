@@ -1,14 +1,13 @@
 use crate::v8_c_raw::bindings::{
-    v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ContextRefGetIsolate,
-    v8_ExitContextRef, v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_JsonStringify,
-    v8_NewNativeFunction, v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef,
-    v8_context_ref,
+    v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
+    v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
+    v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef, v8_context_ref,
 };
 
 use std::os::raw::c_void;
 use std::ptr;
 
-use crate::v8::isolate::V8Isolate;
+use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_module::V8LocalModule;
 use crate::v8::v8_native_function::V8LocalNativeFunction;
 use crate::v8::v8_native_function_template::free_pd;
@@ -20,27 +19,34 @@ use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 
-pub struct V8ContextScope {
+pub struct V8ContextScope<'isolate_scope, 'isolate> {
     pub(crate) inner_ctx_ref: *mut v8_context_ref,
     pub(crate) exit_on_drop: bool,
+    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
-impl V8ContextScope {
+impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     /// Compile the given code into a script object.
     #[must_use]
-    pub fn compile(&self, s: &V8LocalString) -> Option<V8LocalScript> {
+    pub fn compile(&self, s: &V8LocalString) -> Option<V8LocalScript<'isolate_scope, 'isolate>> {
         let inner_script = unsafe { v8_Compile(self.inner_ctx_ref, s.inner_string) };
         if inner_script.is_null() {
             None
         } else {
-            Some(V8LocalScript { inner_script })
+            Some(V8LocalScript {
+                inner_script: inner_script,
+                isolate_scope: self.isolate_scope,
+            })
         }
     }
 
     #[must_use]
-    pub fn get_globals(&self) -> V8LocalObject {
+    pub fn get_globals(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
-        V8LocalObject { inner_obj }
+        V8LocalObject {
+            inner_obj: inner_obj,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Compile the given code as a module.
@@ -50,7 +56,7 @@ impl V8ContextScope {
         name: &V8LocalString,
         code: &V8LocalString,
         is_module: bool,
-    ) -> Option<V8LocalModule> {
+    ) -> Option<V8LocalModule<'isolate_scope, 'isolate>> {
         let inner_module = unsafe {
             v8_CompileAsModule(
                 self.inner_ctx_ref,
@@ -62,7 +68,10 @@ impl V8ContextScope {
         if inner_module.is_null() {
             None
         } else {
-            Some(V8LocalModule { inner_module })
+            Some(V8LocalModule {
+                inner_module: inner_module,
+                isolate_scope: self.isolate_scope,
+            })
         }
     }
 
@@ -106,50 +115,61 @@ impl V8ContextScope {
         };
     }
 
-    pub(crate) fn get_isolate(&self) -> V8Isolate {
-        let inner_isolate = unsafe { v8_ContextRefGetIsolate(self.inner_ctx_ref) };
-        V8Isolate {
-            inner_isolate: inner_isolate,
-            no_release: true,
-        }
-    }
-
     pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
         self.set_private_data_raw(index + 1, pd)
     }
 
     /// Create a new resolver object
     #[must_use]
-    pub fn new_resolver(&self) -> V8LocalResolver {
+    pub fn new_resolver(&self) -> V8LocalResolver<'isolate_scope, 'isolate> {
         let inner_resolver = unsafe { v8_NewResolver(self.inner_ctx_ref) };
-        V8LocalResolver { inner_resolver }
+        V8LocalResolver {
+            inner_resolver: inner_resolver,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     #[must_use]
-    pub fn new_object_from_json(&self, val: &V8LocalString) -> Option<V8LocalValue> {
+    pub fn new_object_from_json(
+        &self,
+        val: &V8LocalString,
+    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
         let inner_val = unsafe { v8_NewObjectFromJsonString(self.inner_ctx_ref, val.inner_string) };
         if inner_val.is_null() {
             return None;
         }
-        Some(V8LocalValue { inner_val })
+        Some(V8LocalValue {
+            inner_val: inner_val,
+            isolate_scope: self.isolate_scope,
+        })
     }
 
     #[must_use]
-    pub fn json_stringify(&self, val: &V8LocalValue) -> Option<V8LocalString> {
+    pub fn json_stringify(
+        &self,
+        val: &V8LocalValue,
+    ) -> Option<V8LocalString<'isolate_scope, 'isolate>> {
         let inner_string = unsafe { v8_JsonStringify(self.inner_ctx_ref, val.inner_val) };
         if inner_string.is_null() {
             return None;
         }
-        Some(V8LocalString { inner_string })
+        Some(V8LocalString {
+            inner_string: inner_string,
+            isolate_scope: self.isolate_scope,
+        })
     }
 
     #[must_use]
     pub fn new_native_function<
-        T: Fn(&V8LocalNativeFunctionArgs, &V8Isolate, &V8ContextScope) -> Option<V8LocalValue>,
+        T: for<'d, 'c> Fn(
+            &V8LocalNativeFunctionArgs<'d, 'c>,
+            &'d V8IsolateScope<'c>,
+            &V8ContextScope<'d, 'c>,
+        ) -> Option<V8LocalValue<'d, 'c>>,
     >(
         &self,
         func: T,
-    ) -> V8LocalNativeFunction {
+    ) -> V8LocalNativeFunction<'isolate_scope, 'isolate> {
         let inner_func = unsafe {
             v8_NewNativeFunction(
                 self.inner_ctx_ref,
@@ -160,11 +180,12 @@ impl V8ContextScope {
         };
         V8LocalNativeFunction {
             inner_func: inner_func,
+            isolate_scope: self.isolate_scope,
         }
     }
 }
 
-impl Drop for V8ContextScope {
+impl<'isolate_scope, 'isolate> Drop for V8ContextScope<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         if self.exit_on_drop {
             unsafe { v8_ExitContextRef(self.inner_ctx_ref) }

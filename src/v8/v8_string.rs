@@ -2,33 +2,41 @@ use crate::v8_c_raw::bindings::{
     v8_FreeString, v8_StringToStringObject, v8_StringToValue, v8_local_string,
 };
 
-use crate::v8::isolate::V8Isolate;
+use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_value::V8LocalValue;
 
 /// JS string object
-pub struct V8LocalString {
+pub struct V8LocalString<'isolate_scope, 'isolate> {
     pub(crate) inner_string: *mut v8_local_string,
+    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
-impl V8LocalString {
+impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
     /// Convert the string object into a generic JS object.
     #[must_use]
-    pub fn to_value(&self) -> V8LocalValue {
+    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_StringToValue(self.inner_string) };
-        V8LocalValue { inner_val }
+        V8LocalValue {
+            inner_val: inner_val,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Same as writing 'new String(...)'.
     #[must_use]
-    pub fn to_string_object(&self, isolate: &V8Isolate) -> V8LocalObject {
-        let inner_obj =
-            unsafe { v8_StringToStringObject(isolate.inner_isolate, self.inner_string) };
-        V8LocalObject { inner_obj }
+    pub fn to_string_object(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
+        let inner_obj = unsafe {
+            v8_StringToStringObject(self.isolate_scope.isolate.inner_isolate, self.inner_string)
+        };
+        V8LocalObject {
+            inner_obj: inner_obj,
+            isolate_scope: self.isolate_scope,
+        }
     }
 }
 
-impl Drop for V8LocalString {
+impl<'isolate_scope, 'isolate> Drop for V8LocalString<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeString(self.inner_string) }
     }

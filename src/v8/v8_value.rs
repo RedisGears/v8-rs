@@ -10,7 +10,7 @@ use crate::v8_c_raw::bindings::{
 
 use std::ptr;
 
-use crate::v8::isolate::V8Isolate;
+use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
 use crate::v8::v8_context_scope::V8ContextScope;
@@ -22,8 +22,9 @@ use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_utf8::V8LocalUtf8;
 
 /// JS generic local value
-pub struct V8LocalValue {
+pub struct V8LocalValue<'isolate_scope, 'isolate> {
     pub(crate) inner_val: *mut v8_local_value,
+    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
 /// JS generic persisted value
@@ -32,15 +33,19 @@ pub struct V8PersistValue {
     forget: bool,
 }
 
-impl V8LocalValue {
+impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     /// Return string representation of the value or None on failure
     #[must_use]
-    pub fn to_utf8(&self, isolate: &V8Isolate) -> Option<V8LocalUtf8> {
-        let inner_val = unsafe { v8_ToUtf8(isolate.inner_isolate, self.inner_val) };
+    pub fn to_utf8(&self) -> Option<V8LocalUtf8<'isolate_scope, 'isolate>> {
+        let inner_val =
+            unsafe { v8_ToUtf8(self.isolate_scope.isolate.inner_isolate, self.inner_val) };
         if inner_val.is_null() {
             None
         } else {
-            Some(V8LocalUtf8 { inner_val })
+            Some(V8LocalUtf8 {
+                inner_val: inner_val,
+                _isolate_scope: self.isolate_scope,
+            })
         }
     }
 
@@ -52,10 +57,11 @@ impl V8LocalValue {
 
     /// Convert the object into a string, applicable only if the value is string.
     #[must_use]
-    pub fn as_string(&self) -> V8LocalString {
+    pub fn as_string(&self) -> V8LocalString<'isolate_scope, 'isolate> {
         let inner_str = unsafe { v8_ValueAsString(self.inner_val) };
         V8LocalString {
             inner_string: inner_str,
+            isolate_scope: self.isolate_scope,
         }
     }
 
@@ -73,9 +79,12 @@ impl V8LocalValue {
 
     /// Convert the object into a string, applicable only if the value is string.
     #[must_use]
-    pub fn as_array(&self) -> V8LocalArray {
+    pub fn as_array(&self) -> V8LocalArray<'isolate_scope, 'isolate> {
         let inner_array = unsafe { v8_ValueAsArray(self.inner_val) };
-        V8LocalArray { inner_array }
+        V8LocalArray {
+            inner_array: inner_array,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Return true if the value is string and false otherwise.
@@ -86,9 +95,12 @@ impl V8LocalValue {
 
     /// Convert the object into a string, applicable only if the value is string.
     #[must_use]
-    pub fn as_array_buffer(&self) -> V8LocalArrayBuffer {
+    pub fn as_array_buffer(&self) -> V8LocalArrayBuffer<'isolate_scope, 'isolate> {
         let inner_array_buffer = unsafe { v8_ValueAsArrayBuffer(self.inner_val) };
-        V8LocalArrayBuffer { inner_array_buffer }
+        V8LocalArrayBuffer {
+            inner_array_buffer: inner_array_buffer,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Return true if the value is null and false otherwise.
@@ -151,16 +163,22 @@ impl V8LocalValue {
 
     /// Convert the object into a promise, applicable only if the object is promise.
     #[must_use]
-    pub fn as_promise(&self) -> V8LocalPromise {
+    pub fn as_promise(&self) -> V8LocalPromise<'isolate_scope, 'isolate> {
         let inner_promise = unsafe { v8_ValueAsPromise(self.inner_val) };
-        V8LocalPromise { inner_promise }
+        V8LocalPromise {
+            inner_promise: inner_promise,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Convert the object into a resolver, applicable only if the object is resolver.
     #[must_use]
-    pub fn as_resolver(&self) -> V8LocalResolver {
+    pub fn as_resolver(&self) -> V8LocalResolver<'isolate_scope, 'isolate> {
         let inner_resolver = unsafe { v8_ValueAsResolver(self.inner_val) };
-        V8LocalResolver { inner_resolver }
+        V8LocalResolver {
+            inner_resolver: inner_resolver,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Return true if the value is object and false otherwise.
@@ -171,9 +189,12 @@ impl V8LocalValue {
 
     /// Convert the object into a promise, applicable only if the object is promise.
     #[must_use]
-    pub fn as_object(&self) -> V8LocalObject {
+    pub fn as_object(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ValueAsObject(self.inner_val) };
-        V8LocalObject { inner_obj }
+        V8LocalObject {
+            inner_obj: inner_obj,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Return true if the value is set and false otherwise.
@@ -184,15 +205,19 @@ impl V8LocalValue {
 
     /// Convert the object into a promise, applicable only if the object is promise.
     #[must_use]
-    pub fn as_set(&self) -> V8LocalSet {
+    pub fn as_set(&self) -> V8LocalSet<'isolate_scope, 'isolate> {
         let inner_set = unsafe { v8_ValueAsSet(self.inner_val) };
-        V8LocalSet { inner_set }
+        V8LocalSet {
+            inner_set: inner_set,
+            isolate_scope: self.isolate_scope,
+        }
     }
 
     /// Persist the local object so it can be saved beyond the current handlers scope.
     #[must_use]
-    pub fn persist(&self, isolate: &V8Isolate) -> V8PersistValue {
-        let inner_val = unsafe { v8_PersistValue(isolate.inner_isolate, self.inner_val) };
+    pub fn persist(&self) -> V8PersistValue {
+        let inner_val =
+            unsafe { v8_PersistValue(self.isolate_scope.isolate.inner_isolate, self.inner_val) };
         V8PersistValue {
             inner_val,
             forget: false,
@@ -217,7 +242,10 @@ impl V8LocalValue {
         if res.is_null() {
             None
         } else {
-            Some(Self { inner_val: res })
+            Some(Self {
+                inner_val: res,
+                isolate_scope: self.isolate_scope,
+            })
         }
     }
 }
@@ -225,10 +253,18 @@ impl V8LocalValue {
 impl V8PersistValue {
     /// Convert the persisted value back to local value.
     #[must_use]
-    pub fn as_local(&self, isolate: &V8Isolate) -> V8LocalValue {
+    pub fn as_local<'isolate, 'isolate_scope>(
+        &self,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> V8LocalValue<'isolate_scope, 'isolate> {
         assert!(!self.inner_val.is_null());
-        let inner_val = unsafe { v8_PersistedValueToLocal(isolate.inner_isolate, self.inner_val) };
-        V8LocalValue { inner_val }
+        let inner_val = unsafe {
+            v8_PersistedValueToLocal(isolate_scope.isolate.inner_isolate, self.inner_val)
+        };
+        V8LocalValue {
+            inner_val: inner_val,
+            isolate_scope: isolate_scope,
+        }
     }
 
     pub fn forget(&mut self) {
@@ -236,8 +272,11 @@ impl V8PersistValue {
         self.forget = true;
     }
 
-    pub fn take_local(&mut self, isolate: &V8Isolate) -> V8LocalValue {
-        let val = self.as_local(isolate);
+    pub fn take_local<'isolate, 'isolate_scope>(
+        &mut self,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+        let val = self.as_local(isolate_scope);
         unsafe { v8_FreePersistedValue(self.inner_val) }
         self.forget();
         self.inner_val = ptr::null_mut();
@@ -248,7 +287,7 @@ impl V8PersistValue {
 unsafe impl Sync for V8PersistValue {}
 unsafe impl Send for V8PersistValue {}
 
-impl Drop for V8LocalValue {
+impl<'isolate_scope, 'isolate> Drop for V8LocalValue<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         if !self.inner_val.is_null() {
             unsafe { v8_FreeValue(self.inner_val) }

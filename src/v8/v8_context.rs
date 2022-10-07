@@ -7,6 +7,7 @@ use std::os::raw::c_void;
 use std::ptr;
 
 use crate::v8::isolate::V8Isolate;
+use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_object_template::V8LocalObjectTemplate;
 
@@ -23,7 +24,9 @@ impl V8Context {
             Some(g) => unsafe { v8_NewContext(isolate.inner_isolate, g.inner_obj) },
             None => unsafe { v8_NewContext(isolate.inner_isolate, ptr::null_mut()) },
         };
-        Self { inner_ctx }
+        Self {
+            inner_ctx: inner_ctx,
+        }
     }
 
     /// Enter the context for JS code invocation.
@@ -31,11 +34,15 @@ impl V8Context {
     /// be automatically exit when the returned `V8ContextScope`
     /// will be destroyed.
     #[must_use]
-    pub fn enter(&self) -> V8ContextScope {
+    pub fn enter<'isolate_scope, 'isolate>(
+        &self,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> V8ContextScope<'isolate_scope, 'isolate> {
         let inner_ctx_ref = unsafe { v8_ContextEnter(self.inner_ctx) };
         V8ContextScope {
             inner_ctx_ref,
             exit_on_drop: true,
+            isolate_scope: isolate_scope,
         }
     }
 

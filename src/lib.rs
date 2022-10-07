@@ -3,7 +3,9 @@ mod v8_c_raw;
 
 #[cfg(test)]
 mod json_path_tests {
-    use crate::v8::{isolate, v8_context_scope, v8_init, v8_native_function_template, v8_value};
+    use crate::v8::{
+        isolate, isolate_scope, v8_context_scope, v8_init, v8_native_function_template, v8_value,
+    };
 
     static mut IS_INITIALIZED: bool = false;
 
@@ -25,7 +27,6 @@ mod json_path_tests {
     fn test_simple_isolate_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
         let _i_scope = isolate.enter();
     }
 
@@ -33,24 +34,24 @@ mod json_path_tests {
     fn test_simple_string_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let _s = isolate.new_string("test");
+        let isolate_scope = isolate.enter();
+        let _s = isolate_scope.new_string("test");
     }
 
     #[test]
     fn test_simple_object_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let _o = isolate.new_object_template();
+        let isolate_scope = isolate.enter();
+        let _o = isolate_scope.new_object_template();
     }
 
     #[test]
     fn test_simple_native_function_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let _o = isolate.new_native_function_template(|_args, _isolate, _ctx_scope| {
+        let isolate_scope = isolate.enter();
+        let _o = isolate_scope.new_native_function_template(|_args, _isolate, _ctx_scope| {
             println!("test");
             None
         });
@@ -60,20 +61,20 @@ mod json_path_tests {
     fn test_native_function_args() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let native = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
-            let v = args.get(0);
-            let s = v.to_utf8(isolate).unwrap();
-            assert_eq!(s.as_str(), "2");
-            None
-        });
-        let native_funciton_name = isolate.new_string("foo");
-        let mut globals = isolate.new_object_template();
+        let isolate_scope = isolate.enter();
+        let native =
+            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+                let v = args.get(0);
+                let s = v.to_utf8().unwrap();
+                assert_eq!(s.as_str(), "2");
+                None
+            });
+        let native_funciton_name = isolate_scope.new_string("foo");
+        let mut globals = isolate_scope.new_object_template();
         globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate.new_string("foo(2)");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let code_str = isolate_scope.new_string("foo(2)");
+        let ctx = isolate_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
     }
@@ -82,31 +83,32 @@ mod json_path_tests {
     fn test_native_function_call_js() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
+        let isolate_scope = isolate.enter();
 
-        let foo1 = isolate.new_native_function_template(|args, _isolate, ctx_scope| {
+        let foo1 = isolate_scope.new_native_function_template(|args, _isolate, ctx_scope| {
             let v = args.get(0);
             let _res = v.call(ctx_scope, None);
             None
         });
-        let foo1_name = isolate.new_string("foo1");
+        let foo1_name = isolate_scope.new_string("foo1");
 
-        let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
-            let v = args.get(0);
-            let s = v.to_utf8(isolate).unwrap();
-            assert_eq!(s.as_str(), "2");
-            None
-        });
-        let foo2_name = isolate.new_string("foo2");
+        let foo2 =
+            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+                let v = args.get(0);
+                let s = v.to_utf8().unwrap();
+                assert_eq!(s.as_str(), "2");
+                None
+            });
+        let foo2_name = isolate_scope.new_string("foo2");
 
-        let mut globals = isolate.new_object_template();
+        let mut globals = isolate_scope.new_object_template();
         globals.set_native_function(&foo1_name, &foo1);
         globals.set_native_function(&foo2_name, &foo2);
 
-        let code_str = isolate.new_string("foo1(()=>{foo2(2)})");
+        let code_str = isolate_scope.new_string("foo1(()=>{foo2(2)})");
         let i_scope = isolate.enter();
         let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
     }
@@ -115,33 +117,32 @@ mod json_path_tests {
     fn test_native_function_call_with_args() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
+        let isolate_scope = isolate.enter();
 
-        let foo1 = isolate.new_native_function_template(|args, isolate, ctx_scope| {
-            let _h_scope = isolate.new_handlers_scope();
-            let foo = isolate.new_string("foo");
+        let foo1 = isolate_scope.new_native_function_template(|args, isolate_scope, ctx_scope| {
+            let foo = isolate_scope.new_string("foo");
             let v = args.get(0);
             let _res = v.call(ctx_scope, Some(&[&foo.to_value()]));
             None
         });
-        let foo1_name = isolate.new_string("foo1");
+        let foo1_name = isolate_scope.new_string("foo1");
 
-        let foo2 = isolate.new_native_function_template(|args, isolate, _ctx_scope| {
-            let v = args.get(0);
-            let s = v.to_utf8(isolate).unwrap();
-            assert_eq!(s.as_str(), "foo");
-            None
-        });
-        let foo2_name = isolate.new_string("foo2");
+        let foo2 =
+            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+                let v = args.get(0);
+                let s = v.to_utf8().unwrap();
+                assert_eq!(s.as_str(), "foo");
+                None
+            });
+        let foo2_name = isolate_scope.new_string("foo2");
 
-        let mut globals = isolate.new_object_template();
+        let mut globals = isolate_scope.new_object_template();
         globals.set_native_function(&foo1_name, &foo1);
         globals.set_native_function(&foo2_name, &foo2);
 
-        let code_str = isolate.new_string("foo1((a)=>{foo2(a)})");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let code_str = isolate_scope.new_string("foo1((a)=>{foo2(a)})");
+        let ctx = isolate_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
     }
@@ -150,24 +151,23 @@ mod json_path_tests {
     fn test_native_function_raise_exception() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
+        let isolate_scope = isolate.enter();
 
-        let native = isolate.new_native_function_template(|_args, isolate, _ctx_scope| {
+        let native = isolate_scope.new_native_function_template(|_args, isolate, _ctx_scope| {
             isolate.raise_exception_str("this is an error");
             None
         });
-        let native_funciton_name = isolate.new_string("foo");
-        let mut globals = isolate.new_object_template();
+        let native_funciton_name = isolate_scope.new_string("foo");
+        let mut globals = isolate_scope.new_object_template();
         globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate.new_string("foo(2)");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let code_str = isolate_scope.new_string("foo(2)");
+        let ctx = isolate_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
-        let trycatch = isolate.new_try_catch();
+        let trycatch = isolate_scope.new_try_catch();
         assert!(script.run(&ctx_scope).is_none());
         let exception = trycatch.get_exception();
-        let exception_msg = exception.to_utf8(&isolate).unwrap();
+        let exception_msg = exception.to_utf8().unwrap();
         assert_eq!(exception_msg.as_str(), "this is an error");
     }
 
@@ -175,14 +175,13 @@ mod json_path_tests {
     fn test_simple_code_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let code_str = isolate.new_string("1+1");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(None);
-        let ctx_scope = ctx.enter();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("1+1");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
-        let res_utf8 = res.to_utf8(&isolate).unwrap();
+        let res_utf8 = res.to_utf8().unwrap();
         assert_eq!(res_utf8.as_str(), "2");
     }
 
@@ -190,30 +189,29 @@ mod json_path_tests {
     fn test_simple_module_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
+        let isolate_scope = isolate.enter();
 
-        let mut globals = isolate.new_object_template();
-        globals.add_native_function(&isolate, "log", |args, isolate, _ctx_scope| {
+        let mut globals = isolate_scope.new_object_template();
+        globals.add_native_function("log", |args, _isolate_scope, _ctx_scope| {
             assert_eq!(args.len(), 1);
             let v = args.get(0);
-            let res_utf8 = v.to_utf8(&isolate).unwrap();
+            let res_utf8 = v.to_utf8().unwrap();
             assert_eq!(res_utf8.as_str(), "foo");
             None
         });
 
-        let code_name = isolate.new_string("base_module");
-        let code_str = isolate.new_string("import {msg} from \"foo\"; log(msg);");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let code_name = isolate_scope.new_string("base_module");
+        let code_str = isolate_scope.new_string("import {msg} from \"foo\"; log(msg);");
+        let ctx = isolate_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter(&isolate_scope);
 
         let module = ctx_scope
             .compile_as_module(&code_name, &code_str, true)
             .unwrap();
         module.initialize(
             &ctx_scope,
-            |_isolate, ctx_scope, name_to_load, _identity_hash| {
-                let code_str = isolate.new_string("export let msg = \"foo\";");
+            |isolate_scope, ctx_scope, name_to_load, _identity_hash| {
+                let code_str = isolate_scope.new_string("export let msg = \"foo\";");
                 ctx_scope.compile_as_module(name_to_load, &code_str, true)
             },
         );
@@ -229,11 +227,10 @@ mod json_path_tests {
     fn test_async_function() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let code_str = isolate.new_string("async function f(){return 1}; f");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(None);
-        let ctx_scope = ctx.enter();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("async function f(){return 1}; f");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
         assert!(res.is_async_function());
@@ -245,7 +242,7 @@ mod json_path_tests {
             crate::v8::v8_promise::V8PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.to_utf8(&isolate).unwrap();
+        let res_utf8 = promise_res.to_utf8().unwrap();
         assert_eq!(res_utf8.as_str(), "1");
     }
 
@@ -253,20 +250,21 @@ mod json_path_tests {
     fn test_promise_resolver() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let mut globals = isolate.new_object_template();
-        globals.add_native_function(&isolate, "foo", |_args, isolate, ctx_scope| {
+        let isolate_scope = isolate.enter();
+        let mut globals = isolate_scope.new_object_template();
+        globals.add_native_function("foo", |_args, isolate_scope, ctx_scope| {
             let resolver = ctx_scope.new_resolver();
-            resolver.resolve(ctx_scope, &isolate.new_string("foo").to_value());
-            Some(resolver.get_promise().to_value())
+            resolver.resolve(&ctx_scope, &isolate_scope.new_string("foo").to_value());
+            let promise = resolver.get_promise();
+            let promise_val = promise.to_value();
+            Some(promise_val)
         });
-        let code_str = isolate.new_string("foo()");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let code_str = isolate_scope.new_string("foo()");
+        let ctx = isolate_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
-        println!("{}", res.to_utf8(&isolate).unwrap().as_str());
+        println!("{}", res.to_utf8().unwrap().as_str());
         assert!(res.is_promise());
         let promise = res.as_promise();
         assert_eq!(
@@ -274,7 +272,7 @@ mod json_path_tests {
             crate::v8::v8_promise::V8PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.to_utf8(&isolate).unwrap();
+        let res_utf8 = promise_res.to_utf8().unwrap();
         assert_eq!(res_utf8.as_str(), "foo");
     }
 
@@ -282,16 +280,15 @@ mod json_path_tests {
     fn test_compilation_error() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let code_str = isolate.new_string("foo(");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(None);
-        let ctx_scope = ctx.enter();
-        let trycatch = isolate.new_try_catch();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("foo(");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let trycatch = isolate_scope.new_try_catch();
         let script = ctx_scope.compile(&code_str);
         assert!(script.is_none());
         assert_eq!(
-            trycatch.get_exception().to_utf8(&isolate).unwrap().as_str(),
+            trycatch.get_exception().to_utf8().unwrap().as_str(),
             "SyntaxError: Unexpected end of input"
         );
     }
@@ -300,42 +297,40 @@ mod json_path_tests {
     fn test_run_error() {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let code_str = isolate.new_string("foo()");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(None);
-        let ctx_scope = ctx.enter();
-        let trycatch = isolate.new_try_catch();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("foo()");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let trycatch = isolate_scope.new_try_catch();
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope);
         assert!(res.is_none());
         assert_eq!(
-            trycatch.get_exception().to_utf8(&isolate).unwrap().as_str(),
+            trycatch.get_exception().to_utf8().unwrap().as_str(),
             "ReferenceError: foo is not defined"
         );
     }
 
     fn test_value_is_functions<
-        F: Fn(
-            &v8_native_function_template::V8LocalNativeFunctionArgs,
-            &isolate::V8Isolate,
-            &v8_context_scope::V8ContextScope,
-        ) -> Option<v8_value::V8LocalValue>,
+        F: for<'d, 'e> Fn(
+            &v8_native_function_template::V8LocalNativeFunctionArgs<'d, 'e>,
+            &isolate_scope::V8IsolateScope<'e>,
+            &v8_context_scope::V8ContextScope<'d, 'e>,
+        ) -> Option<v8_value::V8LocalValue<'d, 'e>>,
     >(
         code: &str,
         f: F,
     ) {
         initialize();
         let isolate = isolate::V8Isolate::new();
-        let _h_scope = isolate.new_handlers_scope();
-        let native = isolate.new_native_function_template(f);
-        let native_funciton_name = isolate.new_string("foo");
-        let mut globals = isolate.new_object_template();
+        let isolate_scope = isolate.enter();
+        let native = isolate_scope.new_native_function_template(f);
+        let native_funciton_name = isolate_scope.new_string("foo");
+        let mut globals = isolate_scope.new_object_template();
         globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate.new_string(code);
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter();
+        let code_str = isolate_scope.new_string(code);
+        let ctx = isolate_scope.new_context(Some(&globals));
+        let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
     }
