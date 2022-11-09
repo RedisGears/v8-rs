@@ -1,11 +1,11 @@
 use crate::v8_c_raw::bindings::{
     v8_FreePersistedValue, v8_FreeValue, v8_FunctionCall, v8_GetBigInt, v8_GetBool, v8_GetNumber,
     v8_PersistValue, v8_PersistedValueToLocal, v8_ToUtf8, v8_ValueAsArray, v8_ValueAsArrayBuffer,
-    v8_ValueAsObject, v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsSet, v8_ValueAsString,
-    v8_ValueIsArray, v8_ValueIsArrayBuffer, v8_ValueIsAsyncFunction, v8_ValueIsBigInt,
-    v8_ValueIsBool, v8_ValueIsFunction, v8_ValueIsNull, v8_ValueIsNumber, v8_ValueIsObject,
-    v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString, v8_ValueIsStringObject, v8_local_value,
-    v8_persisted_value,
+    v8_ValueAsExternalData, v8_ValueAsObject, v8_ValueAsPromise, v8_ValueAsResolver, v8_ValueAsSet,
+    v8_ValueAsString, v8_ValueIsArray, v8_ValueIsArrayBuffer, v8_ValueIsAsyncFunction,
+    v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsExternalData, v8_ValueIsFunction, v8_ValueIsNull,
+    v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
+    v8_ValueIsStringObject, v8_local_value, v8_persisted_value,
 };
 
 use std::ptr;
@@ -14,6 +14,7 @@ use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
 use crate::v8::v8_context_scope::V8ContextScope;
+use crate::v8::v8_external_data::V8LocalExternalData;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_promise::V8LocalPromise;
 use crate::v8::v8_resolver::V8LocalResolver;
@@ -193,6 +194,20 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ValueAsObject(self.inner_val) };
         V8LocalObject {
             inner_obj: inner_obj,
+            isolate_scope: self.isolate_scope,
+        }
+    }
+
+    #[must_use]
+    pub fn is_external(&self) -> bool {
+        (unsafe { v8_ValueIsExternalData(self.inner_val) } != 0)
+    }
+
+    #[must_use]
+    pub fn as_external_data(&self) -> V8LocalExternalData<'isolate_scope, 'isolate> {
+        let inner_obj = unsafe { v8_ValueAsExternalData(self.inner_val) };
+        V8LocalExternalData {
+            inner_ext: inner_obj,
             isolate_scope: self.isolate_scope,
         }
     }

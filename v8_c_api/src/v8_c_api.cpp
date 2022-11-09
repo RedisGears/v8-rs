@@ -122,6 +122,11 @@ struct v8_local_object {
 	v8_local_object(v8::Local<v8::Object> o): obj(o) {}
 };
 
+struct v8_local_external_data {
+	v8::Local<v8::External> ext;
+	v8_local_external_data(v8::Local<v8::External> o): ext(o) {}
+};
+
 struct v8_local_set {
 	v8::Local<v8::Set> set;
 	v8_local_set(v8::Local<v8::Set> o): set(o) {}
@@ -922,6 +927,10 @@ int v8_ValueIsObject(v8_local_value *val) {
 	return val->val->IsObject();
 }
 
+int v8_ValueIsExternalData(v8_local_value *val) {
+	return val->val->IsExternal();
+}
+
 v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj) {
 	v8::MaybeLocal<v8::Array> maybe_res = obj->obj->GetPropertyNames(ctx_ref->context);
 	if (maybe_res.IsEmpty()) {
@@ -949,6 +958,31 @@ v8_local_object* v8_NewObject(v8_isolate *i) {
 	return res;
 }
 
+v8_local_external_data* v8_NewExternalData(v8_isolate *i, void *data, void(*free)(void*)) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+
+	// abusing native function infra
+	v8_native_function_pd *nf_pd = (v8_native_function_pd*)V8_ALLOC(sizeof(*nf_pd));
+	nf_pd->func = NULL;
+	nf_pd->pd = data;
+	nf_pd->freePD = free;
+
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
+
+	v8::Local<v8::External> d = v8::External::New(isolate, (void*)nf_pd);
+	nf_pd->weak = new v8::Persistent<v8::External>(isolate, d);
+	nf_pd->weak->SetWeak<v8_pd_node>(node, v8_FreeNativeFunctionPD, v8::WeakCallbackType::kParameter);
+
+	v8_local_external_data *res = (v8_local_external_data*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_external_data(d);
+	return res;
+}
+
+void* v8_ExternalDataGet(v8_local_external_data *ext) {
+	return ((v8_native_function_pd *)ext->ext->Value())->pd;
+}
+
 v8_local_value* v8_NewObjectFromJsonString(v8_context_ref *ctx_ref, v8_local_string *str) {
 	v8::MaybeLocal<v8::Value> result = v8::JSON::Parse(ctx_ref->context, str->str);
 	if (result.IsEmpty()) {
@@ -974,6 +1008,13 @@ v8_local_object* v8_ValueAsObject(v8_local_value *val) {
 	v8::Local<v8::Object> obj = v8::Local<v8::Object>::Cast(val->val);
 	v8_local_object *res = (v8_local_object*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_object(obj);
+	return res;
+}
+
+v8_local_external_data* v8_ValueAsExternalData(v8_local_value *val) {
+	v8::Local<v8::External> ext = v8::Local<v8::External>::Cast(val->val);
+	v8_local_external_data *res = (v8_local_external_data*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_external_data(ext);
 	return res;
 }
 
@@ -1007,8 +1048,19 @@ void v8_FreeObject(v8_local_object *obj) {
 	V8_FREE(obj);
 }
 
+void v8_FreeExternalData(v8_local_external_data *ext) {
+	V8_FREE(ext);
+}
+
 v8_local_value* v8_ObjectToValue(v8_local_object *obj) {
 	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(obj->obj);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
+v8_local_value* v8_ExternalDataToValue(v8_local_external_data *ext) {
+	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(ext->ext);
 	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_value(val);
 	return res;

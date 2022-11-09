@@ -10,6 +10,7 @@ pub mod v8_array;
 pub mod v8_array_buffer;
 pub mod v8_context;
 pub mod v8_context_scope;
+pub mod v8_external_data;
 pub mod v8_module;
 pub mod v8_native_function;
 pub mod v8_native_function_template;

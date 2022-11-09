@@ -55,6 +55,8 @@ typedef struct v8_local_object_template v8_local_object_template;
 /* JS native object */
 typedef struct v8_local_object v8_local_object;
 
+typedef struct v8_local_external_data v8_local_external_data;
+
 /* JS native set */
 typedef struct v8_local_set v8_local_set;
 
@@ -359,6 +361,8 @@ v8_local_promise* v8_ValueAsPromise(v8_local_value *val);
 /* Return 1 if the given JS value is an object and 0 otherwise */
 int v8_ValueIsObject(v8_local_value *val);
 
+int v8_ValueIsExternalData(v8_local_value *val);
+
 /* Return an array contains the propery names of the given object */
 v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj);
 
@@ -371,6 +375,10 @@ int v8_ValueIsArrayBuffer(v8_local_value *val);
 /* Create a new JS object */
 v8_local_object* v8_NewObject(v8_isolate *i);
 
+v8_local_external_data* v8_NewExternalData(v8_isolate *i, void *data, void(*free)(void*));
+
+void* v8_ExternalDataGet(v8_local_external_data *ext);
+
 /* create a js object form json string */
 v8_local_value* v8_NewObjectFromJsonString(v8_context_ref *ctx_ref, v8_local_string *str);
 
@@ -379,6 +387,8 @@ v8_local_string* v8_JsonStringify(v8_context_ref *ctx_ref, v8_local_value *val);
 
 /* Convert the generic JS value into a JS object */
 v8_local_object* v8_ValueAsObject(v8_local_value *val);
+
+v8_local_external_data* v8_ValueAsExternalData(v8_local_value *val);
 
 /* Convert the generic JS value into a JS resolver*/
 v8_local_resolver* v8_ValueAsResolver(v8_local_value *val);
@@ -395,8 +405,12 @@ void v8_ObjectFreeze(v8_context_ref *ctx_ref, v8_local_object *obj);
 /* Free the given JS object */
 void v8_FreeObject(v8_local_object *obj);
 
+void v8_FreeExternalData(v8_local_external_data *ext);
+
 /* Convert the given JS object into JS generic value */
 v8_local_value* v8_ObjectToValue(v8_local_object *obj);
+
+v8_local_value* v8_ExternalDataToValue(v8_local_external_data *ext);
 
 /* Create a new set */
 v8_local_set* v8_NewSet(v8_isolate *i);

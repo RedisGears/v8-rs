@@ -1,9 +1,9 @@
 use crate::v8_c_raw::bindings::{
     v8_FreeHandlersScope, v8_IsolateEnter, v8_IsolateExit, v8_IsolateRaiseException, v8_NewArray,
-    v8_NewArrayBuffer, v8_NewBool, v8_NewHandlersScope, v8_NewNativeFunctionTemplate, v8_NewNull,
-    v8_NewObject, v8_NewObjectTemplate, v8_NewSet, v8_NewString, v8_NewTryCatch, v8_NewUnlocker,
-    v8_StringToValue, v8_ValueFromDouble, v8_ValueFromLong, v8_handlers_scope, v8_isolate_scope,
-    v8_local_value,
+    v8_NewArrayBuffer, v8_NewBool, v8_NewExternalData, v8_NewHandlersScope,
+    v8_NewNativeFunctionTemplate, v8_NewNull, v8_NewObject, v8_NewObjectTemplate, v8_NewSet,
+    v8_NewString, v8_NewTryCatch, v8_NewUnlocker, v8_StringToValue, v8_ValueFromDouble,
+    v8_ValueFromLong, v8_handlers_scope, v8_isolate_scope, v8_local_value,
 };
 
 use crate::v8::isolate::V8Isolate;
@@ -12,6 +12,7 @@ use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
 use crate::v8::v8_context::V8Context;
 use crate::v8::v8_context_scope::V8ContextScope;
+use crate::v8::v8_external_data::V8LocalExternalData;
 use crate::v8::v8_native_function_template::{
     free_pd, native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
 };
@@ -28,6 +29,10 @@ pub struct V8IsolateScope<'isolate> {
     pub(crate) isolate: &'isolate V8Isolate,
     inner_handlers_scope: *mut v8_handlers_scope,
     inner_isolate_scope: *mut v8_isolate_scope,
+}
+
+extern "C" fn free_external_data<T>(arg1: *mut ::std::os::raw::c_void) {
+    unsafe { Box::from_raw(arg1 as *mut T) };
 }
 
 impl<'isolate> V8IsolateScope<'isolate> {
@@ -135,6 +140,25 @@ impl<'isolate> V8IsolateScope<'isolate> {
         let inner_obj = unsafe { v8_NewObject(self.isolate.inner_isolate) };
         V8LocalObject {
             inner_obj: inner_obj,
+            isolate_scope: self,
+        }
+    }
+
+    #[must_use]
+    pub fn new_external_data<'isolate_scope, T>(
+        &'isolate_scope self,
+        data: T,
+    ) -> V8LocalExternalData<'isolate_scope, 'isolate> {
+        let data = Box::into_raw(Box::new(data));
+        let inner_ext = unsafe {
+            v8_NewExternalData(
+                self.isolate.inner_isolate,
+                data as *mut c_void,
+                Some(free_external_data::<T>),
+            )
+        };
+        V8LocalExternalData {
+            inner_ext: inner_ext,
             isolate_scope: self,
         }
     }
