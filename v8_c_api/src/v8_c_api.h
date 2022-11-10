@@ -71,6 +71,8 @@ typedef struct v8_local_script v8_local_script;
 
 typedef struct v8_persisted_script v8_persisted_script;
 
+typedef struct v8_persisted_object_template v8_persisted_object_template;
+
 /* JS module object */
 typedef struct v8_local_module v8_local_module;
 
@@ -256,6 +258,8 @@ v8_local_value* v8_NativeFunctionToValue(v8_local_native_function *func);
 /* Return the i-th index from the native function arguments */
 v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i);
 
+v8_local_object* v8_ArgsGetSelf(v8_local_value_arr *args);
+
 /* Return current isolate from the native function arguments */
 v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args);
 
@@ -274,8 +278,16 @@ void v8_ObjectTemplateSetObject(v8_local_object_template *obj, v8_local_string *
 /* Set a generic JS value on the given object template at the given key */
 void v8_ObjectTemplateSetValue(v8_local_object_template *obj, v8_local_string *name, v8_local_value *val);
 
+void v8_ObjectTemplateSetInternalFieldCount(v8_local_object_template *obj, size_t count);
+
+v8_persisted_object_template* v8_ObjectTemplatePersist(v8_isolate *i, v8_local_object_template *obj);
+
+void v8_FreePersistedObjectTemplate(v8_persisted_object_template* obj);
+
+v8_local_object_template* v8_PersistedObjectTemplateToLocal(v8_isolate *i, v8_persisted_object_template* obj);
+
 /* Convert the given object template to a generic JS value */
-v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_object_template *obj);
+v8_local_object* v8_ObjectTemplateNewInstance(v8_context_ref *ctx_ref, v8_local_object_template *obj);
 
 /* Compile the given code into a script object */
 v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str);
@@ -399,11 +411,17 @@ v8_local_value* v8_ObjectGet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_l
 /* Set a value inside the object at a given key */
 void v8_ObjectSet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key, v8_local_value *val);
 
+void v8_ObjectSetInternalField(v8_local_object *obj, size_t index, v8_local_value *val);
+
+v8_local_value* v8_ObjectGetInternalField(v8_local_object *obj, size_t index);
+
 /* Freeze the object, same as Object.freeze. */
 void v8_ObjectFreeze(v8_context_ref *ctx_ref, v8_local_object *obj);
 
 /* Free the given JS object */
 void v8_FreeObject(v8_local_object *obj);
+
+size_t v8_GetInternalFieldCount(v8_local_object *obj);
 
 void v8_FreeExternalData(v8_local_external_data *ext);
 

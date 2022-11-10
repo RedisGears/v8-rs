@@ -1,6 +1,7 @@
 use crate::v8_c_raw::bindings::{
     v8_FreeObject, v8_ObjectFreeze, v8_ObjectGet, v8_ObjectSet, v8_ObjectToValue,
-    v8_ValueGetPropertyNames, v8_local_object,
+    v8_ValueGetPropertyNames, v8_local_object, v8_ObjectSetInternalField, v8_ObjectGetInternalField,
+    v8_GetInternalFieldCount,
 };
 
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -43,6 +44,34 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
                 val.inner_val,
             )
         };
+    }
+
+    pub fn set_internal_field(&self, index: usize, val: &V8LocalValue) {
+        unsafe {
+            v8_ObjectSetInternalField(
+                self.inner_obj,
+                index,
+                val.inner_val,
+            )
+        };
+    }
+
+    #[must_use]
+    pub fn get_internal_field(
+        &self,
+        index: usize,
+    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+        let inner_val =
+            unsafe { v8_ObjectGetInternalField(self.inner_obj, index) };
+        V8LocalValue{
+            inner_val: inner_val,
+            isolate_scope: self.isolate_scope,
+        }
+    }
+
+    #[must_use]
+    pub fn get_internal_field_count(&self) -> usize {
+        unsafe { v8_GetInternalFieldCount(self.inner_obj) }
     }
 
     /// Convert the object into a generic JS value

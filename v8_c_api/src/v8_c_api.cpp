@@ -582,6 +582,14 @@ v8_local_value* v8_ArgsGet(v8_local_value_arr *args, size_t i) {
 	return v8_val;
 }
 
+v8_local_object* v8_ArgsGetSelf(v8_local_value_arr *args) {
+	v8::FunctionCallbackInfo<v8::Value> *info = (v8::FunctionCallbackInfo<v8::Value> *)args;
+	v8::Local<v8::Object> holder = info->Holder();
+	v8_local_object *v8_obj = (struct v8_local_object*)V8_ALLOC(sizeof(*v8_obj));
+	v8_obj = new (v8_obj) v8_local_object(holder);
+	return v8_obj;
+}
+
 v8_isolate* v8_GetCurrentIsolate(v8_local_value_arr *args) {
 	v8::FunctionCallbackInfo<v8::Value> *info = (v8::FunctionCallbackInfo<v8::Value> *)args;
 	v8::Isolate* isolate = info->GetIsolate();
@@ -612,10 +620,14 @@ void v8_ObjectTemplateSetValue(v8_local_object_template *obj, v8_local_string *n
 	obj->obj->Set(name->str, val->val);
 }
 
-v8_local_value* v8_ObjectTemplateToValue(v8_context_ref *ctx_ref, v8_local_object_template *obj) {
-	v8::Local<v8::Value> v = obj->obj->NewInstance(ctx_ref->context).ToLocalChecked();
-	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
-	v8_val = new (v8_val) v8_local_value(v);
+void v8_ObjectTemplateSetInternalFieldCount(v8_local_object_template *obj, size_t count) {
+	obj->obj->SetInternalFieldCount(count);
+}
+
+v8_local_object* v8_ObjectTemplateNewInstance(v8_context_ref *ctx_ref, v8_local_object_template *obj) {
+	v8::Local<v8::Object> v = obj->obj->NewInstance(ctx_ref->context).ToLocalChecked();
+	v8_local_object *v8_val = (struct v8_local_object*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_object(v);
 	return v8_val;
 }
 
@@ -627,6 +639,11 @@ v8_local_script* v8_Compile(v8_context_ref* v8_ctx_ref, v8_local_string* str) {
 		return NULL;
 	}
 	return v8_script;
+}
+
+v8_persisted_object_template* v8_ObjectTemplatePersist(v8_isolate *i, v8_local_object_template *obj) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	return (v8_persisted_object_template*) new v8::Persistent<v8::ObjectTemplate>(isolate, obj->obj);
 }
 
 v8_persisted_script* v8_ScriptPersist(v8_isolate *i, v8_local_script* script) {
@@ -643,8 +660,23 @@ v8_local_script* v8_PersistedScriptToLocal(v8_isolate *i, v8_persisted_script* s
 	return local_script;
 }
 
+v8_local_object_template* v8_PersistedObjectTemplateToLocal(v8_isolate *i, v8_persisted_object_template* obj) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Persistent<v8::ObjectTemplate> *persisted_obj = (v8::Persistent<v8::ObjectTemplate>*)obj;
+	v8::Local<v8::ObjectTemplate> o = v8::Local<v8::ObjectTemplate>::New(isolate, *persisted_obj);
+	v8_local_object_template *local_obj = (struct v8_local_object_template*)V8_ALLOC(sizeof(*local_obj));
+	local_obj = new (local_obj) v8_local_object_template(o);
+	return local_obj;
+}
+
 void v8_FreePersistedScript(v8_persisted_script* script) {
 	v8::Persistent<v8::Script> *persisted_script = (v8::Persistent<v8::Script>*)script;
+	persisted_script->Reset();
+	delete persisted_script;
+}
+
+void v8_FreePersistedObjectTemplate(v8_persisted_object_template* obj) {
+	v8::Persistent<v8::ObjectTemplate> *persisted_script = (v8::Persistent<v8::ObjectTemplate>*)obj;
 	persisted_script->Reset();
 	delete persisted_script;
 }
@@ -1040,12 +1072,27 @@ void v8_ObjectSet(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value 
 	v8::Maybe<bool> res = obj->obj->Set(ctx_ref->context, key->val, val->val);
 }
 
+void v8_ObjectSetInternalField(v8_local_object *obj, size_t index, v8_local_value *val) {
+	obj->obj->SetInternalField(index, val->val);
+}
+
+v8_local_value* v8_ObjectGetInternalField(v8_local_object *obj, size_t index) {
+	v8::Local<v8::Value> val = obj->obj->GetInternalField(index);
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val);
+	return res;
+}
+
 void v8_ObjectFreeze(v8_context_ref *ctx_ref, v8_local_object *obj) {
 	obj->obj->SetIntegrityLevel(ctx_ref->context, v8::IntegrityLevel::kFrozen);
 }
 
 void v8_FreeObject(v8_local_object *obj) {
 	V8_FREE(obj);
+}
+
+size_t v8_GetInternalFieldCount(v8_local_object *obj) {
+	return obj->obj->InternalFieldCount();
 }
 
 void v8_FreeExternalData(v8_local_external_data *ext) {

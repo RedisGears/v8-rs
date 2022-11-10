@@ -22,7 +22,7 @@ impl<'isolate_scope, 'isolate> V8LocalExternalData<'isolate_scope, 'isolate> {
         }
     }
 
-    pub fn get_data<T>(&self) -> &T {
+    pub fn get_data<T>(&self) -> &'isolate_scope T {
         unsafe { &*(v8_ExternalDataGet(self.inner_ext) as *const T) }
     }
 
