@@ -1,9 +1,8 @@
 use crate::v8_c_raw::bindings::{
-    v8_FreeObjectTemplate, v8_ObjectTemplateSetFunction, v8_ObjectTemplateSetObject,
-    v8_ObjectTemplateSetValue, v8_local_object_template,
-    v8_ObjectTemplateSetInternalFieldCount, v8_ObjectTemplateNewInstance,
-    v8_persisted_object_template, v8_FreePersistedObjectTemplate,
-    v8_PersistedObjectTemplateToLocal, v8_ObjectTemplatePersist,
+    v8_FreeObjectTemplate, v8_FreePersistedObjectTemplate, v8_ObjectTemplateNewInstance,
+    v8_ObjectTemplatePersist, v8_ObjectTemplateSetFunction, v8_ObjectTemplateSetInternalFieldCount,
+    v8_ObjectTemplateSetObject, v8_ObjectTemplateSetValue, v8_PersistedObjectTemplateToLocal,
+    v8_local_object_template, v8_persisted_object_template,
 };
 
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -11,9 +10,9 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_native_function_template::{
     V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
 };
+use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
-use crate::v8::v8_object::V8LocalObject;
 
 /// JS object template
 pub struct V8LocalObjectTemplate<'isolate_scope, 'isolate> {
@@ -76,7 +75,10 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
 
     /// Convert the object template into a generic JS value
     #[must_use]
-    pub fn new_instance(&self, ctx_scope: &V8ContextScope) -> V8LocalObject<'isolate_scope, 'isolate> {
+    pub fn new_instance(
+        &self,
+        ctx_scope: &V8ContextScope,
+    ) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj =
             unsafe { v8_ObjectTemplateNewInstance(ctx_scope.inner_ctx_ref, self.inner_obj) };
         V8LocalObject {
@@ -86,8 +88,12 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
     }
 
     pub fn persist(&self) -> V8PersistedObjectTemplate {
-        let inner_persist = unsafe { v8_ObjectTemplatePersist(self.isolate_scope.isolate.inner_isolate, self.inner_obj) };
-        V8PersistedObjectTemplate{inner_persisted_obj_template: inner_persist}
+        let inner_persist = unsafe {
+            v8_ObjectTemplatePersist(self.isolate_scope.isolate.inner_isolate, self.inner_obj)
+        };
+        V8PersistedObjectTemplate {
+            inner_persisted_obj_template: inner_persist,
+        }
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::v8_c_raw::bindings::{
-    v8_ArgsGet, v8_FreeNativeFunctionTemplate, v8_GetCurrentCtxRef, v8_GetCurrentIsolate,
-    v8_NativeFunctionTemplateToFunction, v8_local_native_function_template, v8_local_value,
-    v8_local_value_arr, v8_ArgsGetSelf,
+    v8_ArgsGet, v8_ArgsGetSelf, v8_FreeNativeFunctionTemplate, v8_GetCurrentCtxRef,
+    v8_GetCurrentIsolate, v8_NativeFunctionTemplateToFunction, v8_local_native_function_template,
+    v8_local_value, v8_local_value_arr,
 };
 
 use std::os::raw::c_void;
@@ -11,8 +11,8 @@ use crate::v8::isolate::V8Isolate;
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_native_function::V8LocalNativeFunction;
-use crate::v8::v8_value::V8LocalValue;
 use crate::v8::v8_object::V8LocalObject;
+use crate::v8::v8_value::V8LocalValue;
 
 /// Native function template object
 pub struct V8LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
@@ -131,15 +131,13 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionArgs<'isolate_scope, 'isolat
     #[must_use]
     pub fn get_self(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
         let val = unsafe { v8_ArgsGetSelf(self.inner_arr) };
-        V8LocalObject{
+        V8LocalObject {
             inner_obj: val,
             isolate_scope: self.isolate_scope,
         }
     }
 
-    pub fn persist(&self) {
-
-    }
+    pub fn persist(&self) {}
 }
 
 impl<'isolate_scope, 'isolate> Drop for V8LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
