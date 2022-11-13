@@ -124,7 +124,7 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionArgs<'isolate_scope, 'isolat
     /// Checks if the list of args is empty
     #[must_use]
     pub const fn is_empty(&self) -> bool {
-        self.len > 0
+        self.len == 0
     }
 
     /// Checks if the list of args is empty
