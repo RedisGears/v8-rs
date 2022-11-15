@@ -68,7 +68,7 @@ extern "C" fn near_oom_callback<F: Fn(usize, usize) -> usize>(
 
 extern "C" fn near_oom_callback_free_pd<F: Fn(usize, usize) -> usize>(data: *mut c_void) {
     unsafe {
-        Box::from_raw(data.cast::<F>());
+        let _val = Box::from_raw(data.cast::<F>());
     }
 }
 

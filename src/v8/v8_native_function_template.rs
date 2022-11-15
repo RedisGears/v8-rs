@@ -37,7 +37,7 @@ pub(crate) extern "C" fn free_pd<
     pd: *mut c_void,
 ) {
     unsafe {
-        Box::from_raw(pd.cast::<T>());
+        let _ = Box::from_raw(pd.cast::<T>());
     }
 }
 

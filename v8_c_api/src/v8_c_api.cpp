@@ -230,7 +230,7 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 
 void v8_Initialize(v8_alloctor *alloc) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
-	v8::V8::SetFlagsFromString("--stack-size=200");
+	v8::V8::SetFlagsFromString("--stack-size=50");
 	platform = v8::platform::NewDefaultPlatform();
 	v8::V8::InitializePlatform(platform.get());
 	v8::V8::Initialize();
