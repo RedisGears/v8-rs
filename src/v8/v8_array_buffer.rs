@@ -1,3 +1,9 @@
+/*
+ * Copyright Redis Ltd. 2022 - present
+ * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
+ * the Server Side Public License v1 (SSPLv1).
+ */
+
 use crate::v8_c_raw::bindings::{
     v8_ArrayBufferGetData, v8_ArrayBufferToValue, v8_FreeArrayBuffer, v8_local_array_buff,
 };
