@@ -4,9 +4,10 @@ use quote::quote;
 use quote::quote_spanned;
 use quote::ToTokens;
 use syn;
-use syn::ExprClosure;
-use syn::TypePath;
 use syn::spanned::Spanned;
+use syn::ExprClosure;
+use syn::GenericArgument;
+use syn::PathArguments;
 
 #[proc_macro]
 pub fn new_native_function(item: TokenStream) -> TokenStream {
@@ -30,44 +31,113 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
     for input in inputs {
         let input = match input {
             syn::Pat::Type(input) => input,
-            _ => return syn::Error::new(input.span(), "Given argument type is not supported").to_compile_error().into(),
+            _ => {
+                return syn::Error::new(input.span(), "Given argument type is not supported")
+                    .to_compile_error()
+                    .into()
+            }
         };
         if input.pat.to_token_stream().to_string() == "__callback__" {
-            return syn::Error::new(input.span(), "__callback__ argument name is not allowed").to_compile_error().into();
+            return syn::Error::new(input.span(), "__callback__ argument name is not allowed")
+                .to_compile_error()
+                .into();
         }
         names.push(input.pat.to_token_stream());
         let input_type = match input.ty.as_ref() {
             syn::Type::Path(t) => t,
-            _ => return syn::Error::new(input.span(), "Given argument do not have proper type").to_compile_error().into(),
+            _ => {
+                return syn::Error::new(input.span(), "Given argument do not have proper type")
+                    .to_compile_error()
+                    .into()
+            }
         };
         types_span.push(input_type.span());
         types.push(input_type.to_token_stream());
         let type_str = input_type.to_token_stream().to_string();
         types_str.push(type_str.clone());
-        let (type_str, is_option) = if type_str.starts_with("Option <") {
-            (&type_str[8..type_str.len() - 1], true)
-        } else {
-            (type_str.as_str(), false)
+        let option_arg = match input_type.path.segments.last() {
+            Some(v) => v,
+            None => {
+                return syn::Error::new(input_type.span(), "Failed parsing argument type")
+                    .to_compile_error()
+                    .into()
+            }
         };
-        let type_for_closure = if type_str.contains("V8") {
-            format!("{}<'i_s, 'i>", type_str)
+        let (type_str, is_option) = if option_arg.ident.to_token_stream().to_string() == "Option" {
+            let generic_types = match input_type.path.segments.last() {
+                Some(res) => res,
+                None => {
+                    return syn::Error::new(
+                        input_type.span(),
+                        "Failed extracting Option internal type",
+                    )
+                    .to_compile_error()
+                    .into()
+                }
+            };
+            if let PathArguments::AngleBracketed(args) = &generic_types.arguments {
+                let arg = match args.args.last() {
+                    Some(res) => res,
+                    None => {
+                        return syn::Error::new(
+                            input_type.span(),
+                            "Failed extracting Option internal type",
+                        )
+                        .to_compile_error()
+                        .into()
+                    }
+                };
+                if let GenericArgument::Type(t) = arg {
+                    if let syn::Type::Path(p) = t {
+                        (p, true)
+                    } else {
+                        return syn::Error::new(
+                            input_type.span(),
+                            "Failed parse Option internal argument",
+                        )
+                        .to_compile_error()
+                        .into();
+                    }
+                } else {
+                    return syn::Error::new(
+                        input_type.span(),
+                        "Failed parse Option internal argument",
+                    )
+                    .to_compile_error()
+                    .into();
+                }
+            } else {
+                return syn::Error::new(input_type.span(), "Failed parse Option internal argument")
+                    .to_compile_error()
+                    .into();
+            }
         } else {
-            type_str.to_string()
+            (input_type, false)
+        };
+        let type_for_closure = if type_str.to_token_stream().to_string().contains("V8") {
+            quote_spanned! {input_type.span() => #type_str<'i_s, 'i>}
+        } else {
+            type_str.to_token_stream()
         };
         let type_for_closure = if is_option {
-            format!("Option<{}>", type_for_closure)
+            quote_spanned! {input_type.span() => Option<#type_for_closure>}
         } else {
             if min_index < max_index {
-                return syn::Error::new(input.span(), "All optional arguments must appear at the end.").to_compile_error().into();
+                return syn::Error::new(
+                    input_type.span(),
+                    "All optional arguments must appear at the end.",
+                )
+                .to_compile_error()
+                .into();
             }
             min_index += 1;
             type_for_closure
         };
-        types_for_closure.push(
-            syn::parse_str::<TypePath>(&type_for_closure)
-                .unwrap()
-                .to_token_stream(),
-        );
+        match syn::parse::<syn::Type>(type_for_closure.clone().into()) {
+            Err(e) => return syn::Error::new(input_type.span(), format!("Failed generating proper type with lifetime, generated type: '{}', error: '{}'", type_for_closure.clone().to_token_stream().to_string(), e.to_string())).to_compile_error().into(),
+            _ => (),
+        };
+        types_for_closure.push(quote_spanned! {input_type.span() => #type_for_closure});
         max_index += 1;
     }
 
@@ -128,8 +198,10 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
         }
     };
 
-    let mut ast: ExprClosure = syn::parse(gen.into()).unwrap();
+    let mut ast: ExprClosure = match syn::parse(gen.into()) {
+        Ok(res) => res,
+        Err(e) => return e.to_compile_error().into(),
+    };
     ast.capture = is_move;
-
     ast.into_token_stream().into()
 }
