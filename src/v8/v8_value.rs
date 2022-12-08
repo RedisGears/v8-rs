@@ -325,7 +325,9 @@ impl Drop for V8PersistValue {
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<i64, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<i64, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         if !val.is_long() {
             return Err("Value is not long".to_string());
@@ -335,7 +337,9 @@ impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for 
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<f64, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<f64, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         if !val.is_number() {
             return Err("Value is not number".to_string());
@@ -345,7 +349,9 @@ impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for 
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<String, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<String, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         if !val.is_string() && !val.is_string_object() {
             return Err("Value is not string".to_string());
@@ -359,7 +365,9 @@ impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for 
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<bool, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<bool, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         if !val.is_boolean() {
             return Err("Value is not a boolean".to_string());
@@ -369,7 +377,9 @@ impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for 
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalValue<'isolate_scope, 'isolate>, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<V8LocalValue<'isolate_scope, 'isolate>, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         Ok(val)
     }

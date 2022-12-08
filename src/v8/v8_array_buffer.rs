@@ -40,7 +40,9 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalArrayBuffer<'isolate_scope, 'isol
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalArrayBuffer<'isolate_scope, 'isolate>, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<V8LocalArrayBuffer<'isolate_scope, 'isolate>, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         if !val.is_array_buffer() {
             return Err("Value is not an array buffer".to_string());

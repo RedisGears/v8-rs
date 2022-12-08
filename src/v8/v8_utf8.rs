@@ -35,7 +35,9 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalUtf8<'isolate_scope, 'isolate> {
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalUtf8<'isolate_scope, 'isolate>, String> {
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
+    for Result<V8LocalUtf8<'isolate_scope, 'isolate>, String>
+{
     fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
         if !val.is_string() && !val.is_string_object() {
             return Err("Value is not string".to_string());
