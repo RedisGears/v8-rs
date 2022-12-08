@@ -324,3 +324,53 @@ impl Drop for V8PersistValue {
         unsafe { v8_FreePersistedValue(self.inner_val) }
     }
 }
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<i64, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_long() {
+            return Err("Value is not long".to_string());
+        }
+
+        Ok(val.get_long())
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<f64, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_number() {
+            return Err("Value is not number".to_string());
+        }
+
+        Ok(val.get_number())
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<String, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_string() && !val.is_string_object() {
+            return Err("Value is not string".to_string());
+        }
+
+        let v8_utf8 = match val.to_utf8() {
+            Some(val) => val,
+            None => return Err("Failed converting to utf8".to_string()),
+        };
+        Ok(v8_utf8.as_str().to_string())
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<bool, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_boolean() {
+            return Err("Value is not a boolean".to_string());
+        }
+
+        Ok(val.get_boolean())
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalValue<'isolate_scope, 'isolate>, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        Ok(val)
+    }
+}

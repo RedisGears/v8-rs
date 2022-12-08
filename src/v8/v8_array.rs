@@ -49,3 +49,13 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalArray<'isolate_scope, 'isolate> {
         unsafe { v8_FreeArray(self.inner_array) }
     }
 }
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalArray<'isolate_scope, 'isolate>, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_array() {
+            return Err("Value is not an array".to_string());
+        }
+
+        Ok(val.as_array())
+    }
+}

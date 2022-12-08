@@ -11,6 +11,9 @@ license = "Redis Source Available License 2.0 (RSALv2) or the Server Side Public
 [build-dependencies]
 bindgen = "0.59.2"
 
+[dev-dependencies]
+v8_rs_derive = { path = "./v8-rs-derive/"}
+
 [lib]
 name = "v8_rs"
 path = "src/lib.rs"

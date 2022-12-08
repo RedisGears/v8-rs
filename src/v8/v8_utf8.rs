@@ -5,6 +5,7 @@
  */
 
 use crate::v8::isolate_scope::V8IsolateScope;
+use crate::v8::v8_value::V8LocalValue;
 use crate::v8_c_raw::bindings::{v8_FreeUtf8, v8_Utf8PtrLen, v8_utf8_value};
 
 use std::slice;
@@ -31,5 +32,18 @@ impl<'isolate_scope, 'isolate> V8LocalUtf8<'isolate_scope, 'isolate> {
 impl<'isolate_scope, 'isolate> Drop for V8LocalUtf8<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeUtf8(self.inner_val) }
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalUtf8<'isolate_scope, 'isolate>, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_string() && !val.is_string_object() {
+            return Err("Value is not string".to_string());
+        }
+
+        match val.to_utf8() {
+            Some(val) => Ok(val),
+            None => Err("Failed converting to utf8".to_string()),
+        }
     }
 }

@@ -14,6 +14,7 @@ use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
+use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgs;
 
 /// JS object
 pub struct V8LocalObject<'isolate_scope, 'isolate> {
@@ -48,6 +49,25 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
                 self.inner_obj,
                 key.inner_val,
                 val.inner_val,
+            )
+        };
+    }
+
+    pub fn set_native_function<
+    T: for<'d, 'e> Fn(
+        &V8LocalNativeFunctionArgs<'d, 'e>,
+        &'d V8IsolateScope<'e>,
+        &V8ContextScope<'d, 'e>,
+    ) -> Option<V8LocalValue<'d, 'e>>>
+    (&self, ctx_scope: &V8ContextScope, key: &str, func: T) {
+        let native_function = ctx_scope.new_native_function(func).to_value();
+        let name = self.isolate_scope.new_string(key).to_value();
+        unsafe {
+            v8_ObjectSet(
+                ctx_scope.inner_ctx_ref,
+                self.inner_obj,
+                name.inner_val,
+                native_function.inner_val,
             )
         };
     }
@@ -102,5 +122,15 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
 impl<'isolate_scope, 'isolate> Drop for V8LocalObject<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeObject(self.inner_obj) }
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalObject<'isolate_scope, 'isolate>, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_object() {
+            return Err("Value is not an object".to_string());
+        }
+
+        Ok(val.as_object())
     }
 }

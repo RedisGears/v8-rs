@@ -37,3 +37,14 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalSet<'isolate_scope, 'isolate> {
         unsafe { v8_FreeSet(self.inner_set) }
     }
 }
+
+impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>> for Result<V8LocalSet<'isolate_scope, 'isolate>, String> {
+    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+        if !val.is_set() {
+            return Err("Value is not a set".to_string());
+        }
+
+        Ok(val.as_set())
+    }
+}
+
