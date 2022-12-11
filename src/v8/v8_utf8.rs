@@ -35,17 +35,19 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalUtf8<'isolate_scope, 'isolate> {
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<V8LocalUtf8<'isolate_scope, 'isolate>, String>
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
+    for V8LocalUtf8<'isolate_scope, 'isolate>
 {
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+    type Error = &'static str;
+
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_string() && !val.is_string_object() {
-            return Err("Value is not string".to_string());
+            return Err("Value is not string");
         }
 
         match val.to_utf8() {
             Some(val) => Ok(val),
-            None => Err("Failed converting to utf8".to_string()),
+            None => Err("Failed converting to utf8"),
         }
     }
 }

@@ -40,12 +40,13 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalArrayBuffer<'isolate_scope, 'isol
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<V8LocalArrayBuffer<'isolate_scope, 'isolate>, String>
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
+    for V8LocalArrayBuffer<'isolate_scope, 'isolate>
 {
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+    type Error = &'static str;
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_array_buffer() {
-            return Err("Value is not an array buffer".to_string());
+            return Err("Value is not an array buffer");
         }
 
         Ok(val.as_array_buffer())

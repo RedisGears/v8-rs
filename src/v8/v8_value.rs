@@ -21,6 +21,7 @@ use crate::v8::v8_array::V8LocalArray;
 use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_external_data::V8LocalExternalData;
+use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgsIter;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_promise::V8LocalPromise;
 use crate::v8::v8_resolver::V8LocalResolver;
@@ -325,62 +326,123 @@ impl Drop for V8PersistValue {
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<i64, String>
-{
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for i64 {
+    type Error = &'static str;
+
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_long() {
-            return Err("Value is not long".to_string());
+            return Err("Value is not long");
         }
 
         Ok(val.get_long())
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<f64, String>
-{
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for f64 {
+    type Error = &'static str;
+
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_number() {
-            return Err("Value is not number".to_string());
+            return Err("Value is not number");
         }
 
         Ok(val.get_number())
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<String, String>
-{
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for String {
+    type Error = &'static str;
+
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_string() && !val.is_string_object() {
-            return Err("Value is not string".to_string());
+            return Err("Value is not string");
         }
 
         let v8_utf8 = match val.to_utf8() {
             Some(val) => val,
-            None => return Err("Failed converting to utf8".to_string()),
+            None => return Err("Failed converting to utf8"),
         };
         Ok(v8_utf8.as_str().to_string())
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<bool, String>
-{
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for bool {
+    type Error = &'static str;
+
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_boolean() {
-            return Err("Value is not a boolean".to_string());
+            return Err("Value is not a boolean");
         }
 
         Ok(val.get_boolean())
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<V8LocalValue<'isolate_scope, 'isolate>, String>
+// impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for V8LocalValue<'isolate_scope, 'isolate>
+// {
+//     type Error = &'static str;
+
+//     fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+//         Ok(val)
+//     }
+// }
+
+macro_rules! from_iter_impl {
+    ( $x:ty ) => {
+        impl<'isolate_scope, 'isolate, 'a>
+            TryFrom<V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for $x
+        {
+            type Error = &'static str;
+            fn try_from(
+                mut val: V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+            ) -> Result<Self, Self::Error> {
+                match val.next() {
+                    Some(val) => val.try_into(),
+                    None => Err("Wron number of arguments given".into()),
+                }
+            }
+        }
+    };
+}
+
+from_iter_impl!(i64);
+from_iter_impl!(f64);
+from_iter_impl!(String);
+from_iter_impl!(bool);
+from_iter_impl!(V8LocalArray<'isolate_scope, 'isolate>);
+from_iter_impl!(V8LocalArrayBuffer<'isolate_scope, 'isolate>);
+from_iter_impl!(V8LocalObject<'isolate_scope, 'isolate>);
+from_iter_impl!(V8LocalSet<'isolate_scope, 'isolate>);
+from_iter_impl!(V8LocalUtf8<'isolate_scope, 'isolate>);
+
+impl<'isolate_scope, 'isolate, 'a, T>
+    TryFrom<V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for Vec<T>
+where
+    T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
 {
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
-        Ok(val)
+    type Error = &'static str;
+    fn try_from(
+        val: V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+    ) -> Result<Self, Self::Error> {
+        let mut res = Vec::new();
+        for v in val {
+            match v.try_into() {
+                Ok(v) => res.push(v),
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(res)
+    }
+}
+
+impl<'isolate_scope, 'isolate, 'a>
+    TryFrom<V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+    for Vec<V8LocalValue<'isolate_scope, 'isolate>>
+{
+    type Error = &'static str;
+    fn try_from(
+        val: V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+    ) -> Result<Self, Self::Error> {
+        Ok(val.collect())
     }
 }

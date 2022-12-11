@@ -28,7 +28,16 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
     let mut types_for_closure = Vec::new();
     let inputs = ast.inputs.into_iter();
     let inputs = inputs.skip(2); // skip the isolate and ctx_scope
+    let mut consume_all_args = false;
     for input in inputs {
+        if consume_all_args {
+            return syn::Error::new(
+                input.span(),
+                "Can not add more arguments after consuming all arguments with a vector",
+            )
+            .to_compile_error()
+            .into();
+        }
         let input = match input {
             syn::Pat::Type(input) => input,
             _ => {
@@ -63,7 +72,8 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
                     .into()
             }
         };
-        let (type_str, is_option) = if option_arg.ident.to_token_stream().to_string() == "Option" {
+        let outer_type = option_arg.ident.to_token_stream().to_string();
+        let type_str = if outer_type == "Option" || outer_type == "Vec" {
             let generic_types = match input_type.path.segments.last() {
                 Some(res) => res,
                 None => {
@@ -89,7 +99,7 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
                 };
                 if let GenericArgument::Type(t) = arg {
                     if let syn::Type::Path(p) = t {
-                        (p, true)
+                        p
                     } else {
                         return syn::Error::new(
                             input_type.span(),
@@ -112,15 +122,18 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
                     .into();
             }
         } else {
-            (input_type, false)
+            input_type
         };
         let type_for_closure = if type_str.to_token_stream().to_string().contains("V8") {
             quote_spanned! {input_type.span() => #type_str<'i_s, 'i>}
         } else {
             type_str.to_token_stream()
         };
-        let type_for_closure = if is_option {
+        let type_for_closure = if outer_type == "Option" {
             quote_spanned! {input_type.span() => Option<#type_for_closure>}
+        } else if outer_type == "Vec" {
+            consume_all_args = true;
+            quote_spanned! {input_type.span() => Vec<#type_for_closure>}
         } else {
             if min_index < max_index {
                 return syn::Error::new(
@@ -138,7 +151,9 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
             _ => (),
         };
         types_for_closure.push(quote_spanned! {input_type.span() => #type_for_closure});
-        max_index += 1;
+        if !consume_all_args {
+            max_index += 1;
+        }
     }
 
     let max_args_len = max_index;
@@ -147,32 +162,57 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
     let mut get_argument_code = Vec::new();
     for i in 0..min_args_len {
         let t = types_str.get(i).unwrap();
-        get_argument_code.push(quote_spanned!{types_span.get(i).unwrap().clone() => match __args.get(#i).into(){
-            Ok(r) => r,
-            Err(e) => {
-                __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
-                return None
+        get_argument_code.push(quote_spanned!{types_span.get(i).unwrap().clone() =>
+            match __args_iter.next() {
+                Some(r) => match r.try_into() {
+                    Ok(r) => r,
+                    Err(e) => {
+                        __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
+                        return None
+                    }
+                },
+                None => {
+                    __isolate.raise_exception_str(&"Worng number of argument given.");
+                    return None
+                }
             }
-        }});
+        });
     }
 
     for i in min_args_len..max_args_len {
         let t = types_str.get(i).unwrap();
-        get_argument_code.push(quote_spanned!{types_span.get(i).unwrap().clone() => if #i < __args.len() {Some(match __args.get(#i).into(){
-            Ok(r) => r,
-            Err(e) => {
-                __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
-                return None
+        get_argument_code.push(quote_spanned!{types_span.get(i).unwrap().clone() =>
+            match __args_iter.next() {
+                Some(r) => match r.try_into() {
+                    Ok(r) => Some(r),
+                    Err(e) => {
+                        __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
+                        return None
+                    }
+                },
+                None => {
+                    None
+                }
             }
-        })} else {None}});
+        });
+    }
+
+    if consume_all_args {
+        get_argument_code.push(quote_spanned! {types_span.last().unwrap().clone() =>
+            match __args_iter.try_into() {
+                Ok(res) => res,
+                Err(e) => {
+                    __isolate.raise_exception_str(&format!("Failed consuming arguments. {}.", e));
+                    return None
+                }
+            }
+        });
     }
 
     let gen = quote! {
         |__args, __isolate, __ctx_scope| {
-            if __args.len() < #min_args_len || __args.len() > #max_args_len {
-                __isolate.raise_exception_str(&format!("Worng number of argument given, expected at least {} or at most {} but got {}.", #min_args_len, #max_args_len, __args.len()));
-                return None
-            };
+
+            let mut __args_iter = __args.iter();
 
             #(
                 let #names: #types = #get_argument_code;

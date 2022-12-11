@@ -38,12 +38,14 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalSet<'isolate_scope, 'isolate> {
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalValue<'isolate_scope, 'isolate>>
-    for Result<V8LocalSet<'isolate_scope, 'isolate>, String>
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
+    for V8LocalSet<'isolate_scope, 'isolate>
 {
-    fn from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Self {
+    type Error = &'static str;
+
+    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_set() {
-            return Err("Value is not a set".to_string());
+            return Err("Value is not a set");
         }
 
         Ok(val.as_set())

@@ -144,6 +144,32 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionArgs<'isolate_scope, 'isolat
     }
 
     pub fn persist(&self) {}
+
+    pub fn iter<'a>(&'a self) -> V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
+        V8LocalNativeFunctionArgsIter {
+            args: self,
+            index: 0,
+        }
+    }
+}
+
+pub struct V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
+    args: &'a V8LocalNativeFunctionArgs<'isolate_scope, 'isolate>,
+    index: usize,
+}
+
+impl<'isolate_scope, 'isolate, 'a> Iterator
+    for V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>
+{
+    type Item = V8LocalValue<'isolate_scope, 'isolate>;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.args.len() {
+            return None;
+        }
+        let res = self.args.get(self.index);
+        self.index += 1;
+        Some(res)
+    }
 }
 
 impl<'isolate_scope, 'isolate> Drop for V8LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
