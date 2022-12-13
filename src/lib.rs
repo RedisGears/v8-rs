@@ -579,7 +579,10 @@ mod json_path_tests {
             }),
         )
         .expect_err("Did not get error when suppose to.");
-        assert_eq!(err, "Worng number of argument given.");
+        assert_eq!(
+            err,
+            "Can not convert value at position 1 into i64. Wrong number of arguments given."
+        );
     }
 
     #[test]
@@ -685,6 +688,31 @@ mod json_path_tests {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
                     assert_eq!(arg3.unwrap().len(), 2);
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }
+            ),
+        )
+        .expect_err("Did not get error when suppose to.");
+        assert_eq!(
+            err,
+            "Can not convert value at position 1 into i64. Value is not long."
+        );
+    }
+
+    #[test]
+    fn test_native_function_macro_optional_arguments_value() {
+        let err = define_function_and_call(
+            "test(1, 'foo', [1, 2])",
+            "test",
+            new_native_function!(
+                |_isolate,
+                 _ctx_scope,
+                 arg1: i64,
+                 arg2: i64,
+                 arg3: Option<v8_value::V8LocalValue>| {
+                    assert_eq!(arg1, 1);
+                    assert_eq!(arg2, 2);
+                    assert_eq!(arg3.unwrap().is_array(), true);
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
                 }
             ),

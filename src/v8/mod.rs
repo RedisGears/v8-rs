@@ -34,6 +34,12 @@ pub mod v8_value;
 pub(crate) static mut FATAL_ERROR_CALLBACK: Option<Box<dyn Fn(&str, &str)>> = None;
 pub(crate) static mut OOM_ERROR_CALLBACK: Option<Box<dyn Fn(&str, bool)>> = None;
 
+pub trait OptionalTryFrom<T>: Sized {
+    type Error;
+
+    fn optional_try_from(value: T) -> Result<Option<Self>, Self::Error>;
+}
+
 /// Initialize the v8, must be called before any other v8 API.
 pub fn v8_init() {
     unsafe { v8_Initialize(ptr::null_mut()) }

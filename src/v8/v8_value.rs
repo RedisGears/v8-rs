@@ -28,6 +28,7 @@ use crate::v8::v8_resolver::V8LocalResolver;
 use crate::v8::v8_set::V8LocalSet;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_utf8::V8LocalUtf8;
+use crate::v8::OptionalTryFrom;
 
 /// JS generic local value
 pub struct V8LocalValue<'isolate_scope, 'isolate> {
@@ -390,15 +391,15 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
 macro_rules! from_iter_impl {
     ( $x:ty ) => {
         impl<'isolate_scope, 'isolate, 'a>
-            TryFrom<V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for $x
+            TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for $x
         {
             type Error = &'static str;
             fn try_from(
-                mut val: V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+                val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
             ) -> Result<Self, Self::Error> {
                 match val.next() {
                     Some(val) => val.try_into(),
-                    None => Err("Wron number of arguments given".into()),
+                    None => Err("Wrong number of arguments given".into()),
                 }
             }
         }
@@ -415,14 +416,58 @@ from_iter_impl!(V8LocalObject<'isolate_scope, 'isolate>);
 from_iter_impl!(V8LocalSet<'isolate_scope, 'isolate>);
 from_iter_impl!(V8LocalUtf8<'isolate_scope, 'isolate>);
 
+impl<'isolate_scope, 'isolate, 'a>
+    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+    for V8LocalValue<'isolate_scope, 'isolate>
+{
+    type Error = &'static str;
+    fn try_from(
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+    ) -> Result<Self, Self::Error> {
+        match val.next() {
+            Some(val) => Ok(val),
+            None => Err("Wrong number of arguments given".into()),
+        }
+    }
+}
+
 impl<'isolate_scope, 'isolate, 'a, T>
-    TryFrom<V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for Vec<T>
+    OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for T
+where
+    T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
+{
+    type Error = &'static str;
+    fn optional_try_from(
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+    ) -> Result<Option<Self>, Self::Error> {
+        let val = match val.next() {
+            Some(v) => v,
+            None => return Ok(None),
+        };
+        val.try_into().map(|v| Some(v))
+    }
+}
+
+impl<'isolate_scope, 'isolate, 'a>
+    OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+    for V8LocalValue<'isolate_scope, 'isolate>
+{
+    type Error = &'static str;
+    fn optional_try_from(
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+    ) -> Result<Option<Self>, Self::Error> {
+        Ok(val.next())
+    }
+}
+
+impl<'isolate_scope, 'isolate, 'a, T>
+    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for Vec<T>
 where
     T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
 {
     type Error = &'static str;
     fn try_from(
-        val: V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
     ) -> Result<Self, Self::Error> {
         let mut res = Vec::new();
         for v in val {
@@ -436,12 +481,12 @@ where
 }
 
 impl<'isolate_scope, 'isolate, 'a>
-    TryFrom<V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
     for Vec<V8LocalValue<'isolate_scope, 'isolate>>
 {
     type Error = &'static str;
     fn try_from(
-        val: V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
     ) -> Result<Self, Self::Error> {
         Ok(val.collect())
     }

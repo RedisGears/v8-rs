@@ -163,16 +163,10 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
     for i in 0..min_args_len {
         let t = types_str.get(i).unwrap();
         get_argument_code.push(quote_spanned!{types_span.get(i).unwrap().clone() =>
-            match __args_iter.next() {
-                Some(r) => match r.try_into() {
-                    Ok(r) => r,
-                    Err(e) => {
-                        __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
-                        return None
-                    }
-                },
-                None => {
-                    __isolate.raise_exception_str(&"Worng number of argument given.");
+            match (&mut __args_iter).try_into() {
+                Ok(r) => r,
+                Err(e) => {
+                    __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
                     return None
                 }
             }
@@ -182,16 +176,11 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
     for i in min_args_len..max_args_len {
         let t = types_str.get(i).unwrap();
         get_argument_code.push(quote_spanned!{types_span.get(i).unwrap().clone() =>
-            match __args_iter.next() {
-                Some(r) => match r.try_into() {
-                    Ok(r) => Some(r),
-                    Err(e) => {
-                        __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
-                        return None
-                    }
-                },
-                None => {
-                    None
+            match v8_rs::v8::OptionalTryFrom::optional_try_from(&mut __args_iter) {
+                Ok(r) => r,
+                Err(e) => {
+                    __isolate.raise_exception_str(&format!("Can not convert value at position {} into {}. {}.", #i, #t, e));
+                    return None
                 }
             }
         });
@@ -199,7 +188,7 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
 
     if consume_all_args {
         get_argument_code.push(quote_spanned! {types_span.last().unwrap().clone() =>
-            match __args_iter.try_into() {
+            match (&mut __args_iter).try_into() {
                 Ok(res) => res,
                 Err(e) => {
                     __isolate.raise_exception_str(&format!("Failed consuming arguments. {}.", e));
