@@ -16,7 +16,7 @@ fn main() {
     println!("cargo:rerun-if-changed=v8_c_api/src/v8_c_api.cpp");
 
     if !Command::new("make")
-        .args(&["-C", "v8_c_api/"])
+        .args(["-C", "v8_c_api/"])
         .status()
         .expect("failed to compile v8_c_api")
         .success()
@@ -27,7 +27,7 @@ fn main() {
     let output_dir = env::var("OUT_DIR").expect("Can not find out directory");
 
     if !Command::new("cp")
-        .args(&["v8_c_api/src/libv8.a", &output_dir])
+        .args(["v8_c_api/src/libv8.a", &output_dir])
         .status()
         .expect("failed copy libv8.a to output directory")
         .success()
@@ -54,7 +54,7 @@ fn main() {
     if !Path::new(&v8_monolith_path).exists() {
         // download libv8_monolith.a
         if !Command::new("wget")
-            .args(&["-O", &v8_monolith_path, &v8_monolith_url])
+            .args(["-O", &v8_monolith_path, &v8_monolith_url])
             .status()
             .expect("failed downloading libv8_monolith.a")
             .success()
@@ -64,7 +64,7 @@ fn main() {
     }
 
     if !Command::new("cp")
-        .args(&[&v8_monolith_path, &output_dir])
+        .args([&v8_monolith_path, &output_dir])
         .status()
         .expect("failed copy libv8_monolith.a to output directory")
         .success()

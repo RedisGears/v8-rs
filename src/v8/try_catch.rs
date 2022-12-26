@@ -24,7 +24,7 @@ impl<'isolate_scope, 'isolate> V8TryCatch<'isolate_scope, 'isolate> {
     pub fn get_exception(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_TryCatchGetException(self.inner_trycatch) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }

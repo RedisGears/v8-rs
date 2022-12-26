@@ -28,7 +28,7 @@ impl<'isolate_scope, 'isolate> V8LocalArrayBuffer<'isolate_scope, 'isolate> {
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ArrayBufferToValue(self.inner_array_buffer) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }

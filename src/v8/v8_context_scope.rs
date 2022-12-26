@@ -40,7 +40,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
             None
         } else {
             Some(V8LocalScript {
-                inner_script: inner_script,
+                inner_script,
                 isolate_scope: self.isolate_scope,
             })
         }
@@ -50,7 +50,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     pub fn get_globals(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
         V8LocalObject {
-            inner_obj: inner_obj,
+            inner_obj,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -68,14 +68,14 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
                 self.inner_ctx_ref,
                 name.inner_string,
                 code.inner_string,
-                if is_module { 1 } else { 0 },
+                i32::from(is_module),
             )
         };
         if inner_module.is_null() {
             None
         } else {
             Some(V8LocalModule {
-                inner_module: inner_module,
+                inner_module,
                 isolate_scope: self.isolate_scope,
             })
         }
@@ -130,7 +130,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     pub fn new_resolver(&self) -> V8LocalResolver<'isolate_scope, 'isolate> {
         let inner_resolver = unsafe { v8_NewResolver(self.inner_ctx_ref) };
         V8LocalResolver {
-            inner_resolver: inner_resolver,
+            inner_resolver,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -145,7 +145,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
             return None;
         }
         Some(V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         })
     }
@@ -160,7 +160,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
             return None;
         }
         Some(V8LocalString {
-            inner_string: inner_string,
+            inner_string,
             isolate_scope: self.isolate_scope,
         })
     }
@@ -185,7 +185,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
             )
         };
         V8LocalNativeFunction {
-            inner_func: inner_func,
+            inner_func,
             isolate_scope: self.isolate_scope,
         }
     }

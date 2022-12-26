@@ -32,7 +32,7 @@ impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
             None
         } else {
             Some(V8LocalValue {
-                inner_val: inner_val,
+                inner_val,
                 isolate_scope: self.isolate_scope,
             })
         }
@@ -61,7 +61,7 @@ impl V8PersistedScript {
         };
         V8LocalScript {
             inner_script,
-            isolate_scope: isolate_scope,
+            isolate_scope,
         }
     }
 }

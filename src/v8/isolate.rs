@@ -36,7 +36,7 @@ pub(crate) extern "C" fn interrupt_callback<T: Fn(&V8Isolate)>(
 ) {
     let func = unsafe { &*(data.cast::<T>()) };
     func(&V8Isolate {
-        inner_isolate: inner_isolate,
+        inner_isolate,
         no_release: true,
     });
 }
@@ -105,7 +105,7 @@ impl V8Isolate {
         };
 
         Self {
-            inner_isolate: inner_isolate,
+            inner_isolate,
             no_release: false,
         }
     }
@@ -164,7 +164,7 @@ impl V8Isolate {
             None
         } else {
             Some(Self {
-                inner_isolate: inner_isolate,
+                inner_isolate,
                 no_release: true,
             })
         }
