@@ -36,7 +36,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
             None
         } else {
             Some(V8LocalValue {
-                inner_val: inner_val,
+                inner_val,
                 isolate_scope: self.isolate_scope,
             })
         }
@@ -85,7 +85,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     pub fn get_internal_field(&self, index: usize) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ObjectGetInternalField(self.inner_obj, index) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -100,7 +100,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ObjectToValue(self.inner_obj) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -118,7 +118,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_array =
             unsafe { v8_ValueGetPropertyNames(ctx_scope.inner_ctx_ref, self.inner_obj) };
         V8LocalArray {
-            inner_array: inner_array,
+            inner_array,
             isolate_scope: self.isolate_scope,
         }
     }

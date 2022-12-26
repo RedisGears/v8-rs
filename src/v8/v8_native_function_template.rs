@@ -62,7 +62,7 @@ pub(crate) extern "C" fn native_basic_function<
 
     let inner_isolate = unsafe { v8_GetCurrentIsolate(args) };
     let isolate = V8Isolate {
-        inner_isolate: inner_isolate,
+        inner_isolate,
         no_release: true,
     };
 
@@ -102,7 +102,7 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionTemplate<'isolate_scope, 'is
             v8_NativeFunctionTemplateToFunction(ctx_scope.inner_ctx_ref, self.inner_func)
         };
         V8LocalNativeFunction {
-            inner_func: inner_func,
+            inner_func,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -143,7 +143,7 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionArgs<'isolate_scope, 'isolat
         }
     }
 
-    pub fn persist(&self) {}
+    pub const fn persist(&self) {}
 
     pub fn iter<'a>(&'a self) -> V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
         V8LocalNativeFunctionArgsIter {

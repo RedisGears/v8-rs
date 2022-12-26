@@ -45,9 +45,6 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
             return Err("Value is not string");
         }
 
-        match val.to_utf8() {
-            Some(val) => Ok(val),
-            None => Err("Failed converting to utf8"),
-        }
+        val.to_utf8().ok_or("Failed converting to utf8")
     }
 }

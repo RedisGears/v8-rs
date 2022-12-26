@@ -23,7 +23,7 @@ impl<'isolate_scope, 'isolate> V8LocalExternalData<'isolate_scope, 'isolate> {
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ExternalDataToValue(self.inner_ext) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -32,7 +32,7 @@ impl<'isolate_scope, 'isolate> V8LocalExternalData<'isolate_scope, 'isolate> {
         unsafe { &*(v8_ExternalDataGet(self.inner_ext) as *const T) }
     }
 
-    pub fn get_data_mut<T>(&self) -> &mut T {
+    pub fn get_data_mut<T>(&mut self) -> &mut T {
         unsafe { &mut *(v8_ExternalDataGet(self.inner_ext) as *mut T) }
     }
 }

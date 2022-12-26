@@ -88,11 +88,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
             )
         };
         ctx_scope.set_private_data_raw::<T>(0, None);
-        if res != 0 {
-            true
-        } else {
-            false
-        }
+        res != 0
     }
 
     pub fn evaluate(
@@ -138,7 +134,7 @@ impl V8PersistedModule {
         };
         V8LocalModule {
             inner_module,
-            isolate_scope: isolate_scope,
+            isolate_scope,
         }
     }
 }

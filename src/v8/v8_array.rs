@@ -23,6 +23,10 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
         unsafe { v8_ArrayLen(self.inner_array) }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get(
         &self,
         ctx_scope: &V8ContextScope,
@@ -30,7 +34,7 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
     ) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ArrayGet(ctx_scope.inner_ctx_ref, self.inner_array, index) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -38,7 +42,7 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ArrayToValue(self.inner_array) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }

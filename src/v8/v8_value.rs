@@ -52,7 +52,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
             None
         } else {
             Some(V8LocalUtf8 {
-                inner_val: inner_val,
+                inner_val,
                 _isolate_scope: self.isolate_scope,
             })
         }
@@ -91,7 +91,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     pub fn as_array(&self) -> V8LocalArray<'isolate_scope, 'isolate> {
         let inner_array = unsafe { v8_ValueAsArray(self.inner_val) };
         V8LocalArray {
-            inner_array: inner_array,
+            inner_array,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -107,7 +107,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     pub fn as_array_buffer(&self) -> V8LocalArrayBuffer<'isolate_scope, 'isolate> {
         let inner_array_buffer = unsafe { v8_ValueAsArrayBuffer(self.inner_val) };
         V8LocalArrayBuffer {
-            inner_array_buffer: inner_array_buffer,
+            inner_array_buffer,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -157,11 +157,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     }
 
     pub fn get_boolean(&self) -> bool {
-        if unsafe { v8_GetBool(self.inner_val) } == 0 {
-            false
-        } else {
-            true
-        }
+        (unsafe { v8_GetBool(self.inner_val) } != 0)
     }
 
     /// Return true if the value is promise and false otherwise.
@@ -175,7 +171,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     pub fn as_promise(&self) -> V8LocalPromise<'isolate_scope, 'isolate> {
         let inner_promise = unsafe { v8_ValueAsPromise(self.inner_val) };
         V8LocalPromise {
-            inner_promise: inner_promise,
+            inner_promise,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -185,7 +181,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     pub fn as_resolver(&self) -> V8LocalResolver<'isolate_scope, 'isolate> {
         let inner_resolver = unsafe { v8_ValueAsResolver(self.inner_val) };
         V8LocalResolver {
-            inner_resolver: inner_resolver,
+            inner_resolver,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -201,7 +197,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     pub fn as_object(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ValueAsObject(self.inner_val) };
         V8LocalObject {
-            inner_obj: inner_obj,
+            inner_obj,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -231,7 +227,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     pub fn as_set(&self) -> V8LocalSet<'isolate_scope, 'isolate> {
         let inner_set = unsafe { v8_ValueAsSet(self.inner_val) };
         V8LocalSet {
-            inner_set: inner_set,
+            inner_set,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -285,8 +281,8 @@ impl V8PersistValue {
             v8_PersistedValueToLocal(isolate_scope.isolate.inner_isolate, self.inner_val)
         };
         V8LocalValue {
-            inner_val: inner_val,
-            isolate_scope: isolate_scope,
+            inner_val,
+            isolate_scope,
         }
     }
 
@@ -424,10 +420,7 @@ impl<'isolate_scope, 'isolate, 'a>
     fn try_from(
         val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
     ) -> Result<Self, Self::Error> {
-        match val.next() {
-            Some(val) => Ok(val),
-            None => Err("Wrong number of arguments given".into()),
-        }
+        val.next().ok_or("Wrong number of arguments given")
     }
 }
 
@@ -469,7 +462,7 @@ where
     fn try_from(
         val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
     ) -> Result<Self, Self::Error> {
-        let mut res = Vec::new();
+        let mut res = Self::new();
         for v in val {
             match v.try_into() {
                 Ok(v) => res.push(v),

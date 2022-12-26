@@ -24,7 +24,7 @@ impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_StringToValue(self.inner_string) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -36,7 +36,7 @@ impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
             v8_StringToStringObject(self.isolate_scope.isolate.inner_isolate, self.inner_string)
         };
         V8LocalObject {
-            inner_obj: inner_obj,
+            inner_obj,
             isolate_scope: self.isolate_scope,
         }
     }

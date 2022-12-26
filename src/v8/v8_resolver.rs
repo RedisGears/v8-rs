@@ -26,7 +26,7 @@ impl<'isolate_scope, 'isolate> V8LocalResolver<'isolate_scope, 'isolate> {
     pub fn get_promise(&self) -> V8LocalPromise<'isolate_scope, 'isolate> {
         let inner_promise = unsafe { v8_ResolverGetPromise(self.inner_resolver) };
         V8LocalPromise {
-            inner_promise: inner_promise,
+            inner_promise,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -46,7 +46,7 @@ impl<'isolate_scope, 'isolate> V8LocalResolver<'isolate_scope, 'isolate> {
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ResolverToValue(self.inner_resolver) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }

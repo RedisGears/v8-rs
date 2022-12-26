@@ -84,7 +84,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8TryCatch<'isolate_scope, 'isolate> {
         let inner_trycatch = unsafe { v8_NewTryCatch(self.isolate.inner_isolate) };
         V8TryCatch {
-            inner_trycatch: inner_trycatch,
+            inner_trycatch,
             isolate_scope: self,
         }
     }
@@ -98,7 +98,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         let inner_string =
             unsafe { v8_NewString(self.isolate.inner_isolate, s.as_ptr().cast::<i8>(), s.len()) };
         V8LocalString {
-            inner_string: inner_string,
+            inner_string,
             isolate_scope: self,
         }
     }
@@ -116,7 +116,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         let ptr = args.as_ptr();
         let inner_array = unsafe { v8_NewArray(self.isolate.inner_isolate, ptr, values.len()) };
         V8LocalArray {
-            inner_array: inner_array,
+            inner_array,
             isolate_scope: self,
         }
     }
@@ -134,7 +134,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
             )
         };
         V8LocalArrayBuffer {
-            inner_array_buffer: inner_array_buffer,
+            inner_array_buffer,
             isolate_scope: self,
         }
     }
@@ -145,7 +145,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_NewObject(self.isolate.inner_isolate) };
         V8LocalObject {
-            inner_obj: inner_obj,
+            inner_obj,
             isolate_scope: self,
         }
     }
@@ -164,7 +164,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
             )
         };
         V8LocalExternalData {
-            inner_ext: inner_ext,
+            inner_ext,
             isolate_scope: self,
         }
     }
@@ -173,7 +173,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_set<'isolate_scope>(&'isolate_scope self) -> V8LocalSet<'isolate_scope, 'isolate> {
         let inner_set = unsafe { v8_NewSet(self.isolate.inner_isolate) };
         V8LocalSet {
-            inner_set: inner_set,
+            inner_set,
             isolate_scope: self,
         }
     }
@@ -185,7 +185,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_NewBool(self.isolate.inner_isolate, val as i32) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self,
         }
     }
@@ -196,7 +196,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ValueFromLong(self.isolate.inner_isolate, val) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self,
         }
     }
@@ -207,7 +207,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ValueFromDouble(self.isolate.inner_isolate, val) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self,
         }
     }
@@ -217,7 +217,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_NewNull(self.isolate.inner_isolate) };
         V8LocalValue {
-            inner_val: inner_val,
+            inner_val,
             isolate_scope: self,
         }
     }
@@ -229,7 +229,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_NewObjectTemplate(self.isolate.inner_isolate) };
         V8LocalObjectTemplate {
-            inner_obj: inner_obj,
+            inner_obj,
             isolate_scope: self,
         }
     }
@@ -255,7 +255,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
             )
         };
         V8LocalNativeFunctionTemplate {
-            inner_func: inner_func,
+            inner_func,
             isolate_scope: self,
         }
     }
@@ -268,7 +268,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     ) -> V8Unlocker<'isolate_scope, 'isolate> {
         let inner_unlocker = unsafe { v8_NewUnlocker(self.isolate.inner_isolate) };
         V8Unlocker {
-            inner_unlocker: inner_unlocker,
+            inner_unlocker,
             _isolate_scope: self,
         }
     }

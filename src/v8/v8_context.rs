@@ -30,9 +30,7 @@ impl V8Context {
             Some(g) => unsafe { v8_NewContext(isolate.inner_isolate, g.inner_obj) },
             None => unsafe { v8_NewContext(isolate.inner_isolate, ptr::null_mut()) },
         };
-        Self {
-            inner_ctx: inner_ctx,
-        }
+        Self { inner_ctx }
     }
 
     /// Enter the context for JS code invocation.
@@ -48,7 +46,7 @@ impl V8Context {
         V8ContextScope {
             inner_ctx_ref,
             exit_on_drop: true,
-            isolate_scope: isolate_scope,
+            isolate_scope,
         }
     }
 
