@@ -68,7 +68,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         let inner_string = unsafe {
             v8_NewString(
                 self.isolate.inner_isolate,
-                msg.as_ptr().cast::<i8>(),
+                msg.as_ptr().cast::<c_char>(),
                 msg.len(),
             )
         };
@@ -95,8 +95,13 @@ impl<'isolate> V8IsolateScope<'isolate> {
         &'isolate_scope self,
         s: &str,
     ) -> V8LocalString<'isolate_scope, 'isolate> {
-        let inner_string =
-            unsafe { v8_NewString(self.isolate.inner_isolate, s.as_ptr().cast::<i8>(), s.len()) };
+        let inner_string = unsafe {
+            v8_NewString(
+                self.isolate.inner_isolate,
+                s.as_ptr().cast::<c_char>(),
+                s.len(),
+            )
+        };
         V8LocalString {
             inner_string: inner_string,
             isolate_scope: self,
