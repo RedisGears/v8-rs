@@ -40,15 +40,23 @@ fn main() {
         Err(_) => "v8_c_api/libv8_monolith.a".to_string(),
     };
 
+    let version = "10.8.168.21";
+
+    let arch = match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        _ => panic!("Given arch are not support: {}", std::env::consts::ARCH),
+    };
+
+    let os = match std::env::consts::OS {
+        "linux" => "linux",
+        "macos" => "apple-darwin",
+        _ => panic!("Os '{}' are not supported", std::env::consts::OS),
+    };
+
     let v8_monolith_url = match env::var("V8_MONOLITH_URL") {
         Ok(path) => path,
-        Err(_) => {
-            match std::env::consts::OS {
-                "linux" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.5.218.8.x64.linux.a".to_string(),
-                "macos" => "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.10.5.218.8.x64.apple-darwin.a".to_string(),
-                _ => panic!("Os '{}' are not supported", std::env::consts::OS),
-            }
-        }
+        Err(_) => format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.{}.{}.{}.a", version, arch, os),
     };
 
     if !Path::new(&v8_monolith_path).exists() {

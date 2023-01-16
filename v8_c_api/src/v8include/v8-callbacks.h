@@ -106,7 +106,7 @@ struct JitCodeEvent {
     size_t line_number_table_size;
   };
 
-  wasm_source_info_t* wasm_source_info;
+  wasm_source_info_t* wasm_source_info = nullptr;
 
   union {
     // Only valid for CODE_ADDED.
@@ -217,10 +217,6 @@ using AddHistogramSampleCallback = void (*)(void* histogram, int sample);
 
 using FatalErrorCallback = void (*)(const char* location, const char* message);
 
-using LegacyOOMErrorCallback V8_DEPRECATED(
-    "Use OOMErrorCallback (https://crbug.com/1323177)") =
-    void (*)(const char* location, bool is_heap_oom);
-
 struct OOMDetails {
   bool is_heap_oom = false;
   const char* detail = nullptr;
@@ -242,6 +238,7 @@ enum class CrashKeyId {
   kIsolateAddress,
   kReadonlySpaceFirstPageAddress,
   kMapSpaceFirstPageAddress,
+  kCodeRangeBaseAddress,
   kCodeSpaceFirstPageAddress,
   kDumpType,
   kSnapshotChecksumCalculated,
@@ -329,11 +326,6 @@ using WasmSimdEnabledCallback = bool (*)(Local<Context> context);
 
 // --- Callback for checking if WebAssembly exceptions are enabled ---
 using WasmExceptionsEnabledCallback = bool (*)(Local<Context> context);
-
-// --- Callback for checking if WebAssembly dynamic tiering is enabled ---
-using WasmDynamicTieringEnabledCallback V8_DEPRECATE_SOON(
-    "Dynamic tiering is now enabled by default") =
-    bool (*)(Local<Context> context);
 
 // --- Callback for checking if the SharedArrayBuffer constructor is enabled ---
 using SharedArrayBufferConstructorEnabledCallback =
