@@ -94,15 +94,18 @@ fn main() {
         .write_to_file(out_path.join("v8_c_bindings.rs"))
         .expect("failed to write bindings to file");
 
-    println!(
-        "cargo:rustc-flags=-L{} -lv8 -lv8_monolith {} -ldl -lc",
-        output_dir,
-        {
-            match std::env::consts::OS {
-                "linux" => "-lstdc++",
-                "macos" => "-lc++",
-                _ => panic!("Os '{}' are not supported", std::env::consts::OS),
-            }
+
+    match std::env::consts::OS {
+        "linux" => {
+            /* On linux we will statically link to libstdc++ to be able to run on systems that do not have libstdc++ installed. */
+            println!("cargo:rustc-flags=-L{} -lv8 -lv8_monolith -ldl -lc", output_dir);
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-Bstatic");
+            println!("cargo:rustc-cdylib-link-arg=-lstdc++");
+            println!("cargo:rustc-cdylib-link-arg=-Wl,-Bdynamic");
         }
-    );
+        "macos" => {
+            println!("cargo:rustc-flags=-L{} -lv8 -lv8_monolith -lc++ -ldl -lc", output_dir);
+        }
+        _ => panic!("Os '{}' are not supported", std::env::consts::OS),
+    }
 }
