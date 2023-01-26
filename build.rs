@@ -40,7 +40,7 @@ fn main() {
         Err(_) => "v8_c_api/libv8_monolith.a".to_string(),
     };
 
-    let version = "10.8.168.21";
+    let version = "10.9.194.9";
 
     let arch = match std::env::consts::ARCH {
         "x86_64" => "x64",
