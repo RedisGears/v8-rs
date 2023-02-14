@@ -42,6 +42,17 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         }
     }
 
+    /// Sugar for get that recieve the field name as &str
+    #[must_use]
+    pub fn get_str_field(
+        &self,
+        ctx_scope: &V8ContextScope,
+        key: &str,
+    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+        let key = self.isolate_scope.new_string(key);
+        self.get(ctx_scope, &key.to_value())
+    }
+
     pub fn set(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue, val: &V8LocalValue) {
         unsafe {
             v8_ObjectSet(

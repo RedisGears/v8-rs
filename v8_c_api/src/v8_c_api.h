@@ -179,6 +179,9 @@ v8_trycatch* v8_NewTryCatch(v8_isolate *isolate);
 /* Return the exception that was catch by the try catch object */
 v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch);
 
+/* Returns the trace of the catch exception */
+v8_local_value* v8_TryCatchGetTrace(v8_trycatch *trycatch, v8_context_ref* ctx);
+
 /* Return true if the execution was terminated using v8_TerminateCurrExecution */
 int v8_TryCatchHasTerminated(v8_trycatch *trycatch);
 

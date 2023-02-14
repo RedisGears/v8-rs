@@ -183,6 +183,26 @@ mod json_path_tests {
     }
 
     #[test]
+    fn test_native_function_raise_exception_error() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope
+            .new_string("function foo(){throw new Error('this is an error!');};foo();");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+        let trycatch = isolate_scope.new_try_catch();
+        assert!(script.run(&ctx_scope).is_none());
+        let exception = trycatch.get_exception();
+        let exception_msg = exception.to_utf8().unwrap();
+        assert_eq!(exception_msg.as_str(), "Error: this is an error!");
+        let trace = trycatch.get_trace(&ctx_scope);
+        let trace_str = trace.unwrap().to_utf8().unwrap();
+        assert!(trace_str.as_str().contains("at foo"));
+    }
+
+    #[test]
     fn test_simple_code_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();

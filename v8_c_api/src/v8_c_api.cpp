@@ -381,6 +381,16 @@ v8_local_value* v8_TryCatchGetException(v8_trycatch *trycatch) {
 	return v8_val;
 }
 
+v8_local_value* v8_TryCatchGetTrace(v8_trycatch *trycatch, v8_context_ref* ctx) {
+	v8::MaybeLocal<v8::Value> trace = trycatch->trycatch.StackTrace(ctx->context);
+	if (trace.IsEmpty()) {
+		return NULL;
+	}
+	v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
+	v8_val = new (v8_val) v8_local_value(trace.ToLocalChecked());
+	return v8_val;
+}
+
 int v8_TryCatchHasTerminated(v8_trycatch *trycatch) {
 	return trycatch->trycatch.HasTerminated() ? 1 : 0;
 }
