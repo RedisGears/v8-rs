@@ -48,8 +48,9 @@ pub fn v8_init(thread_pool_size: i32) {
 pub fn v8_init_with_error_handlers(
     fatal_error_hanlder: Box<dyn Fn(&str, &str)>,
     oom_error_handler: Box<dyn Fn(&str, bool)>,
+    thread_pool_size: i32
 ) {
-    v8_init(1);
+    v8_init(thread_pool_size);
     unsafe {
         FATAL_ERROR_CALLBACK = Some(fatal_error_hanlder);
         OOM_ERROR_CALLBACK = Some(oom_error_handler);
