@@ -41,15 +41,15 @@ pub trait OptionalTryFrom<T>: Sized {
 }
 
 /// Initialize the v8, must be called before any other v8 API.
-pub fn v8_init() {
-    unsafe { v8_Initialize(ptr::null_mut()) }
+pub fn v8_init(thread_pool_size: i32) {
+    unsafe { v8_Initialize(ptr::null_mut(), thread_pool_size) }
 }
 
 pub fn v8_init_with_error_handlers(
     fatal_error_hanlder: Box<dyn Fn(&str, &str)>,
     oom_error_handler: Box<dyn Fn(&str, bool)>,
 ) {
-    v8_init();
+    v8_init(1);
     unsafe {
         FATAL_ERROR_CALLBACK = Some(fatal_error_hanlder);
         OOM_ERROR_CALLBACK = Some(oom_error_handler);

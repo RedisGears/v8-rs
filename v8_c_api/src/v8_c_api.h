@@ -110,7 +110,7 @@ typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 
 /* Initialize v8, must be called before any v8 API.
  * if allocator is NULL, use default memory functions. */
-void v8_Initialize(v8_alloctor *allocator);
+void v8_Initialize(v8_alloctor *allocator, int thread_pool_size);
 
 const char* v8_Version();
 

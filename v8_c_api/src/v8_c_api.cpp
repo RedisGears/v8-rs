@@ -234,10 +234,10 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 	return native_data;
 }
 
-void v8_Initialize(v8_alloctor *alloc) {
+void v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 	v8::V8::SetFlagsFromString("--stack-size=50");
-	platform = v8::platform::NewDefaultPlatform();
+	platform = v8::platform::NewDefaultPlatform(thread_pool_size);
 	v8::V8::InitializePlatform(platform.get());
 	v8::V8::Initialize();
 	if (alloc) {
