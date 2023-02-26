@@ -19,11 +19,6 @@ class WriteBarrierTypeForNonCagedHeapPolicy;
  * Opaque handle used for additional heap APIs.
  */
 class HeapHandle {
- public:
-  // Deleted copy ctor to avoid treating the type by value.
-  HeapHandle(const HeapHandle&) = delete;
-  HeapHandle& operator=(const HeapHandle&) = delete;
-
  private:
   HeapHandle() = default;
 
