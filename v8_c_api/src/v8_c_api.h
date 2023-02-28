@@ -206,7 +206,7 @@ void v8_FreeContext(v8_context* ctx);
 
 /* Set a private data on the given context.
  * The private data can later be retrieve using `v8_GetPrivateData`. */
-void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd);
+int v8_SetPrivateData(v8_context* ctx, size_t index, void *pd);
 
 /* Return the private data that was set using `v8_SetPrivateData` or NULL
  * if no data was set on the given slot. */
@@ -230,7 +230,7 @@ void v8_FreeContextRef(v8_context_ref *v8_ctx_ref);
 void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index);
 
 /* Same as `v8_SetPrivateData` but works on `v8_context_ref` */
-void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd);
+int v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd);
 
 /* Create a new JS string object */
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);

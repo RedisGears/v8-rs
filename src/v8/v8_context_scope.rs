@@ -111,17 +111,17 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         self.get_private_data_mut_raw(index + 1)
     }
 
-    pub(crate) fn set_private_data_raw<T>(&self, index: usize, pd: Option<&T>) {
+    pub(crate) fn set_private_data_raw<T>(&self, index: usize, pd: Option<&T>) -> bool {
         unsafe {
             v8_SetPrivateDataOnCtxRef(
                 self.inner_ctx_ref,
                 index,
                 pd.map_or(ptr::null_mut(), |p| p as *const T as *mut c_void),
-            );
-        };
+            ) == 1
+        }
     }
 
-    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
+    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) -> bool {
         self.set_private_data_raw(index + 1, pd)
     }
 

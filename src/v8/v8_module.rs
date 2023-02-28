@@ -87,8 +87,10 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
                 Some(load_module::<T>),
             )
         };
-        ctx_scope.set_private_data_raw::<T>(0, None);
         res != 0
+        // TODO This is illegal as we can't set NULLs.
+        // This has to be rewritten or just removed.
+        // ctx_scope.set_private_data_raw::<T>(0, None)
     }
 
     pub fn evaluate(

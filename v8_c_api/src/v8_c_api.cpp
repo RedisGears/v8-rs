@@ -436,10 +436,16 @@ void v8_FreeContext(v8_context* ctx) {
 	V8_FREE(ctx);
 }
 
-void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd) {
+int v8_SetPrivateData(v8_context* ctx, size_t index, void *pd) {
+	if (!pd) {
+		return 0;
+	}
+
 	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
 	v8::Local<v8::External> data = v8::External::New(ctx->isolate, (void*)pd);
 	v8_ctx->SetEmbedderData(index + 2, data);
+
+	return 1;
 }
 
 void* v8_GetPrivateData(v8_context* ctx, size_t index) {
@@ -480,10 +486,16 @@ void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index) {
 	return data->Value();
 }
 
-void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd) {
+int v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd) {
+	if (!pd) {
+		return 0;
+	}
+
 	v8::Isolate *isolate = ctx_ref->context->GetIsolate();
 	v8::Local<v8::External> data = v8::External::New(isolate, (void*)pd);
 	ctx_ref->context->SetEmbedderData(index + 2, data);
+
+	return 1;
 }
 
 v8_local_string* v8_NewString(v8_isolate* i, const char *str, size_t len) {
@@ -738,6 +750,10 @@ v8_local_module* v8_CompileAsModule(v8_context_ref* v8_ctx_ref, v8_local_string*
 }
 
 int v8_InitiateModule(v8_local_module* m, v8_context_ref* v8_ctx_ref, V8_LoadModuleCallback load_module_callback) {
+	if (!load_module_callback) {
+		return 1;
+	}
+
 	v8::Isolate *isolate = v8_ctx_ref->context->GetIsolate();
 	v8::Local<v8::External> data = v8::External::New(isolate, (void*)load_module_callback);
 	v8_ctx_ref->context->SetEmbedderData(1, data);
