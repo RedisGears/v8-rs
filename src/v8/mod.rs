@@ -59,12 +59,12 @@ pub fn v8_init_with_error_handlers(
     }
 }
 
-/// Destroy v8, after called it is not allowed to use any v8 API anymore.
+/// Destroys v8, after calling it is not allowed to use any v8 API anymore.
 pub fn v8_destroy() {
     unsafe { v8_Dispose() }
 }
 
-/// Retrns the version of V8 as as string.
+/// Returns the version of V8 as as string.
 pub fn v8_version() -> &'static str {
     let s = unsafe { CStr::from_ptr(v8_Version()) };
     s.to_str().unwrap()

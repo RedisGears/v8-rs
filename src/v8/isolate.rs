@@ -3,8 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
-
-// An isolate rust wrapper to v8 isolate.
+//! An isolate rust wrapper to v8 isolate.
 
 use crate::v8_c_raw::bindings::{
     v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateGetCurrent,
@@ -21,7 +20,7 @@ use std::os::raw::{c_char, c_int};
 
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.
-/// In order to free an isolate, one must call `free_isolate`.
+/// In order to free an isolate, one must call [`V8Isolate::free_isolate`].
 pub struct V8Isolate {
     pub(crate) inner_isolate: *mut v8_isolate,
     pub(crate) no_release: bool,
@@ -30,6 +29,7 @@ pub struct V8Isolate {
 unsafe impl Sync for V8Isolate {}
 unsafe impl Send for V8Isolate {}
 
+///
 pub(crate) extern "C" fn interrupt_callback<T: Fn(&V8Isolate)>(
     inner_isolate: *mut v8_isolate,
     data: *mut ::std::os::raw::c_void,
@@ -120,10 +120,20 @@ impl V8Isolate {
         V8IsolateScope::new(self)
     }
 
+    /// Sets an idle notification that the embedder is idle for longer
+    /// than one second.
+    /// V8 uses the notification to perform garbage collection.
+    /// This call can be used repeatedly if the embedder remains idle.
     pub fn idle_notification_deadline(&self) {
         unsafe { v8_IdleNotificationDeadline(self.inner_isolate, 1.0) };
     }
 
+    /// Requests V8 to interrupt long running JavaScript code and invoke
+    /// the given [`callback`] to it. After [`callback`]
+    /// returns control will be returned to the JavaScript code.
+    /// There may be a number of interrupt requests in flight.
+    /// Can be called from another thread without acquiring a |Locker|.
+    /// Registered |callback| must not reenter interrupted Isolate.
     pub fn request_interrupt<T: Fn(&Self)>(&self, callback: T) {
         unsafe {
             v8_RequestInterrupt(
@@ -134,6 +144,9 @@ impl V8Isolate {
         };
     }
 
+    /// Sets a callback to invoke in case the heap size is close to the heap limit.
+    /// If multiple callbacks are added, only the most recently added callback is
+    /// invoked.
     pub fn set_near_oom_callback<F: Fn(usize, usize) -> usize>(&self, callback: F) {
         unsafe {
             v8_IsolateSetNearOOMHandler(
@@ -145,18 +158,38 @@ impl V8Isolate {
         }
     }
 
+    /// Returns the statistics about the heap memory usage.
+    /// The number returned is the amount of bytes allocated and used.
     pub fn used_heap_size(&self) -> usize {
         unsafe { v8_IsolateUsedHeapSize(self.inner_isolate) }
     }
 
+    /// Returns the statistics about the heap memory usage.
+    /// The number returned is the total amount of bytes allocated,
+    /// including the regions of memory which haven't been yet
+    /// garbage-collected.
     pub fn total_heap_size(&self) -> usize {
         unsafe { v8_IsolateTotalHeapSize(self.inner_isolate) }
     }
 
+    /// Sets the notification that the system is running low on memory.
+    /// V8 uses these notifications to guide heuristics.
+    /// It is allowed to call this function from another thread while
+    /// the isolate is executing long running JavaScript code.
+    ///
+    /// # Note
+    ///
+    /// The memory pressure notification this function sets is "critical".
     pub fn memory_pressure_notification(&self) {
         unsafe { v8_IsolateNotifyMemoryPressure(self.inner_isolate) }
     }
 
+    /// Returns the entered isolate for the current thread or `None` in
+    /// case there is no current isolate.
+    ///
+    /// # Note
+    ///
+    /// This method must not be invoked before the engine initialization.
     pub fn current_isolate() -> Option<Self> {
         let inner_isolate = unsafe { v8_IsolateGetCurrent() };
 
@@ -170,10 +203,31 @@ impl V8Isolate {
         }
     }
 
+    /// Forcefully terminates the current thread of JavaScript execution
+    /// in the given isolate.
+    ///
+    /// # Safety
+    ///
+    /// This method can be used by any thread even if that thread has not
+    /// acquired the V8 lock with a Locker object.
     pub fn terminate_execution(&self) {
         unsafe { v8_TerminateCurrExecution(self.inner_isolate) }
     }
 
+    /// Resumes execution capability in this isolate, whose execution
+    /// was previously forcefully terminated using [`Self::terminate_execution`].
+    ///
+    /// When execution is forcefully terminated using TerminateExecution(),
+    /// the isolate can not resume execution until all JavaScript frames
+    /// have propagated the uncatchable exception which is generated.  This
+    /// method allows the program embedding the engine to handle the
+    /// termination event and resume execution capability, even if
+    /// JavaScript frames remain on the stack.
+    ///
+    /// # Safety
+    ///
+    /// This method can be used by any thread even if that thread has not
+    /// acquired the V8 lock with a Locker object.
     pub fn cancel_terminate_execution(&self) {
         unsafe { v8_CancelTerminateExecution(self.inner_isolate) }
     }
