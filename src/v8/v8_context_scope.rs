@@ -4,14 +4,15 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
+use crate::data_index;
+use crate::v8_c_raw::bindings::v8_SetPrivateDataOnCtxRef;
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
     v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
-    v8_NewObjectFromJsonString, v8_NewResolver, v8_SetPrivateDataOnCtxRef, v8_context_ref,
+    v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context_ref,
 };
 
 use std::os::raw::c_void;
-use std::ptr;
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_module::V8LocalModule;
@@ -102,27 +103,36 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     /// Return the private data that was set on the context
     #[must_use]
     pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
-        self.get_private_data_raw(index + 1)
+        self.get_private_data_raw(data_index!(index))
     }
 
     /// Return the private data that was set on the context as a mut reference
     #[must_use]
     pub fn get_private_data_mut<T>(&self, index: usize) -> Option<&mut T> {
-        self.get_private_data_mut_raw(index + 1)
+        self.get_private_data_mut_raw(data_index!(index))
     }
 
-    pub(crate) fn set_private_data_raw<T>(&self, index: usize, pd: Option<&T>) -> bool {
+    pub(crate) fn set_private_data_raw<T>(&self, index: usize, pd: &T) {
         unsafe {
-            v8_SetPrivateDataOnCtxRef(
-                self.inner_ctx_ref,
-                index,
-                pd.map_or(ptr::null_mut(), |p| p as *const T as *mut c_void),
-            ) == 1
+            v8_SetPrivateDataOnCtxRef(self.inner_ctx_ref, index, pd as *const T as *mut c_void)
         }
     }
 
-    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) -> bool {
-        self.set_private_data_raw(index + 1, pd)
+    pub(crate) fn reset_private_data_raw(&self, index: usize) {
+        unsafe { v8_ResetPrivateDataOnCtxRef(self.inner_ctx_ref, index) }
+    }
+
+    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
+        let index = data_index!(index);
+        if let Some(data) = pd {
+            self.set_private_data_raw(index, data)
+        } else {
+            self.reset_private_data_raw(index);
+        }
+    }
+
+    pub fn reset_private_data(&self, index: usize) {
+        self.reset_private_data_raw(data_index!(index))
     }
 
     /// Create a new resolver object

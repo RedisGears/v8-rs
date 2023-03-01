@@ -4,9 +4,10 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
+use crate::data_index;
 use crate::v8_c_raw::bindings::{
-    v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_SetPrivateData,
-    v8_context,
+    v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
+    v8_SetPrivateData, v8_context,
 };
 
 use std::os::raw::c_void;
@@ -50,26 +51,33 @@ impl V8Context {
         }
     }
 
-    /// Set a private data on the context that can later be retieve with `get_private_data`.
+    /// Set a private data on the context that can later be retieved with `get_private_data`.
     pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
         unsafe {
-            v8_SetPrivateData(
-                self.inner_ctx,
-                index + 1,
-                pd.map_or(ptr::null_mut(), |p| p as *const T as *mut c_void),
-            );
+            if let Some(data) = pd {
+                v8_SetPrivateData(
+                    self.inner_ctx,
+                    data_index!(index),
+                    data as *const T as *mut c_void,
+                );
+            } else {
+                self.reset_private_data(index);
+            }
+        };
+    }
+
+    /// Reset a private data on the context.
+    pub fn reset_private_data(&self, index: usize) {
+        unsafe {
+            v8_ResetPrivateData(self.inner_ctx, data_index!(index));
         };
     }
 
     /// Return the private data that was set using `set_private_data`
     #[must_use]
     pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
-        let pd = unsafe { v8_GetPrivateData(self.inner_ctx, index + 1) };
-        if pd.is_null() {
-            None
-        } else {
-            Some(unsafe { &*(pd as *const T) })
-        }
+        let pd = unsafe { v8_GetPrivateData(self.inner_ctx, data_index!(index)) } as *const T;
+        unsafe { pd.as_ref() }
     }
 }
 

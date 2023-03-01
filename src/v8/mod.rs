@@ -45,14 +45,16 @@ pub fn v8_init(thread_pool_size: i32) {
     unsafe { v8_Initialize(ptr::null_mut(), thread_pool_size) }
 }
 
+/// Initialise the V8 engine with custom fatal error and OOM handlers
+/// as well as with the custom thread pool size.
 pub fn v8_init_with_error_handlers(
-    fatal_error_hanlder: Box<dyn Fn(&str, &str)>,
+    fatal_error_handler: Box<dyn Fn(&str, &str)>,
     oom_error_handler: Box<dyn Fn(&str, bool)>,
     thread_pool_size: i32,
 ) {
     v8_init(thread_pool_size);
     unsafe {
-        FATAL_ERROR_CALLBACK = Some(fatal_error_hanlder);
+        FATAL_ERROR_CALLBACK = Some(fatal_error_handler);
         OOM_ERROR_CALLBACK = Some(oom_error_handler);
     }
 }
@@ -62,6 +64,7 @@ pub fn v8_destroy() {
     unsafe { v8_Dispose() }
 }
 
+/// Retrns the version of V8 as as string.
 pub fn v8_version() -> &'static str {
     let s = unsafe { CStr::from_ptr(v8_Version()) };
     s.to_str().unwrap()

@@ -3,9 +3,34 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! V8-rs is a crate containing bindings to the V8 C++ API.
 
+// #![deny(missing_docs)]
+
+/// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
 mod v8_c_raw;
+
+/// Returns the corrected index. The index passed is expected to be an
+/// index relative to the user data. However, the first elements we store
+/// aren't actually the user data, but our internal data. So the user
+/// shouldn't be allowed to set or get the internal data, and for that
+/// purpose we should always correct the index which should point to
+/// real data location.
+#[inline(always)]
+pub(crate) fn get_corrected_data_index(index: usize) -> usize {
+    const INTERNAL_OFFSET: usize = 1;
+
+    index + INTERNAL_OFFSET
+}
+
+/// A helpful macro for obtaining a correct data index.
+macro_rules! data_index {
+    ($user_index:expr) => {
+        $crate::get_corrected_data_index($user_index)
+    };
+}
+pub(crate) use data_index;
 
 #[cfg(test)]
 mod json_path_tests {

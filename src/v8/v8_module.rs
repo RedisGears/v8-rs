@@ -79,7 +79,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
         ctx_scope: &V8ContextScope,
         load_module_callback: T,
     ) -> bool {
-        ctx_scope.set_private_data_raw(0, Some(&load_module_callback));
+        ctx_scope.set_private_data_raw(0, &load_module_callback);
         let res = unsafe {
             v8_InitiateModule(
                 self.inner_module,
@@ -87,10 +87,8 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
                 Some(load_module::<T>),
             )
         };
+        ctx_scope.reset_private_data_raw(0);
         res != 0
-        // TODO This is illegal as we can't set NULLs.
-        // This has to be rewritten or just removed.
-        // ctx_scope.set_private_data_raw::<T>(0, None)
     }
 
     pub fn evaluate(
