@@ -26,6 +26,28 @@ use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 
+/// An RAII data guard which resets the private data slot after going
+/// out of scope.
+pub struct V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
+    /// Index to reset after the guard goes out of scope.
+    index: usize,
+    /// The context scope in which the guard should reset the variable.
+    context_scope: &'a V8ContextScope<'isolate_scope, 'isolate>,
+}
+impl<'a, 'isolate_scope, 'isolate> V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
+    /// Sets the new data at the index this data guard takes care of.
+    pub fn set_data<T>(&self, data: &T) {
+        self.context_scope
+            .set_private_data_raw(data_index!(self.index), data);
+    }
+}
+
+impl<'a, 'isolate_scope, 'isolate> Drop for V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
+    fn drop(&mut self) {
+        self.context_scope.reset_private_data(self.index);
+    }
+}
+
 pub struct V8ContextScope<'isolate_scope, 'isolate> {
     pub(crate) inner_ctx_ref: *mut v8_context_ref,
     pub(crate) exit_on_drop: bool,
@@ -122,8 +144,20 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         unsafe { v8_ResetPrivateDataOnCtxRef(self.inner_ctx_ref, index) }
     }
 
-    pub fn set_private_data<T>(&self, index: usize, data: &T) {
-        self.set_private_data_raw(data_index!(index), data)
+    /// Sets the private data at the specified index (V8 data slot).
+    /// Returns an RAII guard that takes care of resetting the data
+    /// at the specified index.
+    #[must_use]
+    pub fn set_private_data<'a, 'b, T>(
+        &'a self,
+        index: usize,
+        data: &'b T,
+    ) -> V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
+        self.set_private_data_raw(data_index!(index), data);
+        V8ContextScopeDataGuard {
+            index,
+            context_scope: self,
+        }
     }
 
     pub fn reset_private_data(&self, index: usize) {
