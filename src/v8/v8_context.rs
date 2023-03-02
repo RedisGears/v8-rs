@@ -5,10 +5,12 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_SetPrivateData,
-    v8_context,
+    v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
+    v8_SetPrivateData, v8_context,
 };
+use crate::{RawIndex, UserIndex};
 
+use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::ptr;
 
@@ -16,6 +18,33 @@ use crate::v8::isolate::V8Isolate;
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_object_template::V8LocalObjectTemplate;
+
+/// An RAII data guard which resets the private data slot after going
+/// out of scope.
+pub struct V8ContextDataGuard<'context, 'data, T: 'data> {
+    /// A raw index to reset after the guard goes out of scope.
+    index: RawIndex,
+    /// The context in which the guard should reset the variable.
+    context: &'context V8Context,
+    _phantom_data: PhantomData<&'data T>,
+}
+impl<'context, 'data, T: 'data> V8ContextDataGuard<'context, 'data, T> {
+    /// Creates a new data guard with the provided index and context scope.
+    pub(crate) fn new<I: Into<RawIndex>>(index: I, context: &'context V8Context) -> Self {
+        let index = index.into();
+        Self {
+            index,
+            context,
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
+impl<'context, 'data, T: 'data> Drop for V8ContextDataGuard<'context, 'data, T> {
+    fn drop(&mut self) {
+        self.context.reset_private_data_raw(self.index);
+    }
+}
 
 pub struct V8Context {
     pub(crate) inner_ctx: *mut v8_context,
@@ -50,26 +79,54 @@ impl V8Context {
         }
     }
 
-    /// Set a private data on the context that can later be retieve with `get_private_data`.
-    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
+    /// Sets a private data on the context considering the index as
+    /// a real data index.
+    pub(crate) fn set_private_data_raw<T, I: Into<RawIndex>>(&self, index: I, data: &T) {
+        let index = index.into().0;
         unsafe {
-            v8_SetPrivateData(
-                self.inner_ctx,
-                index + 1,
-                pd.map_or(ptr::null_mut(), |p| p as *const T as *mut c_void),
-            );
+            v8_SetPrivateData(self.inner_ctx, index, data as *const T as *mut c_void);
         };
     }
 
-    /// Return the private data that was set using `set_private_data`
+    /// Sets a private data on the context that can later be retieved with `get_private_data`.
     #[must_use]
-    pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
-        let pd = unsafe { v8_GetPrivateData(self.inner_ctx, index + 1) };
-        if pd.is_null() {
-            None
-        } else {
-            Some(unsafe { &*(pd as *const T) })
-        }
+    pub fn set_private_data<'context, 'data, T, I: Into<UserIndex>>(
+        &'context self,
+        index: I,
+        data: &'data T,
+    ) -> V8ContextDataGuard<'context, 'data, T> {
+        let index = index.into();
+        self.set_private_data_raw(index, data);
+        V8ContextDataGuard::new(index, self)
+    }
+
+    /// Resets a private data on the context considering the index as
+    /// a real data index.
+    pub(crate) fn reset_private_data_raw<I: Into<RawIndex>>(&self, index: I) {
+        let index = index.into().0;
+        unsafe {
+            v8_ResetPrivateData(self.inner_ctx, index);
+        };
+    }
+
+    /// Resets a private data on the context considering the index as
+    /// a user data index.
+    pub fn reset_private_data<I: Into<UserIndex>>(&self, index: I) {
+        let index = index.into();
+        self.reset_private_data_raw(index)
+    }
+
+    #[must_use]
+    pub(crate) fn get_private_data_raw<T, I: Into<RawIndex>>(&self, index: I) -> Option<&T> {
+        let index = index.into().0;
+        let pd = unsafe { v8_GetPrivateData(self.inner_ctx, index) } as *const T;
+        unsafe { pd.as_ref() }
+    }
+
+    /// Return the private data that was set using [`Self::set_private_data`].
+    #[must_use]
+    pub fn get_private_data<T>(&self, index: UserIndex) -> Option<&T> {
+        self.get_private_data_raw(index)
     }
 }
 

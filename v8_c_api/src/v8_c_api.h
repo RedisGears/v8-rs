@@ -208,6 +208,12 @@ void v8_FreeContext(v8_context* ctx);
  * The private data can later be retrieve using `v8_GetPrivateData`. */
 void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd);
 
+/* Resets the data at the specified slot. */
+void v8_ResetPrivateData(v8_context* ctx, size_t index);
+
+/* Resets the data at the specified slot sing a reference to v8_context. */
+void v8_ResetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index);
+
 /* Return the private data that was set using `v8_SetPrivateData` or NULL
  * if no data was set on the given slot. */
 void* v8_GetPrivateData(v8_context* ctx, size_t index);

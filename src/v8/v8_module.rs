@@ -9,6 +9,7 @@ use crate::v8_c_raw::bindings::{
     v8_InitiateModule, v8_ModuleGetIdentityHash, v8_ModulePersist, v8_ModuleToLocal,
     v8_context_ref, v8_local_module, v8_local_string, v8_persisted_module,
 };
+use crate::RawIndex;
 
 use crate::v8::isolate::V8Isolate;
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -54,7 +55,7 @@ pub(crate) extern "C" fn load_module<
         inner_string: name,
         isolate_scope: &isolate_scope,
     };
-    let load_callback: &T = ctx_scope.get_private_data_mut_raw(0).unwrap();
+    let load_callback: &T = ctx_scope.get_private_data_mut_raw(RawIndex(0)).unwrap();
     let res = load_callback(&isolate_scope, &ctx_scope, &name_obj, identity_hash as i64);
     match res {
         Some(mut r) => {
@@ -79,7 +80,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
         ctx_scope: &V8ContextScope,
         load_module_callback: T,
     ) -> bool {
-        ctx_scope.set_private_data_raw(0, Some(&load_module_callback));
+        ctx_scope.set_private_data_raw(RawIndex(0), &load_module_callback);
         let res = unsafe {
             v8_InitiateModule(
                 self.inner_module,
@@ -87,7 +88,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
                 Some(load_module::<T>),
             )
         };
-        ctx_scope.set_private_data_raw::<T>(0, None);
+        ctx_scope.reset_private_data_raw(RawIndex(0));
         res != 0
     }
 

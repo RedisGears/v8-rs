@@ -19,14 +19,29 @@ pub struct V8LocalArray<'isolate_scope, 'isolate> {
 }
 
 impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
+    /// Returns the length of the array.
     pub fn len(&self) -> usize {
         unsafe { v8_ArrayLen(self.inner_array) }
     }
 
+    /// Returns true if the array is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Returns an iterator to the array's objects.
+    pub fn iter<'array, 'context_scope>(
+        &'array self,
+        context_scope: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+    ) -> V8LocalArrayIterator<'context_scope, 'array, 'isolate_scope, 'isolate> {
+        V8LocalArrayIterator {
+            index: 0,
+            array: self,
+            context: context_scope,
+        }
+    }
+
+    /// Returns a single object stored within the array.
     pub fn get(
         &self,
         ctx_scope: &V8ContextScope,
@@ -39,12 +54,44 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
         }
     }
 
+    /// Converts the array to a value object.
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ArrayToValue(self.inner_array) };
         V8LocalValue {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalArray<'isolate_scope, 'isolate>>
+    for V8LocalValue<'isolate_scope, 'isolate>
+{
+    fn from(array: V8LocalArray<'isolate_scope, 'isolate>) -> Self {
+        array.to_value()
+    }
+}
+
+/// An iterator over the objects stored within the [`V8LocalArray`].
+pub struct V8LocalArrayIterator<'context_scope, 'array, 'isolate_scope, 'isolate> {
+    index: usize,
+    array: &'array V8LocalArray<'isolate_scope, 'isolate>,
+    context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+}
+
+impl<'context_scope, 'array, 'isolate_scope, 'isolate> Iterator
+    for V8LocalArrayIterator<'context_scope, 'array, 'isolate_scope, 'isolate>
+{
+    type Item = V8LocalValue<'isolate_scope, 'isolate>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.array.len() {
+            return None;
+        }
+
+        let value = self.array.get(self.context, self.index);
+        self.index += 1;
+        Some(value)
     }
 }
 
