@@ -11,19 +11,40 @@
 pub mod v8;
 mod v8_c_raw;
 
-/// Returns the corrected index. The index passed is expected to be an
-/// index relative to the user data. However, the first elements we store
-/// aren't actually the user data, but our internal data. So the user
-/// shouldn't be allowed to set or get the internal data, and for that
-/// purpose we should always correct the index which should point to
-/// real data location.
-macro_rules! data_index {
-    ($user_index:expr) => {{
-        const INTERNAL_OFFSET: usize = 1;
-        $user_index + INTERNAL_OFFSET
-    }};
+/// A user-available data index. The users of the crate may use this
+/// index to store their data in V8.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct UserIndex(usize);
+impl From<usize> for UserIndex {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
 }
-pub(crate) use data_index;
+
+/// A raw V8 data index without any offsets. Should be used with
+/// caution and shouldn't be allowed to be used directly by the users
+/// of the crate.
+///
+/// The first elements we store in V8 aren't actually the user data,
+/// but our internal data instead. So the user shouldn't be allowed to
+/// set or get the internal data, and for that purpose we should always
+/// correct the index which should point to real data location. This
+/// real location is represented by the [`RawIndex`]. Thus, the user
+/// index [`UserIndex`] should always be converted into a [`RawIndex`]
+/// in order to access the V8 data. This is also why the [`RawIndex`] is
+/// only used internally within the crate, so as to not allow the user
+/// to work with the internal data and ensure the compile-time safety.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct RawIndex(usize);
+
+impl From<UserIndex> for RawIndex {
+    fn from(value: UserIndex) -> Self {
+        const INTERNAL_OFFSET: usize = 1;
+        Self(value.0 + INTERNAL_OFFSET)
+    }
+}
 
 #[cfg(test)]
 mod json_path_tests {

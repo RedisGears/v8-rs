@@ -4,14 +4,15 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-use crate::data_index;
 use crate::v8_c_raw::bindings::v8_SetPrivateDataOnCtxRef;
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
     v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
     v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context_ref,
 };
+use crate::{RawIndex, UserIndex};
 
+use std::marker::PhantomData;
 use std::os::raw::c_void;
 
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -28,23 +29,35 @@ use crate::v8::v8_value::V8LocalValue;
 
 /// An RAII data guard which resets the private data slot after going
 /// out of scope.
-pub struct V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
-    /// Index to reset after the guard goes out of scope.
-    index: usize,
+pub struct V8ContextScopeDataGuard<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data> {
+    /// Raw Index to reset after the guard goes out of scope.
+    index: RawIndex,
     /// The context scope in which the guard should reset the variable.
-    context_scope: &'a V8ContextScope<'isolate_scope, 'isolate>,
+    context_scope: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+    _phantom_data: PhantomData<&'data T>,
 }
-impl<'a, 'isolate_scope, 'isolate> V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
-    /// Sets the new data at the index this data guard takes care of.
-    pub fn set_data<T>(&self, data: &T) {
-        self.context_scope
-            .set_private_data_raw(data_index!(self.index), data);
+impl<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data>
+    V8ContextScopeDataGuard<'context_scope, 'data, 'isolate_scope, 'isolate, T>
+{
+    /// Creates a new data guard with the provided index and context scope.
+    pub(crate) fn new<I: Into<RawIndex>>(
+        index: I,
+        context_scope: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+    ) -> Self {
+        let index = index.into();
+        Self {
+            index,
+            context_scope,
+            _phantom_data: PhantomData,
+        }
     }
 }
 
-impl<'a, 'isolate_scope, 'isolate> Drop for V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
+impl<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data> Drop
+    for V8ContextScopeDataGuard<'context_scope, 'data, 'isolate_scope, 'isolate, T>
+{
     fn drop(&mut self) {
-        self.context_scope.reset_private_data(self.index);
+        self.context_scope.reset_private_data_raw(self.index);
     }
 }
 
@@ -104,8 +117,9 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         }
     }
 
-    pub(crate) fn get_private_data_raw<T>(&self, index: usize) -> Option<&T> {
-        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index) };
+    pub(crate) fn get_private_data_raw<T, I: Into<RawIndex>>(&self, index: I) -> Option<&T> {
+        let index = index.into();
+        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index.0) };
         if pd.is_null() {
             None
         } else {
@@ -113,8 +127,12 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         }
     }
 
-    pub(crate) fn get_private_data_mut_raw<T>(&self, index: usize) -> Option<&mut T> {
-        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index) };
+    pub(crate) fn get_private_data_mut_raw<T, I: Into<RawIndex>>(
+        &self,
+        index: I,
+    ) -> Option<&mut T> {
+        let index = index.into();
+        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index.0) };
         if pd.is_null() {
             None
         } else {
@@ -124,23 +142,27 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
 
     /// Return the private data that was set on the context
     #[must_use]
-    pub fn get_private_data<T>(&self, index: usize) -> Option<&T> {
-        self.get_private_data_raw(data_index!(index))
+    pub fn get_private_data<T, I: Into<UserIndex>>(&self, index: I) -> Option<&T> {
+        let index = index.into();
+        self.get_private_data_raw(index)
     }
 
     /// Return the private data that was set on the context as a mut reference
     #[must_use]
-    pub fn get_private_data_mut<T>(&self, index: usize) -> Option<&mut T> {
-        self.get_private_data_mut_raw(data_index!(index))
+    pub fn get_private_data_mut<T, I: Into<UserIndex>>(&self, index: I) -> Option<&mut T> {
+        let index = index.into();
+        self.get_private_data_mut_raw(index)
     }
 
-    pub(crate) fn set_private_data_raw<T>(&self, index: usize, pd: &T) {
+    pub(crate) fn set_private_data_raw<T, I: Into<RawIndex>>(&self, index: I, pd: &T) {
+        let index = index.into();
         unsafe {
-            v8_SetPrivateDataOnCtxRef(self.inner_ctx_ref, index, pd as *const T as *mut c_void)
+            v8_SetPrivateDataOnCtxRef(self.inner_ctx_ref, index.0, pd as *const T as *mut c_void)
         }
     }
 
-    pub(crate) fn reset_private_data_raw(&self, index: usize) {
+    pub(crate) fn reset_private_data_raw<I: Into<RawIndex>>(&self, index: I) {
+        let index = index.into().0;
         unsafe { v8_ResetPrivateDataOnCtxRef(self.inner_ctx_ref, index) }
     }
 
@@ -148,20 +170,19 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     /// Returns an RAII guard that takes care of resetting the data
     /// at the specified index.
     #[must_use]
-    pub fn set_private_data<'a, 'b, T>(
-        &'a self,
-        index: usize,
-        data: &'b T,
-    ) -> V8ContextScopeDataGuard<'a, 'isolate_scope, 'isolate> {
-        self.set_private_data_raw(data_index!(index), data);
-        V8ContextScopeDataGuard {
-            index,
-            context_scope: self,
-        }
+    pub fn set_private_data<'context_scope, 'data, T, I: Into<UserIndex>>(
+        &'context_scope self,
+        index: I,
+        data: &'data T,
+    ) -> V8ContextScopeDataGuard<'context_scope, 'data, 'isolate_scope, 'isolate, T> {
+        let index = index.into();
+        self.set_private_data_raw(index, data);
+        V8ContextScopeDataGuard::new(index, self)
     }
 
-    pub fn reset_private_data(&self, index: usize) {
-        self.reset_private_data_raw(data_index!(index))
+    pub fn reset_private_data<I: Into<UserIndex>>(&self, index: I) {
+        let index = index.into();
+        self.reset_private_data_raw(index)
     }
 
     /// Create a new resolver object
