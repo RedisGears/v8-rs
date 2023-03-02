@@ -122,13 +122,8 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         unsafe { v8_ResetPrivateDataOnCtxRef(self.inner_ctx_ref, index) }
     }
 
-    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
-        let index = data_index!(index);
-        if let Some(data) = pd {
-            self.set_private_data_raw(index, data)
-        } else {
-            self.reset_private_data_raw(index);
-        }
+    pub fn set_private_data<T>(&self, index: usize, data: &T) {
+        self.set_private_data_raw(data_index!(index), data)
     }
 
     pub fn reset_private_data(&self, index: usize) {

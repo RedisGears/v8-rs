@@ -17,18 +17,11 @@ mod v8_c_raw;
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-#[inline(always)]
-pub(crate) fn get_corrected_data_index(index: usize) -> usize {
-    const INTERNAL_OFFSET: usize = 1;
-
-    index + INTERNAL_OFFSET
-}
-
-/// A helpful macro for obtaining a correct data index.
 macro_rules! data_index {
-    ($user_index:expr) => {
-        $crate::get_corrected_data_index($user_index)
-    };
+    ($user_index:expr) => {{
+        const INTERNAL_OFFSET: usize = 1;
+        $user_index + INTERNAL_OFFSET
+    }};
 }
 pub(crate) use data_index;
 

@@ -11,20 +11,14 @@
 
 std::unique_ptr<v8::Platform> platform;
 
-namespace {
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-inline constexpr std::size_t get_corrected_data_index(const std::size_t index) {
-	constexpr std::size_t INTERNAL_OFFSET = 2;
-
-	return index + INTERNAL_OFFSET;
-}
-} // anonymous namespace
-#define DATA_INDEX(user_index) get_corrected_data_index(user_index)
+#define INTERNAL_OFFSET 2
+#define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
 
 extern "C" {
 

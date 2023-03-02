@@ -52,17 +52,13 @@ impl V8Context {
     }
 
     /// Set a private data on the context that can later be retieved with `get_private_data`.
-    pub fn set_private_data<T>(&self, index: usize, pd: Option<&T>) {
+    pub fn set_private_data<T>(&self, index: usize, data: &T) {
         unsafe {
-            if let Some(data) = pd {
-                v8_SetPrivateData(
-                    self.inner_ctx,
-                    data_index!(index),
-                    data as *const T as *mut c_void,
-                );
-            } else {
-                self.reset_private_data(index);
-            }
+            v8_SetPrivateData(
+                self.inner_ctx,
+                data_index!(index),
+                data as *const T as *mut c_void,
+            );
         };
     }
 

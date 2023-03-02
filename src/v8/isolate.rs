@@ -29,7 +29,6 @@ pub struct V8Isolate {
 unsafe impl Sync for V8Isolate {}
 unsafe impl Send for V8Isolate {}
 
-///
 pub(crate) extern "C" fn interrupt_callback<T: Fn(&V8Isolate)>(
     inner_isolate: *mut v8_isolate,
     data: *mut ::std::os::raw::c_void,
