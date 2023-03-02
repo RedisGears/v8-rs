@@ -31,8 +31,10 @@ pub mod v8_unlocker;
 pub mod v8_utf8;
 pub mod v8_value;
 
-pub(crate) static mut FATAL_ERROR_CALLBACK: Option<Box<dyn Fn(&str, &str)>> = None;
-pub(crate) static mut OOM_ERROR_CALLBACK: Option<Box<dyn Fn(&str, bool)>> = None;
+pub(crate) type FatalErrorCallback = dyn Fn(&str, &str);
+pub(crate) type OutOfMemoryErrorCallback = dyn Fn(&str, bool);
+pub(crate) static mut FATAL_ERROR_CALLBACK: Option<Box<FatalErrorCallback>> = None;
+pub(crate) static mut OOM_ERROR_CALLBACK: Option<Box<OutOfMemoryErrorCallback>> = None;
 
 pub trait OptionalTryFrom<T>: Sized {
     type Error;
@@ -48,8 +50,8 @@ pub fn v8_init(thread_pool_size: i32) {
 /// Initialise the V8 engine with custom fatal error and OOM handlers
 /// as well as with the custom thread pool size.
 pub fn v8_init_with_error_handlers(
-    fatal_error_handler: Box<dyn Fn(&str, &str)>,
-    oom_error_handler: Box<dyn Fn(&str, bool)>,
+    fatal_error_handler: Box<FatalErrorCallback>,
+    oom_error_handler: Box<OutOfMemoryErrorCallback>,
     thread_pool_size: i32,
 ) {
     v8_init(thread_pool_size);
