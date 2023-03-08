@@ -159,6 +159,23 @@ struct v8_local_array_buff {
 	v8_local_array_buff(v8::Local<v8::ArrayBuffer> a): arr_buff(a) {}
 };
 
+struct v8_embeder_data {
+	void *data;
+	v8_embeder_data(void *d): data(d) {}
+
+	void set(void *d) {
+		data = d;
+	}
+
+	void* get() {
+		return data;
+	}
+
+	void reset() {
+		data = NULL;
+	}
+};
+
 typedef struct v8_native_function_pd v8_native_function_pd;
 typedef struct v8_pd_node v8_pd_node;
 typedef struct v8_pd_list v8_pd_list;
@@ -451,29 +468,35 @@ void v8_SetPrivateData(v8_context* ctx, size_t index, void *pd) {
 	assert(pd);
 
 	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
-	v8::Local<v8::External> data = v8::External::New(ctx->isolate, (void*)pd);
+
+	if (index < v8_ctx->GetNumberOfEmbedderDataFields()) {
+		v8::Local<v8::External> data = v8::Local<v8::External>::Cast(v8_ctx->GetEmbedderData(DATA_INDEX(index)));
+		v8_embeder_data *embeder_data = (v8_embeder_data*)data->Value();
+		embeder_data->set(pd);
+		return;
+	}
+	v8::Local<v8::External> data = v8::External::New(ctx->isolate, new v8_embeder_data(pd));
 	v8_ctx->SetEmbedderData(DATA_INDEX(index), data);
 }
 
 void v8_ResetPrivateData(v8_context *ctx, size_t index) {
 	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
-	v8_ctx->SetEmbedderData(DATA_INDEX(index), v8::Null(ctx->isolate));
+	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(v8_ctx->GetEmbedderData(DATA_INDEX(index)));
+	v8_embeder_data *embeder_data = (v8_embeder_data*)data->Value();
+	embeder_data->reset();
 }
 
 void v8_ResetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index) {
-	ctx_ref->context->SetEmbedderData(DATA_INDEX(index), v8::Null(ctx_ref->context->GetIsolate()));
+	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(ctx_ref->context->GetEmbedderData(DATA_INDEX(index)));
+	v8_embeder_data *embeder_data = (v8_embeder_data*)data->Value();
+	embeder_data->reset();
 }
 
 void* v8_GetPrivateData(v8_context* ctx, size_t index) {
 	v8::Local<v8::Context> v8_ctx = ctx->persistent_ctx->Get(ctx->isolate);
 	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(v8_ctx->GetEmbedderData(DATA_INDEX(index)));
-
-	// If the data is JS null, return nullptr.
-	if (data->IsNull()) {
-		return nullptr;
-	}
-
-	return data->Value();
+	v8_embeder_data *embeder_data = (v8_embeder_data*)data->Value();
+	return embeder_data->get();
 }
 
 v8_context_ref* v8_ContextEnter(v8_context *v8_ctx) {
@@ -505,20 +528,21 @@ void v8_FreeContextRef(v8_context_ref *v8_ctx_ref) {
 
 void* v8_GetPrivateDataFromCtxRef(v8_context_ref* ctx_ref, size_t index) {
 	v8::Local<v8::External> data = v8::Local<v8::External>::Cast(ctx_ref->context->GetEmbedderData(DATA_INDEX(index)));
-
-	// If the data is JS null, return a nullptr.
-	if (data->IsNull()) {
-		return nullptr;
-	}
-
-	return data->Value();
+	v8_embeder_data *embeder_data = (v8_embeder_data*)data->Value();
+	return embeder_data->get();
 }
 
 void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd) {
 	assert(pd);
 
-	v8::Isolate *isolate = ctx_ref->context->GetIsolate();
-	v8::Local<v8::External> data = v8::External::New(isolate, (void*)pd);
+	if (index < ctx_ref->context->GetNumberOfEmbedderDataFields()) {
+		v8::Local<v8::External> data = v8::Local<v8::External>::Cast(ctx_ref->context->GetEmbedderData(DATA_INDEX(index)));
+		v8_embeder_data *embeder_data = (v8_embeder_data*)data->Value();
+		embeder_data->set(pd);
+		return;
+	}
+	v8::Isolate* isolate = ctx_ref->context->GetIsolate();
+	v8::Local<v8::External> data = v8::External::New(isolate, new v8_embeder_data(pd));
 	ctx_ref->context->SetEmbedderData(DATA_INDEX(index), data);
 }
 
