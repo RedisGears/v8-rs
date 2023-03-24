@@ -11,6 +11,13 @@
 pub mod v8;
 mod v8_c_raw;
 
+/// The [`vergen`]'s git hash (long) - the full SHA hash of the commit
+/// the crate was build from.
+pub const GIT_SHA: &str = env!("VERGEN_GIT_SHA");
+/// The [`vergen`]'s git semantic version based on the last checkout tag,
+/// the number of commits ahead of the tag and a hash.
+pub const GIT_SEMVER: &str = env!("VERGEN_GIT_DESCRIBE");
+
 /// A user-available data index. The users of the crate may use this
 /// index to store their data in V8.
 #[repr(transparent)]

@@ -4,8 +4,6 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-extern crate bindgen;
-
 use std::env;
 use std::path::Path;
 use std::path::PathBuf;
@@ -113,4 +111,9 @@ fn main() {
         }
         _ => panic!("Os '{}' are not supported", std::env::consts::OS),
     }
+
+    vergen::EmitBuilder::builder()
+        .all_git()
+        .emit()
+        .expect("vergen failed.");
 }
