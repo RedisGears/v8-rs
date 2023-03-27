@@ -10,6 +10,7 @@ license = "Redis Source Available License 2.0 (RSALv2) or the Server Side Public
 
 [build-dependencies]
 bindgen = "0.59.2"
+vergen = { version = "8", features = ["git", "gitcl"] }
 
 [dev-dependencies]
 v8_rs_derive = { path = "./v8-rs-derive/"}
