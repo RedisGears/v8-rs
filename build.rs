@@ -9,7 +9,32 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
-const V8_VERSION: &str = "10.8.168.21";
+lazy_static::lazy_static! {
+    static ref ARCH: &'static str = match std::env::consts::ARCH {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        _ => panic!("Given arch are not support: {}", std::env::consts::ARCH),
+    };
+
+    static ref  OS: &'static str = match std::env::consts::OS {
+        "linux" => "linux",
+        "macos" => "apple-darwin",
+        _ => panic!("Os '{}' are not supported", std::env::consts::OS),
+    };
+
+    static ref V8_VERSION: String = env::var("V8_VERSION").unwrap_or("10.8.168.21".into());
+    static ref V8_HEADERS_PATH: String = env::var("V8_HEADERS_PATH").unwrap_or("v8_c_api/libv8.include.zip".into());
+    static ref V8_HEADERS_URL: String = env::var("V8_HEADERS_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8.{}.include.zip", *V8_VERSION));
+    static ref V8_MONOLITH_PATH: String = env::var("V8_MONOLITH_PATH").unwrap_or("v8_c_api/libv8_monolith.a".into());
+    static ref V8_MONOLITH_URL: String = env::var("V8_MONOLITH_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.{}.{}.{}.a", *V8_VERSION, *ARCH, *OS));
+
+    static ref V8_HEADERS_DIRECTORY: &'static str = "v8_c_api/src/v8include/";
+    static ref LIBV8_PATH: &'static str = "v8_c_api/src/libv8.a";
+
+    static ref V8_UPDATE_HEADERS: bool = env::var("V8_UPDATE_HEADERS").map(|v| v == "yes").unwrap_or(false);
+    static ref V8_FORCE_HEADERS_DOWNLOAD: bool = env::var("V8_FORCE_DOWNLOAD_V8_HEADERS").map(|v| v == "yes").unwrap_or(false);
+    static ref V8_FORCE_MONOLITH_DOWNLOAD: bool = env::var("V8_FORCE_DOWNLOAD_V8_MONOLITH").map(|v| v == "yes").unwrap_or(false);
+}
 
 fn run_cmd(cmd: &str, args: &[&str]) {
     let failure_message = format!("Failed running command: {} {}", cmd, args.join(" "));
@@ -27,73 +52,35 @@ fn main() {
     println!("cargo:rerun-if-changed=v8_c_api/src/v8_c_api.h");
     println!("cargo:rerun-if-changed=v8_c_api/src/v8_c_api.cpp");
 
-    let version = env::var("V8_VERSION").unwrap_or(V8_VERSION.into());
-
-    if let Ok(v8_update_header) = env::var("V8_UPDATE_HEADERS") {
-        if v8_update_header == "yes" {
-            // download and update headers
-            let v8_headers_path =
-                env::var("V8_HEADERS_PATH").unwrap_or("v8_c_api/libv8.include.zip".into());
-            let force_download_v8_headers = env::var("V8_FORCE_DOWNLOAD_V8_HEADERS")
-                .map(|v| v == "yes")
-                .unwrap_or(false);
-            if force_download_v8_headers {
-                run_cmd("rm", &["-rf", &v8_headers_path]);
-            }
-            if !Path::new(&v8_headers_path).exists() {
-                let v8_headers_url = env::var("V8_HEADERS_URL").unwrap_or(format!(
-                    "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8.{}.include.zip", version));
-                run_cmd("wget", &["-O", &v8_headers_path, &v8_headers_url]);
-            }
-
-            run_cmd("rm", &["-rf", "v8_c_api/src/v8include/"]);
-            run_cmd(
-                "unzip",
-                &[&v8_headers_path, "-d", "v8_c_api/src/v8include/"],
-            );
+    if *V8_UPDATE_HEADERS {
+        // download and update headers
+        if *V8_FORCE_HEADERS_DOWNLOAD {
+            run_cmd("rm", &["-rf", &V8_HEADERS_PATH]);
         }
+        if !Path::new(V8_HEADERS_PATH.as_str()).exists() {
+            run_cmd("wget", &["-O", &V8_HEADERS_PATH, &V8_HEADERS_URL]);
+        }
+
+        run_cmd("rm", &["-rf", *V8_HEADERS_DIRECTORY]);
+        run_cmd("unzip", &[&V8_HEADERS_PATH, "-d", *V8_HEADERS_DIRECTORY]);
     }
 
     run_cmd("make", &["-C", "v8_c_api/"]);
 
     let output_dir = env::var("OUT_DIR").expect("Can not find out directory");
 
-    run_cmd("cp", &["v8_c_api/src/libv8.a", &output_dir]);
+    run_cmd("cp", &[*LIBV8_PATH, &output_dir]);
 
-    let force_download_v8_monolith = env::var("V8_FORCE_DOWNLOAD_V8_MONOLITH")
-        .map(|v| v == "yes")
-        .unwrap_or(false);
-
-    let v8_monolith_path =
-        env::var("V8_MONOLITH_PATH").unwrap_or("v8_c_api/libv8_monolith.a".into());
-
-    let arch = match std::env::consts::ARCH {
-        "x86_64" => "x64",
-        "aarch64" => "arm64",
-        _ => panic!("Given arch are not support: {}", std::env::consts::ARCH),
-    };
-
-    let os = match std::env::consts::OS {
-        "linux" => "linux",
-        "macos" => "apple-darwin",
-        _ => panic!("Os '{}' are not supported", std::env::consts::OS),
-    };
-
-    let v8_monolith_url = env::var("V8_MONOLITH_URL").unwrap_or(format!(
-        "http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.{}.{}.{}.a",
-        version, arch, os
-    ));
-
-    if force_download_v8_monolith {
-        run_cmd("rm", &["-rf", &v8_monolith_path]);
+    if *V8_FORCE_MONOLITH_DOWNLOAD {
+        run_cmd("rm", &["-rf", &V8_MONOLITH_PATH]);
     }
 
-    if !Path::new(&v8_monolith_path).exists() {
+    if !Path::new(V8_MONOLITH_PATH.as_str()).exists() {
         // download libv8_monolith.a
-        run_cmd("wget", &["-O", &v8_monolith_path, &v8_monolith_url]);
+        run_cmd("wget", &["-O", &V8_MONOLITH_PATH, &V8_MONOLITH_URL]);
     }
 
-    run_cmd("cp", &[&v8_monolith_path, &output_dir]);
+    run_cmd("cp", &[&V8_MONOLITH_PATH, &output_dir]);
 
     let build = bindgen::Builder::default();
 
