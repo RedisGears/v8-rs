@@ -4,7 +4,8 @@ on:
   workflow_call:
     inputs:
       v8_version:
-        required: true
+        default: 'default'
+        required: false
         type: string
       v8_update_headers:
         default: 'no'
