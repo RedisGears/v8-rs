@@ -11,13 +11,7 @@ env:
 
 jobs:
   build-and-test-ubuntu:
-
     uses: ./.github/workflows/BUILD_LINUX_REUSABLE.yml
-    with:
-      v8_version: default
 
   build-and-test-mac:
-
     uses: ./.github/workflows/BUILD_MAC_REUSABLE.yml
-    with:
-      v8_version: default

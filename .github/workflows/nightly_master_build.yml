@@ -13,9 +13,11 @@ jobs:
     uses: ./.github/workflows/BUILD_LINUX_REUSABLE.yml
     with:
       v8_version: main
+      v8_update_headers: yes
 
   build-and-test-mac:
 
     uses: ./.github/workflows/BUILD_MAC_REUSABLE.yml
     with:
       v8_version: main
+      v8_update_headers: yes

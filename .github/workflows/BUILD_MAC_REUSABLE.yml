@@ -6,7 +6,10 @@ on:
       v8_version:
         required: true
         type: string
-
+      v8_update_headers:
+        default: 'no'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -18,6 +21,6 @@ jobs:
     - name: format
       run: cargo fmt -- --check
     - name: Build
-      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=yes cargo build --verbose
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build --verbose
     - name: Run tests
-      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=yes cargo test --verbose -- --test-threads 1
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test --verbose -- --test-threads 1
