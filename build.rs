@@ -22,7 +22,8 @@ lazy_static::lazy_static! {
         _ => panic!("Os '{}' are not supported", std::env::consts::OS),
     };
 
-    static ref V8_VERSION: String = env::var("V8_VERSION").unwrap_or("10.8.168.21".into());
+    static ref V8_DEFAULT_VERSION: &'static str = "10.8.168.21";
+    static ref V8_VERSION: String = env::var("V8_VERSION").map(|v| if v == "default" {V8_DEFAULT_VERSION.to_string()} else {v}).unwrap_or(V8_DEFAULT_VERSION.to_string());
     static ref V8_HEADERS_PATH: String = env::var("V8_HEADERS_PATH").unwrap_or("v8_c_api/libv8.include.zip".into());
     static ref V8_HEADERS_URL: String = env::var("V8_HEADERS_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8.{}.include.zip", *V8_VERSION));
     static ref V8_MONOLITH_PATH: String = env::var("V8_MONOLITH_PATH").unwrap_or("v8_c_api/libv8_monolith.a".into());

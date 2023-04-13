@@ -1,0 +1,23 @@
+name: Macos Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      v8_version:
+        required: true
+        type: string
+
+
+jobs:
+  build:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: format
+      run: cargo fmt -- --check
+    - name: Build
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=yes cargo build --verbose
+    - name: Run tests
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=yes cargo test --verbose -- --test-threads 1

@@ -1,0 +1,25 @@
+name: Linux Build and Test
+
+on:
+  workflow_call:
+    inputs:
+      v8_version:
+        required: true
+        type: string
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: format
+      run: cargo fmt -- --check
+    - name: Build
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=yes cargo build -vv
+    - name: Run tests
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=yes cargo test -vv -- --test-threads 1
