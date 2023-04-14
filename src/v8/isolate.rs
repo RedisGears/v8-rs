@@ -14,33 +14,33 @@ use crate::v8_c_raw::bindings::{
 
 use std::os::raw::c_void;
 
-use crate::v8::isolate_scope::V8IsolateScope;
+use crate::v8::isolate_scope::IsolateScope;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.
 /// In order to free an isolate, one must call [`V8Isolate::free_isolate`].
-pub struct V8Isolate {
+pub struct Isolate {
     pub(crate) inner_isolate: *mut v8_isolate,
     pub(crate) no_release: bool,
 }
 
-unsafe impl Sync for V8Isolate {}
-unsafe impl Send for V8Isolate {}
+unsafe impl Sync for Isolate {}
+unsafe impl Send for Isolate {}
 
-pub(crate) extern "C" fn interrupt_callback<T: Fn(&V8Isolate)>(
+pub(crate) extern "C" fn interrupt_callback<T: Fn(&Isolate)>(
     inner_isolate: *mut v8_isolate,
     data: *mut ::std::os::raw::c_void,
 ) {
     let func = unsafe { &*(data.cast::<T>()) };
-    func(&V8Isolate {
+    func(&Isolate {
         inner_isolate,
         no_release: true,
     });
 }
 
-impl Default for V8Isolate {
+impl Default for Isolate {
     fn default() -> Self {
         Self::new()
     }
@@ -77,7 +77,7 @@ extern "C" fn near_oom_callback_free_pd<F: Fn(usize, usize) -> usize>(data: *mut
     }
 }
 
-impl V8Isolate {
+impl Isolate {
     /// Create a new v8 isolate with default heap size (up to 1G).
     #[must_use]
     pub fn new() -> Self {
@@ -110,13 +110,13 @@ impl V8Isolate {
     }
 
     /// Enter the isolate for code invocation.
-    /// Return an `V8IsolateScope` object, when the returned
+    /// Return an [`IsolateScope`] object, when the returned
     /// object is destroy the code will exit the isolate.
     ///
     /// An isolate must be entered before running any JS code.
     #[must_use]
-    pub fn enter(&self) -> V8IsolateScope {
-        V8IsolateScope::new(self)
+    pub fn enter(&self) -> IsolateScope {
+        IsolateScope::new(self)
     }
 
     /// Sets an idle notification that the embedder is idle for longer
@@ -232,7 +232,7 @@ impl V8Isolate {
     }
 }
 
-impl Drop for V8Isolate {
+impl Drop for Isolate {
     fn drop(&mut self) {
         if !self.no_release {
             unsafe { v8_FreeIsolate(self.inner_isolate) }

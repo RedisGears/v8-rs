@@ -9,73 +9,73 @@ use crate::v8_c_raw::bindings::{
     v8_local_script, v8_persisted_script,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::LocalValueGeneric;
 
 /// JS script object
-pub struct V8LocalScript<'isolate_scope, 'isolate> {
+pub struct LocalScript<'isolate_scope, 'isolate> {
     pub(crate) inner_script: *mut v8_local_script,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-pub struct V8PersistedScript {
+pub struct PersistedScript {
     pub(crate) inner_persisted_script: *mut v8_persisted_script,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalScript<'isolate_scope, 'isolate> {
     /// Run the script
     #[must_use]
-    pub fn run(&self, ctx: &V8ContextScope) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+    pub fn run(&self, ctx: &ContextScope) -> Option<LocalValueGeneric<'isolate_scope, 'isolate>> {
         let inner_val = unsafe { v8_Run(ctx.inner_ctx_ref, self.inner_script) };
         if inner_val.is_null() {
             None
         } else {
-            Some(V8LocalValue {
+            Some(LocalValueGeneric {
                 inner_val,
                 isolate_scope: self.isolate_scope,
             })
         }
     }
 
-    pub fn persist(&self) -> V8PersistedScript {
+    pub fn persist(&self) -> PersistedScript {
         let inner_persisted_script = unsafe {
             v8_ScriptPersist(self.isolate_scope.isolate.inner_isolate, self.inner_script)
         };
-        V8PersistedScript {
+        PersistedScript {
             inner_persisted_script,
         }
     }
 }
 
-impl V8PersistedScript {
+impl PersistedScript {
     pub fn to_local<'isolate_scope, 'isolate>(
         &self,
-        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8LocalScript<'isolate_scope, 'isolate> {
+        isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+    ) -> LocalScript<'isolate_scope, 'isolate> {
         let inner_script = unsafe {
             v8_PersistedScriptToLocal(
                 isolate_scope.isolate.inner_isolate,
                 self.inner_persisted_script,
             )
         };
-        V8LocalScript {
+        LocalScript {
             inner_script,
             isolate_scope,
         }
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalScript<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalScript<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeScript(self.inner_script) }
     }
 }
 
-unsafe impl Sync for V8PersistedScript {}
-unsafe impl Send for V8PersistedScript {}
+unsafe impl Sync for PersistedScript {}
+unsafe impl Send for PersistedScript {}
 
-impl Drop for V8PersistedScript {
+impl Drop for PersistedScript {
     fn drop(&mut self) {
         unsafe { v8_FreePersistedScript(self.inner_persisted_script) }
     }

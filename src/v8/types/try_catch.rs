@@ -9,24 +9,24 @@ use crate::v8_c_raw::bindings::{
     v8_trycatch,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::LocalValueGeneric;
 
 /// An object that responsible to catch any exception which raised
 /// during the JS code invocation.
-pub struct V8TryCatch<'isolate_scope, 'isolate> {
+pub struct TryCatch<'isolate_scope, 'isolate> {
     pub(crate) inner_trycatch: *mut v8_trycatch,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8TryCatch<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> TryCatch<'isolate_scope, 'isolate> {
     /// Return the exception that was raise during the JS code invocation.
     #[must_use]
-    pub fn get_exception(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn get_exception(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_TryCatchGetException(self.inner_trycatch) };
         assert!(!inner_val.is_null());
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
@@ -36,14 +36,14 @@ impl<'isolate_scope, 'isolate> V8TryCatch<'isolate_scope, 'isolate> {
     #[must_use]
     pub fn get_trace(
         &self,
-        ctx_scope: &V8ContextScope,
-    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+        ctx_scope: &ContextScope,
+    ) -> Option<LocalValueGeneric<'isolate_scope, 'isolate>> {
         let inner_val =
             unsafe { v8_TryCatchGetTrace(self.inner_trycatch, ctx_scope.inner_ctx_ref) };
         if inner_val.is_null() {
             return None;
         }
-        Some(V8LocalValue {
+        Some(LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         })
@@ -56,7 +56,7 @@ impl<'isolate_scope, 'isolate> V8TryCatch<'isolate_scope, 'isolate> {
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8TryCatch<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for TryCatch<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeTryCatch(self.inner_trycatch) }
     }

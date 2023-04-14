@@ -14,10 +14,10 @@ use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::ptr;
 
-use crate::v8::isolate::V8Isolate;
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_object_template::V8LocalObjectTemplate;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate::Isolate;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::object_template::LocalObjectTemplate;
 
 /// An RAII data guard which resets the private data slot after going
 /// out of scope.
@@ -25,12 +25,12 @@ pub struct V8ContextDataGuard<'context, 'data, T: 'data> {
     /// A raw index to reset after the guard goes out of scope.
     index: RawIndex,
     /// The context in which the guard should reset the variable.
-    context: &'context V8Context,
+    context: &'context Context,
     _phantom_data: PhantomData<&'data T>,
 }
 impl<'context, 'data, T: 'data> V8ContextDataGuard<'context, 'data, T> {
     /// Creates a new data guard with the provided index and context scope.
-    pub(crate) fn new<I: Into<RawIndex>>(index: I, context: &'context V8Context) -> Self {
+    pub(crate) fn new<I: Into<RawIndex>>(index: I, context: &'context Context) -> Self {
         let index = index.into();
         Self {
             index,
@@ -46,15 +46,15 @@ impl<'context, 'data, T: 'data> Drop for V8ContextDataGuard<'context, 'data, T> 
     }
 }
 
-pub struct V8Context {
+pub struct Context {
     pub(crate) inner_ctx: *mut v8_context,
 }
 
-unsafe impl Sync for V8Context {}
-unsafe impl Send for V8Context {}
+unsafe impl Sync for Context {}
+unsafe impl Send for Context {}
 
-impl V8Context {
-    pub(crate) fn new(isolate: &V8Isolate, globals: Option<&V8LocalObjectTemplate>) -> Self {
+impl Context {
+    pub(crate) fn new(isolate: &Isolate, globals: Option<&LocalObjectTemplate>) -> Self {
         let inner_ctx = match globals {
             Some(g) => unsafe { v8_NewContext(isolate.inner_isolate, g.inner_obj) },
             None => unsafe { v8_NewContext(isolate.inner_isolate, ptr::null_mut()) },
@@ -69,10 +69,10 @@ impl V8Context {
     #[must_use]
     pub fn enter<'isolate_scope, 'isolate>(
         &self,
-        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8ContextScope<'isolate_scope, 'isolate> {
+        isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+    ) -> ContextScope<'isolate_scope, 'isolate> {
         let inner_ctx_ref = unsafe { v8_ContextEnter(self.inner_ctx) };
-        V8ContextScope {
+        ContextScope {
             inner_ctx_ref,
             exit_on_drop: true,
             isolate_scope,
@@ -130,7 +130,7 @@ impl V8Context {
     }
 }
 
-impl Drop for V8Context {
+impl Drop for Context {
     fn drop(&mut self) {
         unsafe { v8_FreeContext(self.inner_ctx) }
     }

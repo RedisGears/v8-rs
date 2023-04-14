@@ -16,42 +16,116 @@ use crate::v8_c_raw::bindings::{
 
 use std::ptr;
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_array::V8LocalArray;
-use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_external_data::V8LocalExternalData;
-use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgsIter;
-use crate::v8::v8_object::V8LocalObject;
-use crate::v8::v8_promise::V8LocalPromise;
-use crate::v8::v8_resolver::V8LocalResolver;
-use crate::v8::v8_set::V8LocalSet;
-use crate::v8::v8_string::V8LocalString;
-use crate::v8::v8_utf8::V8LocalUtf8;
+pub mod array;
+pub mod array_buffer;
+pub mod external_data;
+pub mod module;
+pub mod native_function;
+pub mod native_function_template;
+pub mod object;
+pub mod object_template;
+pub mod promise;
+pub mod resolver;
+pub mod script;
+pub mod set;
+pub mod string;
+pub mod try_catch;
+pub mod unlocker;
+pub mod utf8;
+
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
 use crate::v8::OptionalTryFrom;
+use array::LocalArray;
+use array_buffer::LocalArrayBuffer;
+use external_data::LocalExternalData;
+use native_function_template::V8LocalNativeFunctionArgsIter;
+use object::LocalObject;
+use promise::LocalPromise;
+use resolver::LocalResolver;
+use set::LocalSet;
+use string::LocalString;
+use utf8::LocalUtf8;
 
 /// JS generic local value
-pub struct V8LocalValue<'isolate_scope, 'isolate> {
+pub struct LocalValueGeneric<'isolate_scope, 'isolate> {
     pub(crate) inner_val: *mut v8_local_value,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
+pub type LocalValue<'isolate_scope, 'isolate> = LocalValueGeneric<'isolate_scope, 'isolate>;
+
+// #[repr(transparent)]
+// pub struct LocalArray<'isolate_scope, 'isolate> {
+//     value: LocalGeneric<'isolate_scope, 'isolate>,
+// }
+// impl<'isolate_scope, 'isolate> LocalArray<'isolate_scope, 'isolate> {
+//     /// Return string representation of the value or None on failure
+//     #[must_use]
+//     pub fn to_utf8(&self) -> Option<LocalUtf8<'isolate_scope, 'isolate>> {
+//         let inner_val = unsafe {
+//             v8_ToUtf8(
+//                 self.value.isolate_scope.isolate.inner_isolate,
+//                 self.value.inner_val,
+//             )
+//         };
+//         if inner_val.is_null() {
+//             None
+//         } else {
+//             Some(LocalUtf8 {
+//                 inner_val,
+//                 _isolate_scope: self.value.isolate_scope,
+//             })
+//         }
+//     }
+// }
+
+// #[repr(transparent)]
+// pub struct LocalValueString<'isolate_scope, 'isolate> {
+//     value: LocalGeneric<'isolate_scope, 'isolate>,
+// }
+// impl<'isolate_scope, 'isolate> LocalValueString<'isolate_scope, 'isolate> {
+//     /// Return string representation of the value or None on failure
+//     #[must_use]
+//     pub fn to_utf8(&self) -> Option<LocalUtf8<'isolate_scope, 'isolate>> {
+//         let inner_val = unsafe {
+//             v8_ToUtf8(
+//                 self.value.isolate_scope.isolate.inner_isolate,
+//                 self.value.inner_val,
+//             )
+//         };
+//         if inner_val.is_null() {
+//             None
+//         } else {
+//             Some(LocalUtf8 {
+//                 inner_val,
+//                 _isolate_scope: self.value.isolate_scope,
+//             })
+//         }
+//     }
+// }
+
+// pub enum V8LocalValue<'isolate_scope, 'isolate> {
+//     Array(LocalArray<'isolate_scope, 'isolate>),
+//     String(LocalValueString<'isolate_scope, 'isolate>),
+//     Number(LocalGeneric<'isolate_scope, 'isolate>),
+// }
 
 /// JS generic persisted value
-pub struct V8PersistValue {
+pub struct PersistValue {
     pub(crate) inner_val: *mut v8_persisted_value,
     forget: bool,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalValueGeneric<'isolate_scope, 'isolate> {
     /// Return string representation of the value or None on failure
     #[must_use]
-    pub fn to_utf8(&self) -> Option<V8LocalUtf8<'isolate_scope, 'isolate>> {
+    pub fn to_utf8(&self) -> Option<LocalUtf8<'isolate_scope, 'isolate>> {
         let inner_val =
             unsafe { v8_ToUtf8(self.isolate_scope.isolate.inner_isolate, self.inner_val) };
         if inner_val.is_null() {
             None
         } else {
-            Some(V8LocalUtf8 {
+            Some(LocalUtf8 {
                 inner_val,
                 _isolate_scope: self.isolate_scope,
             })
@@ -66,9 +140,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a string, applicable only if the value is string.
     #[must_use]
-    pub fn as_string(&self) -> V8LocalString<'isolate_scope, 'isolate> {
+    pub fn as_string(&self) -> LocalString<'isolate_scope, 'isolate> {
         let inner_str = unsafe { v8_ValueAsString(self.inner_val) };
-        V8LocalString {
+        LocalString {
             inner_string: inner_str,
             isolate_scope: self.isolate_scope,
         }
@@ -88,9 +162,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a string, applicable only if the value is string.
     #[must_use]
-    pub fn as_array(&self) -> V8LocalArray<'isolate_scope, 'isolate> {
+    pub fn as_array(&self) -> LocalArray<'isolate_scope, 'isolate> {
         let inner_array = unsafe { v8_ValueAsArray(self.inner_val) };
-        V8LocalArray {
+        LocalArray {
             inner_array,
             isolate_scope: self.isolate_scope,
         }
@@ -104,9 +178,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a string, applicable only if the value is string.
     #[must_use]
-    pub fn as_array_buffer(&self) -> V8LocalArrayBuffer<'isolate_scope, 'isolate> {
+    pub fn as_array_buffer(&self) -> LocalArrayBuffer<'isolate_scope, 'isolate> {
         let inner_array_buffer = unsafe { v8_ValueAsArrayBuffer(self.inner_val) };
-        V8LocalArrayBuffer {
+        LocalArrayBuffer {
             inner_array_buffer,
             isolate_scope: self.isolate_scope,
         }
@@ -168,9 +242,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a promise, applicable only if the object is promise.
     #[must_use]
-    pub fn as_promise(&self) -> V8LocalPromise<'isolate_scope, 'isolate> {
+    pub fn as_promise(&self) -> LocalPromise<'isolate_scope, 'isolate> {
         let inner_promise = unsafe { v8_ValueAsPromise(self.inner_val) };
-        V8LocalPromise {
+        LocalPromise {
             inner_promise,
             isolate_scope: self.isolate_scope,
         }
@@ -178,9 +252,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a resolver, applicable only if the object is resolver.
     #[must_use]
-    pub fn as_resolver(&self) -> V8LocalResolver<'isolate_scope, 'isolate> {
+    pub fn as_resolver(&self) -> LocalResolver<'isolate_scope, 'isolate> {
         let inner_resolver = unsafe { v8_ValueAsResolver(self.inner_val) };
-        V8LocalResolver {
+        LocalResolver {
             inner_resolver,
             isolate_scope: self.isolate_scope,
         }
@@ -194,9 +268,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a promise, applicable only if the object is promise.
     #[must_use]
-    pub fn as_object(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
+    pub fn as_object(&self) -> LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ValueAsObject(self.inner_val) };
-        V8LocalObject {
+        LocalObject {
             inner_obj,
             isolate_scope: self.isolate_scope,
         }
@@ -208,9 +282,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     }
 
     #[must_use]
-    pub fn as_external_data(&self) -> V8LocalExternalData<'isolate_scope, 'isolate> {
+    pub fn as_external_data(&self) -> LocalExternalData<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ValueAsExternalData(self.inner_val) };
-        V8LocalExternalData {
+        LocalExternalData {
             inner_ext: inner_obj,
             isolate_scope: self.isolate_scope,
         }
@@ -224,9 +298,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Convert the object into a promise, applicable only if the object is promise.
     #[must_use]
-    pub fn as_set(&self) -> V8LocalSet<'isolate_scope, 'isolate> {
+    pub fn as_set(&self) -> LocalSet<'isolate_scope, 'isolate> {
         let inner_set = unsafe { v8_ValueAsSet(self.inner_val) };
-        V8LocalSet {
+        LocalSet {
             inner_set,
             isolate_scope: self.isolate_scope,
         }
@@ -234,10 +308,10 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Persist the local object so it can be saved beyond the current handlers scope.
     #[must_use]
-    pub fn persist(&self) -> V8PersistValue {
+    pub fn persist(&self) -> PersistValue {
         let inner_val =
             unsafe { v8_PersistValue(self.isolate_scope.isolate.inner_isolate, self.inner_val) };
-        V8PersistValue {
+        PersistValue {
             inner_val,
             forget: false,
         }
@@ -245,7 +319,7 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
 
     /// Run the value, applicable only if the value is a function or async function.
     #[must_use]
-    pub fn call(&self, ctx: &V8ContextScope, args: Option<&[&Self]>) -> Option<Self> {
+    pub fn call(&self, ctx: &ContextScope, args: Option<&[&Self]>) -> Option<Self> {
         let res = match args {
             Some(args) => {
                 let args = args
@@ -269,18 +343,18 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     }
 }
 
-impl V8PersistValue {
+impl PersistValue {
     /// Convert the persisted value back to local value.
     #[must_use]
     pub fn as_local<'isolate, 'isolate_scope>(
         &self,
-        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+        isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         assert!(!self.inner_val.is_null());
         let inner_val = unsafe {
             v8_PersistedValueToLocal(isolate_scope.isolate.inner_isolate, self.inner_val)
         };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope,
         }
@@ -293,8 +367,8 @@ impl V8PersistValue {
 
     pub fn take_local<'isolate, 'isolate_scope>(
         &mut self,
-        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+        isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let val = self.as_local(isolate_scope);
         unsafe { v8_FreePersistedValue(self.inner_val) }
         self.forget();
@@ -303,10 +377,10 @@ impl V8PersistValue {
     }
 }
 
-unsafe impl Sync for V8PersistValue {}
-unsafe impl Send for V8PersistValue {}
+unsafe impl Sync for PersistValue {}
+unsafe impl Send for PersistValue {}
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalValue<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalValueGeneric<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         if !self.inner_val.is_null() {
             unsafe { v8_FreeValue(self.inner_val) }
@@ -314,7 +388,7 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalValue<'isolate_scope, 'isolate> {
     }
 }
 
-impl Drop for V8PersistValue {
+impl Drop for PersistValue {
     fn drop(&mut self) {
         if self.forget {
             return;
@@ -323,10 +397,10 @@ impl Drop for V8PersistValue {
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for i64 {
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>> for i64 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: LocalValueGeneric<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_long() {
             return Err("Value is not long");
         }
@@ -335,10 +409,10 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for f64 {
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>> for f64 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: LocalValueGeneric<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_number() {
             return Err("Value is not number");
         }
@@ -347,10 +421,10 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for String {
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>> for String {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: LocalValueGeneric<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_string() && !val.is_string_object() {
             return Err("Value is not string");
         }
@@ -363,10 +437,10 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for bool {
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>> for bool {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: LocalValueGeneric<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_boolean() {
             return Err("Value is not a boolean");
         }
@@ -406,15 +480,15 @@ from_iter_impl!(i64);
 from_iter_impl!(f64);
 from_iter_impl!(String);
 from_iter_impl!(bool);
-from_iter_impl!(V8LocalArray<'isolate_scope, 'isolate>);
-from_iter_impl!(V8LocalArrayBuffer<'isolate_scope, 'isolate>);
-from_iter_impl!(V8LocalObject<'isolate_scope, 'isolate>);
-from_iter_impl!(V8LocalSet<'isolate_scope, 'isolate>);
-from_iter_impl!(V8LocalUtf8<'isolate_scope, 'isolate>);
+from_iter_impl!(LocalArray<'isolate_scope, 'isolate>);
+from_iter_impl!(LocalArrayBuffer<'isolate_scope, 'isolate>);
+from_iter_impl!(LocalObject<'isolate_scope, 'isolate>);
+from_iter_impl!(LocalSet<'isolate_scope, 'isolate>);
+from_iter_impl!(LocalUtf8<'isolate_scope, 'isolate>);
 
 impl<'isolate_scope, 'isolate, 'a>
     TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
-    for V8LocalValue<'isolate_scope, 'isolate>
+    for LocalValueGeneric<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
     fn try_from(
@@ -427,7 +501,7 @@ impl<'isolate_scope, 'isolate, 'a>
 impl<'isolate_scope, 'isolate, 'a, T>
     OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for T
 where
-    T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
+    T: TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>, Error = &'static str>,
 {
     type Error = &'static str;
     fn optional_try_from(
@@ -443,7 +517,7 @@ where
 
 impl<'isolate_scope, 'isolate, 'a>
     OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
-    for V8LocalValue<'isolate_scope, 'isolate>
+    for LocalValueGeneric<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
     fn optional_try_from(
@@ -456,7 +530,7 @@ impl<'isolate_scope, 'isolate, 'a>
 impl<'isolate_scope, 'isolate, 'a, T>
     TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for Vec<T>
 where
-    T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
+    T: TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>, Error = &'static str>,
 {
     type Error = &'static str;
     fn try_from(
@@ -475,7 +549,7 @@ where
 
 impl<'isolate_scope, 'isolate, 'a>
     TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
-    for Vec<V8LocalValue<'isolate_scope, 'isolate>>
+    for Vec<LocalValueGeneric<'isolate_scope, 'isolate>>
 {
     type Error = &'static str;
     fn try_from(

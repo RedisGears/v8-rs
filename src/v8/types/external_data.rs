@@ -8,21 +8,21 @@ use crate::v8_c_raw::bindings::{
     v8_ExternalDataGet, v8_ExternalDataToValue, v8_local_external_data,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::LocalValueGeneric;
 
 /// JS object
-pub struct V8LocalExternalData<'isolate_scope, 'isolate> {
+pub struct LocalExternalData<'isolate_scope, 'isolate> {
     pub(crate) inner_ext: *mut v8_local_external_data,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalExternalData<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalExternalData<'isolate_scope, 'isolate> {
     /// Convert the object into a generic JS value
     #[must_use]
-    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ExternalDataToValue(self.inner_ext) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }

@@ -11,38 +11,34 @@ use crate::v8_c_raw::bindings::{
     v8_local_object_template, v8_persisted_object_template,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_native_function_template::{
-    V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::native_function_template::{
+    LocalNativeFunctionArgs, LocalNativeFunctionTemplate,
 };
-use crate::v8::v8_object::V8LocalObject;
-use crate::v8::v8_string::V8LocalString;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::types::object::LocalObject;
+use crate::v8::types::string::LocalString;
+use crate::v8::types::LocalValueGeneric;
 
 /// JS object template
-pub struct V8LocalObjectTemplate<'isolate_scope, 'isolate> {
+pub struct LocalObjectTemplate<'isolate_scope, 'isolate> {
     pub(crate) inner_obj: *mut v8_local_object_template,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalObjectTemplate<'isolate_scope, 'isolate> {
     /// Set a native function to the object template as a given key
-    pub fn set_native_function(
-        &mut self,
-        name: &V8LocalString,
-        func: &V8LocalNativeFunctionTemplate,
-    ) {
+    pub fn set_native_function(&mut self, name: &LocalString, func: &LocalNativeFunctionTemplate) {
         unsafe { v8_ObjectTemplateSetFunction(self.inner_obj, name.inner_string, func.inner_func) };
     }
 
     /// Same as `set_native_function` but gets the key as &str and the native function as closure.
     pub fn add_native_function<
         T: for<'d, 'e> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d V8IsolateScope<'e>,
-            &V8ContextScope<'d, 'e>,
-        ) -> Option<V8LocalValue<'d, 'e>>,
+            &LocalNativeFunctionArgs<'d, 'e>,
+            &'d IsolateScope<'e>,
+            &ContextScope<'d, 'e>,
+        ) -> Option<LocalValueGeneric<'d, 'e>>,
     >(
         &mut self,
         name: &str,
@@ -54,7 +50,7 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
     }
 
     /// Set the given object to the object template on a given key
-    pub fn set_object(&mut self, name: &V8LocalString, obj: &Self) {
+    pub fn set_object(&mut self, name: &LocalString, obj: &Self) {
         unsafe { v8_ObjectTemplateSetObject(self.inner_obj, name.inner_string, obj.inner_obj) };
     }
 
@@ -69,25 +65,22 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
     }
 
     /// Set a generic JS value into the object template as a given key
-    pub fn set_value(&mut self, name: &V8LocalString, obj: &V8LocalValue) {
+    pub fn set_value(&mut self, name: &LocalString, obj: &LocalValueGeneric) {
         unsafe { v8_ObjectTemplateSetValue(self.inner_obj, name.inner_string, obj.inner_val) };
     }
 
     /// Same as `set_value` but gets the key as &str
-    pub fn add_value(&mut self, name: &str, obj: &V8LocalValue) {
+    pub fn add_value(&mut self, name: &str, obj: &LocalValueGeneric) {
         let val_name = self.isolate_scope.new_string(name);
         self.set_value(&val_name, obj);
     }
 
     /// Convert the object template into a generic JS value
     #[must_use]
-    pub fn new_instance(
-        &self,
-        ctx_scope: &V8ContextScope,
-    ) -> V8LocalObject<'isolate_scope, 'isolate> {
+    pub fn new_instance(&self, ctx_scope: &ContextScope) -> LocalObject<'isolate_scope, 'isolate> {
         let inner_obj =
             unsafe { v8_ObjectTemplateNewInstance(ctx_scope.inner_ctx_ref, self.inner_obj) };
-        V8LocalObject {
+        LocalObject {
             inner_obj,
             isolate_scope: self.isolate_scope,
         }
@@ -103,7 +96,7 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalObjectTemplate<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalObjectTemplate<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeObjectTemplate(self.inner_obj) }
     }
@@ -116,15 +109,15 @@ pub struct V8PersistedObjectTemplate {
 impl V8PersistedObjectTemplate {
     pub fn to_local<'isolate_scope, 'isolate>(
         &self,
-        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
+        isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+    ) -> LocalObjectTemplate<'isolate_scope, 'isolate> {
         let inner_obj = unsafe {
             v8_PersistedObjectTemplateToLocal(
                 isolate_scope.isolate.inner_isolate,
                 self.inner_persisted_obj_template,
             )
         };
-        V8LocalObjectTemplate {
+        LocalObjectTemplate {
             inner_obj,
             isolate_scope,
         }

@@ -8,17 +8,17 @@ use crate::v8_c_raw::bindings::{
     v8_ArrayGet, v8_ArrayLen, v8_ArrayToValue, v8_FreeArray, v8_local_array,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::LocalValueGeneric;
 
 /// JS object
-pub struct V8LocalArray<'isolate_scope, 'isolate> {
+pub struct LocalArray<'isolate_scope, 'isolate> {
     pub(crate) inner_array: *mut v8_local_array,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalArray<'isolate_scope, 'isolate> {
     /// Returns the length of the array.
     pub fn len(&self) -> usize {
         unsafe { v8_ArrayLen(self.inner_array) }
@@ -32,7 +32,7 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
     /// Returns an iterator to the array's objects.
     pub fn iter<'array, 'context_scope>(
         &'array self,
-        context_scope: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+        context_scope: &'context_scope ContextScope<'isolate_scope, 'isolate>,
     ) -> V8LocalArrayIterator<'context_scope, 'array, 'isolate_scope, 'isolate> {
         V8LocalArrayIterator {
             index: 0,
@@ -44,30 +44,30 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
     /// Returns a single object stored within the array.
     pub fn get(
         &self,
-        ctx_scope: &V8ContextScope,
+        ctx_scope: &ContextScope,
         index: usize,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ArrayGet(ctx_scope.inner_ctx_ref, self.inner_array, index) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
 
     /// Converts the array to a value object.
-    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ArrayToValue(self.inner_array) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalArray<'isolate_scope, 'isolate>>
-    for V8LocalValue<'isolate_scope, 'isolate>
+impl<'isolate_scope, 'isolate> From<LocalArray<'isolate_scope, 'isolate>>
+    for LocalValueGeneric<'isolate_scope, 'isolate>
 {
-    fn from(array: V8LocalArray<'isolate_scope, 'isolate>) -> Self {
+    fn from(array: LocalArray<'isolate_scope, 'isolate>) -> Self {
         array.to_value()
     }
 }
@@ -75,14 +75,14 @@ impl<'isolate_scope, 'isolate> From<V8LocalArray<'isolate_scope, 'isolate>>
 /// An iterator over the objects stored within the [`V8LocalArray`].
 pub struct V8LocalArrayIterator<'context_scope, 'array, 'isolate_scope, 'isolate> {
     index: usize,
-    array: &'array V8LocalArray<'isolate_scope, 'isolate>,
-    context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+    array: &'array LocalArray<'isolate_scope, 'isolate>,
+    context: &'context_scope ContextScope<'isolate_scope, 'isolate>,
 }
 
 impl<'context_scope, 'array, 'isolate_scope, 'isolate> Iterator
     for V8LocalArrayIterator<'context_scope, 'array, 'isolate_scope, 'isolate>
 {
-    type Item = V8LocalValue<'isolate_scope, 'isolate>;
+    type Item = LocalValueGeneric<'isolate_scope, 'isolate>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.array.len() {
@@ -95,18 +95,18 @@ impl<'context_scope, 'array, 'isolate_scope, 'isolate> Iterator
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalArray<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalArray<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeArray(self.inner_array) }
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
-    for V8LocalArray<'isolate_scope, 'isolate>
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>>
+    for LocalArray<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: LocalValueGeneric<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_array() {
             return Err("Value is not an array");
         }

@@ -10,31 +10,31 @@ use crate::v8_c_raw::bindings::{
     v8_PromiseState_v8_PromiseState_Rejected, v8_PromiseThen, v8_PromiseToValue, v8_local_promise,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_native_function::V8LocalNativeFunction;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::native_function::LocalNativeFunction;
+use crate::v8::types::LocalValueGeneric;
 
-pub struct V8LocalPromise<'isolate_scope, 'isolate> {
+pub struct LocalPromise<'isolate_scope, 'isolate> {
     pub(crate) inner_promise: *mut v8_local_promise,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
 #[derive(Debug, PartialEq)]
-pub enum V8PromiseState {
+pub enum PromiseState {
     Fulfilled,
     Rejected,
     Pending,
     Unknown,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalPromise<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalPromise<'isolate_scope, 'isolate> {
     /// Set resolve and reject callbacks
     pub fn then(
         &self,
-        ctx: &V8ContextScope,
-        resolve: &V8LocalNativeFunction,
-        reject: &V8LocalNativeFunction,
+        ctx: &ContextScope,
+        resolve: &LocalNativeFunction,
+        reject: &LocalNativeFunction,
     ) {
         unsafe {
             v8_PromiseThen(
@@ -49,14 +49,14 @@ impl<'isolate_scope, 'isolate> V8LocalPromise<'isolate_scope, 'isolate> {
     /// Return the state on the promise object
     /// # Panics
     #[must_use]
-    pub fn state(&self) -> V8PromiseState {
+    pub fn state(&self) -> PromiseState {
         let inner_state = unsafe { v8_PromiseGetState(self.inner_promise) };
         if inner_state == v8_PromiseState_v8_PromiseState_Fulfilled {
-            V8PromiseState::Fulfilled
+            PromiseState::Fulfilled
         } else if inner_state == v8_PromiseState_v8_PromiseState_Rejected {
-            V8PromiseState::Rejected
+            PromiseState::Rejected
         } else if inner_state == v8_PromiseState_v8_PromiseState_Pending {
-            V8PromiseState::Pending
+            PromiseState::Pending
         } else {
             panic!("bad promise state");
         }
@@ -65,9 +65,9 @@ impl<'isolate_scope, 'isolate> V8LocalPromise<'isolate_scope, 'isolate> {
     /// Return the result of the promise object.
     /// Only applicable if the promise object was resolved/rejected.
     #[must_use]
-    pub fn get_result(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn get_result(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_PromiseGetResult(self.inner_promise) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
@@ -75,16 +75,16 @@ impl<'isolate_scope, 'isolate> V8LocalPromise<'isolate_scope, 'isolate> {
 
     /// Convert the promise object into a generic JS value
     #[must_use]
-    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_PromiseToValue(self.inner_promise) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalPromise<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalPromise<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreePromise(self.inner_promise) }
     }

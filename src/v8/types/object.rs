@@ -10,32 +10,32 @@ use crate::v8_c_raw::bindings::{
     v8_ValueGetPropertyNames, v8_local_object,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_array::V8LocalArray;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_native_function_template::V8LocalNativeFunctionArgs;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::native_function_template::LocalNativeFunctionArgs;
+use crate::v8::types::LocalArray;
+use crate::v8::types::LocalValueGeneric;
 
 /// JS object
-pub struct V8LocalObject<'isolate_scope, 'isolate> {
+pub struct LocalObject<'isolate_scope, 'isolate> {
     pub(crate) inner_obj: *mut v8_local_object,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalObject<'isolate_scope, 'isolate> {
     /// Return the value of a given key
     #[must_use]
     pub fn get(
         &self,
-        ctx_scope: &V8ContextScope,
-        key: &V8LocalValue,
-    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+        ctx_scope: &ContextScope,
+        key: &LocalValueGeneric,
+    ) -> Option<LocalValueGeneric<'isolate_scope, 'isolate>> {
         let inner_val =
             unsafe { v8_ObjectGet(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
         if inner_val.is_null() {
             None
         } else {
-            Some(V8LocalValue {
+            Some(LocalValueGeneric {
                 inner_val,
                 isolate_scope: self.isolate_scope,
             })
@@ -46,14 +46,14 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     #[must_use]
     pub fn get_str_field(
         &self,
-        ctx_scope: &V8ContextScope,
+        ctx_scope: &ContextScope,
         key: &str,
-    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+    ) -> Option<LocalValueGeneric<'isolate_scope, 'isolate>> {
         let key = self.isolate_scope.new_string(key);
         self.get(ctx_scope, &key.to_value())
     }
 
-    pub fn set(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue, val: &V8LocalValue) {
+    pub fn set(&self, ctx_scope: &ContextScope, key: &LocalValueGeneric, val: &LocalValueGeneric) {
         unsafe {
             v8_ObjectSet(
                 ctx_scope.inner_ctx_ref,
@@ -66,13 +66,13 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
 
     pub fn set_native_function<
         T: for<'d, 'e> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d V8IsolateScope<'e>,
-            &V8ContextScope<'d, 'e>,
-        ) -> Option<V8LocalValue<'d, 'e>>,
+            &LocalNativeFunctionArgs<'d, 'e>,
+            &'d IsolateScope<'e>,
+            &ContextScope<'d, 'e>,
+        ) -> Option<LocalValueGeneric<'d, 'e>>,
     >(
         &self,
-        ctx_scope: &V8ContextScope,
+        ctx_scope: &ContextScope,
         key: &str,
         func: T,
     ) {
@@ -88,14 +88,14 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         };
     }
 
-    pub fn set_internal_field(&self, index: usize, val: &V8LocalValue) {
+    pub fn set_internal_field(&self, index: usize, val: &LocalValueGeneric) {
         unsafe { v8_ObjectSetInternalField(self.inner_obj, index, val.inner_val) };
     }
 
     #[must_use]
-    pub fn get_internal_field(&self, index: usize) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn get_internal_field(&self, index: usize) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ObjectGetInternalField(self.inner_obj, index) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
@@ -108,15 +108,15 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
 
     /// Convert the object into a generic JS value
     #[must_use]
-    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ObjectToValue(self.inner_obj) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
 
-    pub fn freeze(&self, ctx_scope: &V8ContextScope) {
+    pub fn freeze(&self, ctx_scope: &ContextScope) {
         unsafe { v8_ObjectFreeze(ctx_scope.inner_ctx_ref, self.inner_obj) };
     }
 
@@ -124,29 +124,29 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     #[must_use]
     pub fn get_property_names(
         &self,
-        ctx_scope: &V8ContextScope,
-    ) -> V8LocalArray<'isolate_scope, 'isolate> {
+        ctx_scope: &ContextScope,
+    ) -> LocalArray<'isolate_scope, 'isolate> {
         let inner_array =
             unsafe { v8_ValueGetPropertyNames(ctx_scope.inner_ctx_ref, self.inner_obj) };
-        V8LocalArray {
+        LocalArray {
             inner_array,
             isolate_scope: self.isolate_scope,
         }
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalObject<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalObject<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeObject(self.inner_obj) }
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
-    for V8LocalObject<'isolate_scope, 'isolate>
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueGeneric<'isolate_scope, 'isolate>>
+    for LocalObject<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: LocalValueGeneric<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_object() {
             return Err("Value is not an object");
         }

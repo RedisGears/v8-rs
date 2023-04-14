@@ -57,9 +57,8 @@ impl From<UserIndex> for RawIndex {
 mod json_path_tests {
     use crate as v8_rs;
     use crate::v8::{
-        isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
-        v8_native_function_template, v8_object, v8_set, v8_utf8,
-        v8_value::{self},
+        context_scope, isolate, isolate_scope, types, types::array, types::array_buffer,
+        types::native_function_template, types::object, types::set, types::utf8, v8_init,
     };
 
     use v8_derive::new_native_function;
@@ -83,14 +82,14 @@ mod json_path_tests {
     #[test]
     fn test_simple_isolate_creation() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let _i_scope = isolate.enter();
     }
 
     #[test]
     fn test_simple_string_creation() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let _s = isolate_scope.new_string("test");
     }
@@ -98,7 +97,7 @@ mod json_path_tests {
     #[test]
     fn test_simple_object_creation() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let _o = isolate_scope.new_object_template();
     }
@@ -106,7 +105,7 @@ mod json_path_tests {
     #[test]
     fn test_simple_native_function_creation() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let _o = isolate_scope.new_native_function_template(|_args, _isolate, _ctx_scope| {
             println!("test");
@@ -117,7 +116,7 @@ mod json_path_tests {
     #[test]
     fn test_native_function_args() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let native =
             isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
@@ -139,7 +138,7 @@ mod json_path_tests {
     #[test]
     fn test_native_function_call_js() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
         let foo1 = isolate_scope.new_native_function_template(|args, _isolate, ctx_scope| {
@@ -173,7 +172,7 @@ mod json_path_tests {
     #[test]
     fn test_native_function_call_with_args() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
         let foo1 = isolate_scope.new_native_function_template(|args, isolate_scope, ctx_scope| {
@@ -207,7 +206,7 @@ mod json_path_tests {
     #[test]
     fn test_native_function_raise_exception() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
         let native = isolate_scope.new_native_function_template(|_args, isolate, _ctx_scope| {
@@ -231,7 +230,7 @@ mod json_path_tests {
     #[test]
     fn test_native_function_raise_exception_error() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let code_str = isolate_scope
             .new_string("function foo(){throw new Error('this is an error!');};foo();");
@@ -251,7 +250,7 @@ mod json_path_tests {
     #[test]
     fn test_simple_code_run() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let code_str = isolate_scope.new_string("1+1");
         let ctx = isolate_scope.new_context(None);
@@ -265,7 +264,7 @@ mod json_path_tests {
     #[test]
     fn test_simple_module_run() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
         let mut globals = isolate_scope.new_object_template();
@@ -296,14 +295,14 @@ mod json_path_tests {
         let res = res.as_promise();
         assert_eq!(
             res.state(),
-            crate::v8::v8_promise::V8PromiseState::Fulfilled
+            crate::v8::types::promise::PromiseState::Fulfilled
         );
     }
 
     #[test]
     fn test_async_function() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let code_str = isolate_scope.new_string("async function f(){return 1}; f");
         let ctx = isolate_scope.new_context(None);
@@ -316,7 +315,7 @@ mod json_path_tests {
         let promise = async_res.as_promise();
         assert_eq!(
             promise.state(),
-            crate::v8::v8_promise::V8PromiseState::Fulfilled
+            crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
         let res_utf8 = promise_res.to_utf8().unwrap();
@@ -326,7 +325,7 @@ mod json_path_tests {
     #[test]
     fn test_promise_resolver() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let mut globals = isolate_scope.new_object_template();
         globals.add_native_function("foo", |_args, isolate_scope, ctx_scope| {
@@ -346,7 +345,7 @@ mod json_path_tests {
         let promise = res.as_promise();
         assert_eq!(
             promise.state(),
-            crate::v8::v8_promise::V8PromiseState::Fulfilled
+            crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
         let res_utf8 = promise_res.to_utf8().unwrap();
@@ -356,7 +355,7 @@ mod json_path_tests {
     #[test]
     fn test_compilation_error() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let code_str = isolate_scope.new_string("foo(");
         let ctx = isolate_scope.new_context(None);
@@ -373,7 +372,7 @@ mod json_path_tests {
     #[test]
     fn test_run_error() {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let code_str = isolate_scope.new_string("foo()");
         let ctx = isolate_scope.new_context(None);
@@ -390,17 +389,17 @@ mod json_path_tests {
 
     fn define_function_and_call<
         F: for<'d, 'e> Fn(
-            &v8_native_function_template::V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d isolate_scope::V8IsolateScope<'e>,
-            &v8_context_scope::V8ContextScope<'d, 'e>,
-        ) -> Option<v8_value::V8LocalValue<'d, 'e>>,
+            &types::native_function_template::LocalNativeFunctionArgs<'d, 'e>,
+            &'d isolate_scope::IsolateScope<'e>,
+            &context_scope::ContextScope<'d, 'e>,
+        ) -> Option<types::LocalValueGeneric<'d, 'e>>,
     >(
         code: &str,
         func_name: &str,
         f: F,
     ) -> Result<(), String> {
         initialize();
-        let isolate = isolate::V8Isolate::new();
+        let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let native = isolate_scope.new_native_function_template(f);
         let native_funciton_name = isolate_scope.new_string(func_name);
@@ -493,7 +492,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -507,7 +506,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -522,7 +521,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
                 assert_eq!(arg3, "test");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -537,7 +536,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
                 assert_eq!(arg3, true);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -548,9 +547,9 @@ mod json_path_tests {
         define_function_and_call(
             "test('test')",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: v8_utf8::V8LocalUtf8| {
+            new_native_function!(|_isolate, _ctx_scope, arg1: types::utf8::LocalUtf8| {
                 assert_eq!(arg1.as_str(), "test");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -561,9 +560,9 @@ mod json_path_tests {
         define_function_and_call(
             "test('test')",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: v8_value::V8LocalValue| {
+            new_native_function!(|_isolate, _ctx_scope, arg1: types::LocalValueGeneric| {
                 assert_eq!(arg1.to_utf8().unwrap().as_str(), "test");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -574,8 +573,8 @@ mod json_path_tests {
         define_function_and_call(
             "test(new Set())",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, _arg1: v8_set::V8LocalSet| {
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            new_native_function!(|_isolate, _ctx_scope, _arg1: types::set::LocalSet| {
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -586,9 +585,9 @@ mod json_path_tests {
         define_function_and_call(
             "test([1, 2])",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: v8_array::V8LocalArray| {
+            new_native_function!(|_isolate, _ctx_scope, arg1: types::array::LocalArray| {
                 assert_eq!(arg1.len(), 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -600,9 +599,9 @@ mod json_path_tests {
             "test(new Uint8Array([255, 255, 255, 255]).buffer)",
             "test",
             new_native_function!(
-                |_isolate, _ctx_scope, arg1: v8_array_buffer::V8LocalArrayBuffer| {
+                |_isolate, _ctx_scope, arg1: types::array_buffer::LocalArrayBuffer| {
                     assert_eq!(arg1.data(), &[255, 255, 255, 255]);
-                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
                 }
             ),
         )
@@ -615,9 +614,9 @@ mod json_path_tests {
             "test({'foo':'bar'})",
             "test",
             new_native_function!(
-                |isolate_scope: &isolate_scope::V8IsolateScope,
+                |isolate_scope: &isolate_scope::IsolateScope,
                  ctx_scope,
-                 arg1: v8_object::V8LocalObject| {
+                 arg1: types::object::LocalObject| {
                     assert_eq!(
                         arg1.get(ctx_scope, &isolate_scope.new_string("foo").to_value())
                             .unwrap()
@@ -626,7 +625,7 @@ mod json_path_tests {
                             .as_str(),
                         "bar"
                     );
-                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
                 }
             ),
         )
@@ -641,7 +640,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -659,7 +658,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -682,7 +681,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
                 assert_eq!(arg3, None);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -705,7 +704,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
                 assert_eq!(arg3, Some(2.2));
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -725,11 +724,11 @@ mod json_path_tests {
                  _ctx_scope,
                  arg1: i64,
                  arg2: i64,
-                 arg3: Option<v8_array::V8LocalArray>| {
+                 arg3: Option<types::array::LocalArray>| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
                     assert!(arg3.is_none());
-                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
                 }
             ),
         )
@@ -750,11 +749,11 @@ mod json_path_tests {
                  _ctx_scope,
                  arg1: i64,
                  arg2: i64,
-                 arg3: Option<v8_array::V8LocalArray>| {
+                 arg3: Option<types::array::LocalArray>| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
                     assert_eq!(arg3.unwrap().len(), 2);
-                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
                 }
             ),
         )
@@ -775,11 +774,11 @@ mod json_path_tests {
                  _ctx_scope,
                  arg1: i64,
                  arg2: i64,
-                 arg3: Option<v8_value::V8LocalValue>| {
+                 arg3: Option<types::LocalValueGeneric>| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
                     assert_eq!(arg3.unwrap().is_array(), true);
-                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
                 }
             ),
         )
@@ -795,9 +794,9 @@ mod json_path_tests {
         define_function_and_call(
             "test(1, 'foo', [1, 2])",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, arg: Vec<v8_value::V8LocalValue>| {
+            new_native_function!(|_isolate, _ctx_scope, arg: Vec<types::LocalValueGeneric>| {
                 assert_eq!(arg.len(), 3);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -809,10 +808,10 @@ mod json_path_tests {
             "test(1, 'foo', [1, 2])",
             "test",
             new_native_function!(
-                |_isolate, _ctx_scope, arg1: i64, arg2: Vec<v8_value::V8LocalValue>| {
+                |_isolate, _ctx_scope, arg1: i64, arg2: Vec<types::LocalValueGeneric>| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2.len(), 2);
-                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
                 }
             ),
         )
@@ -827,7 +826,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: Vec<i64>| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2.len(), 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");

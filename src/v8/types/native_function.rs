@@ -8,28 +8,28 @@ use crate::v8_c_raw::bindings::{
     v8_FreeNativeFunction, v8_NativeFunctionToValue, v8_local_native_function,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::LocalValueGeneric;
 
 /// Native function object
-pub struct V8LocalNativeFunction<'isolate_scope, 'isolate> {
+pub struct LocalNativeFunction<'isolate_scope, 'isolate> {
     pub(crate) inner_func: *mut v8_local_native_function,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalNativeFunction<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalNativeFunction<'isolate_scope, 'isolate> {
     /// Convert the native function into a JS generic value
     #[must_use]
-    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_NativeFunctionToValue(self.inner_func) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalNativeFunction<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalNativeFunction<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeNativeFunction(self.inner_func) }
     }

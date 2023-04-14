@@ -9,50 +9,50 @@ use crate::v8_c_raw::bindings::{
     v8_ResolverToValue, v8_local_resolver,
 };
 
-use crate::v8::isolate_scope::V8IsolateScope;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_promise::V8LocalPromise;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate_scope::IsolateScope;
+use crate::v8::types::promise::LocalPromise;
+use crate::v8::types::LocalValueGeneric;
 
 /// JS resolver object
-pub struct V8LocalResolver<'isolate_scope, 'isolate> {
+pub struct LocalResolver<'isolate_scope, 'isolate> {
     pub(crate) inner_resolver: *mut v8_local_resolver,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
 }
 
-impl<'isolate_scope, 'isolate> V8LocalResolver<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> LocalResolver<'isolate_scope, 'isolate> {
     /// Get the promise object assosiated with this resolver.
     #[must_use]
-    pub fn get_promise(&self) -> V8LocalPromise<'isolate_scope, 'isolate> {
+    pub fn get_promise(&self) -> LocalPromise<'isolate_scope, 'isolate> {
         let inner_promise = unsafe { v8_ResolverGetPromise(self.inner_resolver) };
-        V8LocalPromise {
+        LocalPromise {
             inner_promise,
             isolate_scope: self.isolate_scope,
         }
     }
 
     /// Resolve the resolver with the given JS value.
-    pub fn resolve(&self, ctx_scope: &V8ContextScope, val: &V8LocalValue) {
+    pub fn resolve(&self, ctx_scope: &ContextScope, val: &LocalValueGeneric) {
         unsafe { v8_ResolverResolve(ctx_scope.inner_ctx_ref, self.inner_resolver, val.inner_val) };
     }
 
     /// Reject the resolver with the given JS value.
-    pub fn reject(&self, ctx_scope: &V8ContextScope, val: &V8LocalValue) {
+    pub fn reject(&self, ctx_scope: &ContextScope, val: &LocalValueGeneric) {
         unsafe { v8_ResolverReject(ctx_scope.inner_ctx_ref, self.inner_resolver, val.inner_val) };
     }
 
     /// Convert the resolver into a generic JS value.
     #[must_use]
-    pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ResolverToValue(self.inner_resolver) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for V8LocalResolver<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for LocalResolver<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         unsafe { v8_FreeResolver(self.inner_resolver) }
     }

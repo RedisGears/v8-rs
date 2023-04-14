@@ -12,27 +12,27 @@ use crate::v8_c_raw::bindings::{
     v8_ValueFromLong, v8_handlers_scope, v8_isolate_scope, v8_local_value,
 };
 
-use crate::v8::isolate::V8Isolate;
-use crate::v8::try_catch::V8TryCatch;
-use crate::v8::v8_array::V8LocalArray;
-use crate::v8::v8_array_buffer::V8LocalArrayBuffer;
-use crate::v8::v8_context::V8Context;
-use crate::v8::v8_context_scope::V8ContextScope;
-use crate::v8::v8_external_data::V8LocalExternalData;
-use crate::v8::v8_native_function_template::{
-    free_pd, native_basic_function, V8LocalNativeFunctionArgs, V8LocalNativeFunctionTemplate,
+use crate::v8::context::Context;
+use crate::v8::context_scope::ContextScope;
+use crate::v8::isolate::Isolate;
+use crate::v8::types::array::LocalArray;
+use crate::v8::types::array_buffer::LocalArrayBuffer;
+use crate::v8::types::external_data::LocalExternalData;
+use crate::v8::types::native_function_template::{
+    free_pd, native_basic_function, LocalNativeFunctionArgs, LocalNativeFunctionTemplate,
 };
-use crate::v8::v8_object::V8LocalObject;
-use crate::v8::v8_object_template::V8LocalObjectTemplate;
-use crate::v8::v8_set::V8LocalSet;
-use crate::v8::v8_string::V8LocalString;
-use crate::v8::v8_unlocker::V8Unlocker;
-use crate::v8::v8_value::V8LocalValue;
+use crate::v8::types::object::LocalObject;
+use crate::v8::types::object_template::LocalObjectTemplate;
+use crate::v8::types::set::LocalSet;
+use crate::v8::types::string::LocalString;
+use crate::v8::types::try_catch::TryCatch;
+use crate::v8::types::unlocker::Unlocker;
+use crate::v8::types::LocalValueGeneric;
 
 use std::os::raw::{c_char, c_void};
 
-pub struct V8IsolateScope<'isolate> {
-    pub(crate) isolate: &'isolate V8Isolate,
+pub struct IsolateScope<'isolate> {
+    pub(crate) isolate: &'isolate Isolate,
     inner_handlers_scope: *mut v8_handlers_scope,
     inner_isolate_scope: *mut v8_isolate_scope,
 }
@@ -41,11 +41,11 @@ extern "C" fn free_external_data<T>(arg1: *mut ::std::os::raw::c_void) {
     unsafe { Box::from_raw(arg1 as *mut T) };
 }
 
-impl<'isolate> V8IsolateScope<'isolate> {
-    pub(crate) fn new(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
+impl<'isolate> IsolateScope<'isolate> {
+    pub(crate) fn new(isolate: &'isolate Isolate) -> IsolateScope<'isolate> {
         let inner_isolate_scope = unsafe { v8_IsolateEnter(isolate.inner_isolate) };
         let inner_handlers_scope = unsafe { v8_NewHandlersScope(isolate.inner_isolate) };
-        V8IsolateScope {
+        IsolateScope {
             isolate,
             inner_handlers_scope,
             inner_isolate_scope,
@@ -54,12 +54,12 @@ impl<'isolate> V8IsolateScope<'isolate> {
 
     /// Creating a new context for JS code invocation.
     #[must_use]
-    pub fn new_context(&self, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
-        V8Context::new(self.isolate, globals)
+    pub fn new_context(&self, globals: Option<&LocalObjectTemplate>) -> Context {
+        Context::new(self.isolate, globals)
     }
 
     /// Raise an exception with the given local generic value.
-    pub fn raise_exception(&self, exception: V8LocalValue) {
+    pub fn raise_exception(&self, exception: LocalValueGeneric) {
         unsafe { v8_IsolateRaiseException(self.isolate.inner_isolate, exception.inner_val) };
     }
 
@@ -81,9 +81,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     #[must_use]
     pub fn new_try_catch<'isolate_scope>(
         &'isolate_scope self,
-    ) -> V8TryCatch<'isolate_scope, 'isolate> {
+    ) -> TryCatch<'isolate_scope, 'isolate> {
         let inner_trycatch = unsafe { v8_NewTryCatch(self.isolate.inner_isolate) };
-        V8TryCatch {
+        TryCatch {
             inner_trycatch,
             isolate_scope: self,
         }
@@ -94,7 +94,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_string<'isolate_scope>(
         &'isolate_scope self,
         s: &str,
-    ) -> V8LocalString<'isolate_scope, 'isolate> {
+    ) -> LocalString<'isolate_scope, 'isolate> {
         let inner_string = unsafe {
             v8_NewString(
                 self.isolate.inner_isolate,
@@ -102,7 +102,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
                 s.len(),
             )
         };
-        V8LocalString {
+        LocalString {
             inner_string,
             isolate_scope: self,
         }
@@ -112,15 +112,15 @@ impl<'isolate> V8IsolateScope<'isolate> {
     #[must_use]
     pub fn new_array<'isolate_scope>(
         &'isolate_scope self,
-        values: &[&V8LocalValue],
-    ) -> V8LocalArray<'isolate_scope, 'isolate> {
+        values: &[&LocalValueGeneric],
+    ) -> LocalArray<'isolate_scope, 'isolate> {
         let args = values
             .iter()
             .map(|v| v.inner_val)
             .collect::<Vec<*mut v8_local_value>>();
         let ptr = args.as_ptr();
         let inner_array = unsafe { v8_NewArray(self.isolate.inner_isolate, ptr, values.len()) };
-        V8LocalArray {
+        LocalArray {
             inner_array,
             isolate_scope: self,
         }
@@ -130,7 +130,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_array_buffer<'isolate_scope>(
         &'isolate_scope self,
         buff: &[u8],
-    ) -> V8LocalArrayBuffer<'isolate_scope, 'isolate> {
+    ) -> LocalArrayBuffer<'isolate_scope, 'isolate> {
         let inner_array_buffer = unsafe {
             v8_NewArrayBuffer(
                 self.isolate.inner_isolate,
@@ -138,7 +138,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
                 buff.len(),
             )
         };
-        V8LocalArrayBuffer {
+        LocalArrayBuffer {
             inner_array_buffer,
             isolate_scope: self,
         }
@@ -147,9 +147,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     #[must_use]
     pub fn new_object<'isolate_scope>(
         &'isolate_scope self,
-    ) -> V8LocalObject<'isolate_scope, 'isolate> {
+    ) -> LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_NewObject(self.isolate.inner_isolate) };
-        V8LocalObject {
+        LocalObject {
             inner_obj,
             isolate_scope: self,
         }
@@ -159,7 +159,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_external_data<'isolate_scope, T>(
         &'isolate_scope self,
         data: T,
-    ) -> V8LocalExternalData<'isolate_scope, 'isolate> {
+    ) -> LocalExternalData<'isolate_scope, 'isolate> {
         let data = Box::into_raw(Box::new(data));
         let inner_ext = unsafe {
             v8_NewExternalData(
@@ -168,16 +168,16 @@ impl<'isolate> V8IsolateScope<'isolate> {
                 Some(free_external_data::<T>),
             )
         };
-        V8LocalExternalData {
+        LocalExternalData {
             inner_ext,
             isolate_scope: self,
         }
     }
 
     #[must_use]
-    pub fn new_set<'isolate_scope>(&'isolate_scope self) -> V8LocalSet<'isolate_scope, 'isolate> {
+    pub fn new_set<'isolate_scope>(&'isolate_scope self) -> LocalSet<'isolate_scope, 'isolate> {
         let inner_set = unsafe { v8_NewSet(self.isolate.inner_isolate) };
-        V8LocalSet {
+        LocalSet {
             inner_set,
             isolate_scope: self,
         }
@@ -187,9 +187,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_bool<'isolate_scope>(
         &'isolate_scope self,
         val: bool,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_NewBool(self.isolate.inner_isolate, val as i32) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self,
         }
@@ -198,9 +198,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_long<'isolate_scope>(
         &'isolate_scope self,
         val: i64,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ValueFromLong(self.isolate.inner_isolate, val) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self,
         }
@@ -209,9 +209,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_double<'isolate_scope>(
         &'isolate_scope self,
         val: f64,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ValueFromDouble(self.isolate.inner_isolate, val) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self,
         }
@@ -219,9 +219,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
 
     pub fn new_null<'isolate_scope>(
         &'isolate_scope self,
-    ) -> V8LocalValue<'isolate_scope, 'isolate> {
+    ) -> LocalValueGeneric<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_NewNull(self.isolate.inner_isolate) };
-        V8LocalValue {
+        LocalValueGeneric {
             inner_val,
             isolate_scope: self,
         }
@@ -231,9 +231,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     #[must_use]
     pub fn new_object_template<'isolate_scope>(
         &'isolate_scope self,
-    ) -> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
+    ) -> LocalObjectTemplate<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_NewObjectTemplate(self.isolate.inner_isolate) };
-        V8LocalObjectTemplate {
+        LocalObjectTemplate {
             inner_obj,
             isolate_scope: self,
         }
@@ -243,14 +243,14 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub fn new_native_function_template<
         'isolate_scope,
         T: for<'d, 'e> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d V8IsolateScope<'e>,
-            &V8ContextScope<'d, 'e>,
-        ) -> Option<V8LocalValue<'d, 'e>>,
+            &LocalNativeFunctionArgs<'d, 'e>,
+            &'d IsolateScope<'e>,
+            &ContextScope<'d, 'e>,
+        ) -> Option<LocalValueGeneric<'d, 'e>>,
     >(
         &'isolate_scope self,
         func: T,
-    ) -> V8LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
+    ) -> LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
         let inner_func = unsafe {
             v8_NewNativeFunctionTemplate(
                 self.isolate.inner_isolate,
@@ -259,7 +259,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
                 Some(free_pd::<T>),
             )
         };
-        V8LocalNativeFunctionTemplate {
+        LocalNativeFunctionTemplate {
             inner_func,
             isolate_scope: self,
         }
@@ -270,16 +270,16 @@ impl<'isolate> V8IsolateScope<'isolate> {
     #[must_use]
     pub fn new_unlocker<'isolate_scope>(
         &'isolate_scope self,
-    ) -> V8Unlocker<'isolate_scope, 'isolate> {
+    ) -> Unlocker<'isolate_scope, 'isolate> {
         let inner_unlocker = unsafe { v8_NewUnlocker(self.isolate.inner_isolate) };
-        V8Unlocker {
+        Unlocker {
             inner_unlocker,
             _isolate_scope: self,
         }
     }
 }
 
-impl<'isolate> Drop for V8IsolateScope<'isolate> {
+impl<'isolate> Drop for IsolateScope<'isolate> {
     fn drop(&mut self) {
         unsafe {
             v8_FreeHandlersScope(self.inner_handlers_scope);
