@@ -17,7 +17,7 @@ use std::os::raw::c_void;
 use std::ptr::NonNull;
 
 use crate::v8::isolate_scope::IsolateScope;
-use crate::v8::types::module::LocalModule;
+use crate::v8::types::module::UninitialisedLocalModule;
 use crate::v8::types::native_function::LocalNativeFunction;
 use crate::v8::types::native_function_template::free_pd;
 use crate::v8::types::native_function_template::native_basic_function;
@@ -96,7 +96,7 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         name: &LocalString,
         code: &LocalString,
         is_module: bool,
-    ) -> Option<LocalModule<'isolate_scope, 'isolate>> {
+    ) -> Option<UninitialisedLocalModule<'isolate_scope, 'isolate>> {
         let inner_val = unsafe {
             v8_CompileAsModule(
                 self.inner_ctx_ref,
@@ -108,7 +108,7 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         if inner_val.is_null() {
             None
         } else {
-            Some(LocalModule(ScopedValue {
+            Some(UninitialisedLocalModule(ScopedValue {
                 inner_val,
                 isolate_scope: self.isolate_scope,
             }))

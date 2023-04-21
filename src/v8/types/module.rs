@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! A collection of types of data which represent module objects.
 
 use crate::v8_c_raw::bindings::{
     v8_ContextRefGetIsolate, v8_EvaluateModule, v8_FreeModule, v8_FreePersistedModule,
@@ -22,11 +23,19 @@ use std::ptr;
 use super::any::LocalValueAny;
 use super::Value;
 
-/// JS script object
-pub struct LocalModule<'isolate_scope, 'isolate>(
+/// A module in JavaScript is a collection of functions and objects.
+/// An unitialised module cannot be evaluated and must be initialised
+/// prior to any use.
+pub struct UninitialisedLocalModule<'isolate_scope, 'isolate>(
     pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_module>,
 );
 
+/// An initialised module.
+pub struct InitialisedLocalModule<'isolate_scope, 'isolate>(
+    pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_module>,
+);
+
+/// The same as [LocalModule] but not tied to an [IsolateScope].
 pub struct PersistedModule {
     pub(crate) inner_persisted_module: *mut v8_persisted_module,
 }
@@ -37,7 +46,8 @@ pub(crate) extern "C" fn load_module<
         &'isolate ContextScope<'isolate_scope, 'c>,
         &'isolate LocalString<'isolate_scope, 'c>,
         i64,
-    ) -> Option<LocalModule<'isolate_scope, 'c>>,
+    )
+        -> Option<UninitialisedLocalModule<'isolate_scope, 'c>>,
 >(
     v8_ctx_ref: *mut v8_context_ref,
     name: *mut v8_local_string,
@@ -69,19 +79,21 @@ pub(crate) extern "C" fn load_module<
     }
 }
 
-impl<'isolate_scope, 'isolate> LocalModule<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> UninitialisedLocalModule<'isolate_scope, 'isolate> {
+    /// Initialises the module. A module must be initialised before
+    /// it can be evaluated.
     pub fn initialize<
         T: for<'c, 'd, 'e> Fn(
             &'c IsolateScope<'e>,
             &'c ContextScope<'d, 'e>,
             &'c LocalString<'d, 'e>,
             i64,
-        ) -> Option<LocalModule<'d, 'e>>,
+        ) -> Option<UninitialisedLocalModule<'d, 'e>>,
     >(
         &self,
         ctx_scope: &ContextScope,
         load_module_callback: T,
-    ) -> bool {
+    ) -> Option<InitialisedLocalModule<'isolate_scope, 'isolate>> {
         ctx_scope.set_private_data_raw(RawIndex(0), &load_module_callback);
         let res = unsafe {
             v8_InitiateModule(
@@ -91,9 +103,36 @@ impl<'isolate_scope, 'isolate> LocalModule<'isolate_scope, 'isolate> {
             )
         };
         ctx_scope.reset_private_data_raw(RawIndex(0));
-        res != 0
+        if res != 0 {
+            Some(InitialisedLocalModule(ScopedValue {
+                inner_val: self.0.inner_val,
+                isolate_scope: self.0.isolate_scope,
+            }))
+        } else {
+            None
+        }
     }
 
+    /// Persists the module by allowing it outlive the [IsolateScope] it
+    /// has by converting it into a [PersistedModule] for the provided
+    /// [Isolate].
+    pub fn persist(&self, isolate: &Isolate) -> PersistedModule {
+        let inner_persisted_module =
+            unsafe { v8_ModulePersist(isolate.inner_isolate, self.0.inner_val) };
+        PersistedModule {
+            inner_persisted_module,
+        }
+    }
+
+    /// Returns the hash value for the module.
+    pub fn get_identity_hash(&self) -> i64 {
+        unsafe { v8_ModuleGetIdentityHash(self.0.inner_val) as i64 }
+    }
+}
+
+impl<'isolate_scope, 'isolate> InitialisedLocalModule<'isolate_scope, 'isolate> {
+    /// Evalutes the module and returns a value if it was returned by
+    /// the module during the evaluation.
     pub fn evaluate(&self, ctx_scope: &ContextScope) -> Option<Value<'isolate_scope, 'isolate>> {
         let res = unsafe { v8_EvaluateModule(self.0.inner_val, ctx_scope.inner_ctx_ref) };
         if res.is_null() {
@@ -108,40 +147,37 @@ impl<'isolate_scope, 'isolate> LocalModule<'isolate_scope, 'isolate> {
             )
         }
     }
-
-    /// Convert the module into a generic JS value
-    pub fn persist(&self, isolate: &Isolate) -> PersistedModule {
-        let inner_persisted_module =
-            unsafe { v8_ModulePersist(isolate.inner_isolate, self.0.inner_val) };
-        PersistedModule {
-            inner_persisted_module,
-        }
-    }
-
-    pub fn get_identity_hash(&self) -> i64 {
-        unsafe { v8_ModuleGetIdentityHash(self.0.inner_val) as i64 }
-    }
 }
 
 impl PersistedModule {
-    pub fn to_local<'isolate_scope, 'isolate>(
+    /// Returns a local module object, which is tied to the passed
+    /// [IsolateScope].
+    pub fn as_local<'isolate_scope, 'isolate>(
         &self,
         isolate_scope: &'isolate_scope IsolateScope<'isolate>,
-    ) -> LocalModule<'isolate_scope, 'isolate> {
+    ) -> UninitialisedLocalModule<'isolate_scope, 'isolate> {
         let inner_val = unsafe {
             v8_ModuleToLocal(
                 isolate_scope.isolate.inner_isolate,
                 self.inner_persisted_module,
             )
         };
-        LocalModule(ScopedValue {
+        UninitialisedLocalModule(ScopedValue {
             inner_val,
             isolate_scope,
         })
     }
 }
 
-impl<'isolate_scope, 'isolate> Drop for LocalModule<'isolate_scope, 'isolate> {
+impl<'isolate_scope, 'isolate> Drop for UninitialisedLocalModule<'isolate_scope, 'isolate> {
+    fn drop(&mut self) {
+        if !self.0.inner_val.is_null() {
+            unsafe { v8_FreeModule(self.0.inner_val) }
+        }
+    }
+}
+
+impl<'isolate_scope, 'isolate> Drop for InitialisedLocalModule<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         if !self.0.inner_val.is_null() {
             unsafe { v8_FreeModule(self.0.inner_val) }

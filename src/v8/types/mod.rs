@@ -3,6 +3,24 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! This module contains the supported JavaScript V8 value types.
+//! See [Value], [LocalValueAny] types for the generic implementations.
+//!
+//! The objects cannot be created without having an isolate scope within
+//! which they should be created. All the objects' lifetimes are limited
+//! to the isolate scope lifetime they were created for.
+//!
+//! All the concrete types are a subtype of a more generic base type
+//! [ScopedValue] which contains the isolate scope and a generic type
+//! argument for the value.
+//!
+//! Sometimes, the values are convertible to and from each other, either
+//! via the [From] or [TryFrom] traits, depending on the possibility of
+//! such a conversion.
+//!
+//! The most commonly used type is the V8's type-erased
+//! [v8_c_raw::bindings::v8_local_value] mutable pointer, which is
+//! represented by [LocalValueAny].
 
 use crate::v8_c_raw::bindings::{v8_NewBool, v8_NewNull, v8_ValueFromDouble, v8_ValueFromLong};
 

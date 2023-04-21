@@ -20,9 +20,18 @@ pub(crate) type OutOfMemoryErrorCallback = dyn Fn(&str, bool);
 pub(crate) static mut FATAL_ERROR_CALLBACK: Option<Box<FatalErrorCallback>> = None;
 pub(crate) static mut OOM_ERROR_CALLBACK: Option<Box<OutOfMemoryErrorCallback>> = None;
 
+/// A value-missing-aware conversion for types. If a value passed to the
+/// [OptionalTryFrom::optional_try_from] method may be considered
+/// absent, the [Option::None] is returned instead of an error; errors
+/// are only returned when there **is** a value (it is present) but the
+/// conversion itself fails.
 pub trait OptionalTryFrom<T>: Sized {
+    /// The error type for the conversion failure.
     type Error;
 
+    /// Returns an [Option] of the value indicating the presence or
+    /// absence of the value, and [Result::Err] in case there was an
+    /// error during the conversion.
     fn optional_try_from(value: T) -> Result<Option<Self>, Self::Error>;
 }
 

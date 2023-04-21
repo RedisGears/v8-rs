@@ -3,6 +3,10 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! The Javascript array buffer facilities, represented by the type
+//! [LocalArrayBuffer]. The types [super::LocalArray] and
+//! [LocalArrayBuffer] are different, the first stores valid javascript
+//! objects, the latter stores bytes.
 
 use crate::v8_c_raw::bindings::{
     v8_ArrayBufferGetData, v8_ArrayBufferToValue, v8_FreeArrayBuffer, v8_NewArrayBuffer,
@@ -38,6 +42,7 @@ impl<'isolate_scope, 'isolate> LocalArrayBuffer<'isolate_scope, 'isolate> {
         })
     }
 
+    /// Returns a byte slice to the stored data.
     pub fn data(&self) -> &[u8] {
         let mut size = 0;
         let data = unsafe { v8_ArrayBufferGetData(self.0.inner_val, &mut size as *mut usize) };

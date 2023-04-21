@@ -5,7 +5,7 @@
  */
 //! V8-rs is a crate containing bindings to the V8 C++ API.
 
-// #![deny(missing_docs)]
+#![warn(missing_docs)]
 
 /// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
@@ -326,16 +326,18 @@ mod json_path_tests {
         let module = ctx_scope
             .compile_as_module(&code_name, &code_str, true)
             .unwrap();
-        module.initialize(
-            &ctx_scope,
-            |isolate_scope, ctx_scope, name_to_load, _identity_hash| {
-                let code_str = isolate_scope
-                    .create_string("export let msg = \"foo\";")
-                    .try_into()
-                    .unwrap();
-                ctx_scope.compile_as_module(name_to_load, &code_str, true)
-            },
-        );
+        let module = module
+            .initialize(
+                &ctx_scope,
+                |isolate_scope, ctx_scope, name_to_load, _identity_hash| {
+                    let code_str = isolate_scope
+                        .create_string("export let msg = \"foo\";")
+                        .try_into()
+                        .unwrap();
+                    ctx_scope.compile_as_module(name_to_load, &code_str, true)
+                },
+            )
+            .unwrap();
         let res = module.evaluate(&ctx_scope).unwrap();
         let res: LocalPromise = res.try_into().unwrap();
         assert_eq!(
