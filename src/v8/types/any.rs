@@ -24,8 +24,9 @@ use crate::{
 
 use super::{
     array::LocalArray, array_buffer::LocalArrayBuffer, external_data::LocalExternalData,
-    object::LocalObject, persistent::PersistValue, promise::LocalPromise, resolver::LocalResolver,
-    set::LocalSet, string::LocalString, utf8::LocalUtf8, ScopedValue,
+    object::LocalObject, persistent::PersistValue, promise::LocalPromise,
+    resolver::LocalPromiseResolver, set::LocalSet, string::LocalString, utf8::LocalUtf8,
+    ScopedValue,
 };
 
 /// A type the objects of [LocalValueAny] can hold.
@@ -286,9 +287,9 @@ impl<'isolate_scope, 'isolate> LocalValueAny<'isolate_scope, 'isolate> {
     /// In case the target type is not checked before this function is
     /// invoked and the value is not of this target type, the results
     /// are unknown.
-    pub unsafe fn as_resolver(&self) -> LocalResolver<'isolate_scope, 'isolate> {
+    pub unsafe fn as_resolver(&self) -> LocalPromiseResolver<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ValueAsResolver(self.0.inner_val) };
-        LocalResolver(ScopedValue {
+        LocalPromiseResolver(ScopedValue {
             inner_val,
             isolate_scope: self.0.isolate_scope,
         })

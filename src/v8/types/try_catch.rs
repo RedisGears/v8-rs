@@ -3,6 +3,9 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! Contains the `try-catch` facilities for JavaScript. It is possible
+//! to assign a custom, external Rust-based exception handler via
+//! [TryCatch].
 
 use crate::v8::isolate_scope::IsolateScope;
 use crate::v8_c_raw::bindings::{
@@ -15,7 +18,7 @@ use crate::v8::types::ScopedValue;
 
 use super::any::LocalValueAny;
 
-/// An object that responsible to catch any exception which raised
+/// An object that is responsible to catch any exception which raised
 /// during the JS code invocation.
 #[derive(Debug, Clone)]
 pub struct TryCatch<'isolate_scope, 'isolate>(
@@ -62,6 +65,7 @@ impl<'isolate_scope, 'isolate> TryCatch<'isolate_scope, 'isolate> {
         }))
     }
 
+    /// Returns `true` if the try_catch has terminated.
     pub fn has_terminated(&self) -> bool {
         let res = unsafe { v8_TryCatchHasTerminated(self.0.inner_val) };
         res > 0

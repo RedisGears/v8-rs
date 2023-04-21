@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! The JavaScript string facilities.
 
 use crate::v8_c_raw::bindings::{
     v8_FreeString, v8_NewString, v8_StringToStringObject, v8_StringToValue, v8_local_string,
@@ -14,7 +15,7 @@ use crate::v8::types::ScopedValue;
 
 use super::any::LocalValueAny;
 
-/// JS string object
+/// A JavaScript string object.
 #[derive(Debug, Clone)]
 pub struct LocalString<'isolate_scope, 'isolate>(
     pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_string>,

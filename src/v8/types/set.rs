@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! Contains the JavaScript set facilities.
 
 use crate::v8_c_raw::bindings::{v8_FreeSet, v8_NewSet, v8_SetAdd, v8_SetToValue, v8_local_set};
 
@@ -29,6 +30,7 @@ impl<'isolate_scope, 'isolate> LocalSet<'isolate_scope, 'isolate> {
         })
     }
 
+    /// Adds new element to the set.
     pub fn add(&self, ctx_scope: &ContextScope, val: &LocalValueAny) {
         unsafe { v8_SetAdd(ctx_scope.inner_ctx_ref, self.0.inner_val, val.0.inner_val) };
     }

@@ -23,7 +23,7 @@ use crate::v8::types::native_function_template::free_pd;
 use crate::v8::types::native_function_template::native_basic_function;
 use crate::v8::types::native_function_template::LocalNativeFunctionArgs;
 use crate::v8::types::object::LocalObject;
-use crate::v8::types::resolver::LocalResolver;
+use crate::v8::types::resolver::LocalPromiseResolver;
 use crate::v8::types::script::LocalScript;
 use crate::v8::types::string::LocalString;
 use crate::v8::types::ScopedValue;
@@ -181,9 +181,9 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
     }
 
     /// Create a new resolver object
-    pub fn create_resolver(&self) -> LocalResolver<'isolate_scope, 'isolate> {
+    pub fn create_resolver(&self) -> LocalPromiseResolver<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_NewResolver(self.inner_ctx_ref) };
-        LocalResolver(ScopedValue {
+        LocalPromiseResolver(ScopedValue {
             inner_val,
             isolate_scope: self.isolate_scope,
         })

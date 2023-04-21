@@ -3,6 +3,8 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! Contains the UTF-8 object representation facilities, represented by
+//! the [LocalUtf8] type.
 
 use crate::v8::types::ScopedValue;
 use crate::v8_c_raw::bindings::{v8_FreeUtf8, v8_ToUtf8, v8_Utf8PtrLen, v8_utf8_value};
@@ -14,7 +16,7 @@ use std::str;
 use super::any::LocalValueAny;
 use super::string::LocalString;
 
-/// JS utf8 object
+/// An UTF-8 string representation of an object.
 pub struct LocalUtf8<'isolate_scope, 'isolate>(
     pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_utf8_value>,
 );

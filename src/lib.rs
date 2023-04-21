@@ -341,7 +341,7 @@ mod json_path_tests {
         let res = module.evaluate(&ctx_scope).unwrap();
         let res: LocalPromise = res.try_into().unwrap();
         assert_eq!(
-            res.state(),
+            res.state().unwrap(),
             crate::v8::types::promise::PromiseState::Fulfilled
         );
     }
@@ -364,7 +364,7 @@ mod json_path_tests {
         let async_res = res.call(&ctx_scope, None).unwrap();
         let promise: LocalPromise = async_res.try_into().unwrap();
         assert_eq!(
-            promise.state(),
+            promise.state().unwrap(),
             crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
@@ -400,7 +400,7 @@ mod json_path_tests {
         println!("{}", s.as_str());
         let promise: LocalPromise = res.try_into().unwrap();
         assert_eq!(
-            promise.state(),
+            promise.state().unwrap(),
             crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();

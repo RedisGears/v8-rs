@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! Contains the JavaScript promise facilities.
 
 use crate::v8_c_raw::bindings::{
     v8_FreePromise, v8_PromiseGetResult, v8_PromiseGetState,
@@ -16,16 +17,22 @@ use crate::v8::types::ScopedValue;
 
 use super::any::LocalValueAny;
 
+/// A promise is an object representing an eventual completion
+/// (successful or not) of an asynchronous operation and its resulting
+/// value.
 pub struct LocalPromise<'isolate_scope, 'isolate>(
     pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_promise>,
 );
 
+/// The states a [LocalPromise] can be in.
 #[derive(Debug, PartialEq)]
 pub enum PromiseState {
+    /// The operation has completed successfully.
     Fulfilled,
+    /// The operation has failed.
     Rejected,
+    /// The initial state of a promise - pending execution.
     Pending,
-    Unknown,
 }
 
 impl<'isolate_scope, 'isolate> LocalPromise<'isolate_scope, 'isolate> {
@@ -47,17 +54,15 @@ impl<'isolate_scope, 'isolate> LocalPromise<'isolate_scope, 'isolate> {
     }
 
     /// Return the state on the promise object.
-    pub fn state(&self) -> PromiseState {
+    #[allow(non_upper_case_globals)]
+    pub fn state(&self) -> Option<PromiseState> {
         let inner_state = unsafe { v8_PromiseGetState(self.0.inner_val) };
-        if inner_state == v8_PromiseState_v8_PromiseState_Fulfilled {
-            PromiseState::Fulfilled
-        } else if inner_state == v8_PromiseState_v8_PromiseState_Rejected {
-            PromiseState::Rejected
-        } else if inner_state == v8_PromiseState_v8_PromiseState_Pending {
-            PromiseState::Pending
-        } else {
-            PromiseState::Unknown
-        }
+        Some(match inner_state {
+            v8_PromiseState_v8_PromiseState_Fulfilled => PromiseState::Fulfilled,
+            v8_PromiseState_v8_PromiseState_Rejected => PromiseState::Rejected,
+            v8_PromiseState_v8_PromiseState_Pending => PromiseState::Pending,
+            _ => return None,
+        })
     }
 
     /// Return the result of the promise object.
