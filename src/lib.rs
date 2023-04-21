@@ -56,6 +56,14 @@ impl From<UserIndex> for RawIndex {
 #[cfg(test)]
 mod json_path_tests {
     use crate as v8_rs;
+    use crate::v8::types::any::LocalValueAny;
+    use crate::v8::types::native_function::LocalNativeFunction;
+    use crate::v8::types::native_function_template::LocalNativeFunctionTemplate;
+    use crate::v8::types::object_template::LocalObjectTemplate;
+    use crate::v8::types::promise::LocalPromise;
+    use crate::v8::types::try_catch::TryCatch;
+    use crate::v8::types::utf8::LocalUtf8;
+    use crate::v8::types::Value;
     use crate::v8::{
         context_scope, isolate, isolate_scope, types, types::array, types::array_buffer,
         types::native_function_template, types::object, types::set, types::utf8, v8_init,
@@ -91,7 +99,7 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let _s = isolate_scope.new_string("test");
+        let _s = isolate_scope.create_string("test");
     }
 
     #[test]
@@ -99,7 +107,7 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let _o = isolate_scope.new_object_template();
+        let _o = isolate_scope.create_object_template();
     }
 
     #[test]
@@ -107,7 +115,7 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let _o = isolate_scope.new_native_function_template(|_args, _isolate, _ctx_scope| {
+        let _o = isolate_scope.create_native_function_template(|_args, _isolate, _ctx_scope| {
             println!("test");
             None
         });
@@ -118,18 +126,21 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let native =
-            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+        let native = isolate_scope
+            .create_native_function_template(|args, _isolate_scope, _ctx_scope| {
                 let v = args.get(0);
-                let s = v.to_utf8().unwrap();
+                let s: LocalUtf8 = v.try_into().unwrap();
                 assert_eq!(s.as_str(), "2");
                 None
-            });
-        let native_funciton_name = isolate_scope.new_string("foo");
-        let mut globals = isolate_scope.new_object_template();
+            })
+            .try_into()
+            .unwrap();
+        let native_funciton_name = isolate_scope.create_string("foo").try_into().unwrap();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate_scope.new_string("foo(2)");
-        let ctx = isolate_scope.new_context(Some(&globals));
+        let code_str = isolate_scope.create_string("foo(2)").try_into().unwrap();
+        let ctx = isolate_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
@@ -141,29 +152,38 @@ mod json_path_tests {
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
-        let foo1 = isolate_scope.new_native_function_template(|args, _isolate, ctx_scope| {
-            let v = args.get(0);
-            let _res = v.call(ctx_scope, None);
-            None
-        });
-        let foo1_name = isolate_scope.new_string("foo1");
+        let foo1 = isolate_scope
+            .create_native_function_template(|args, _isolate, ctx_scope| {
+                let v: LocalValueAny = args.get(0).try_into().unwrap();
+                let _res = v.call(ctx_scope, None);
+                None
+            })
+            .try_into()
+            .unwrap();
+        let foo1_name = isolate_scope.create_string("foo1").try_into().unwrap();
 
-        let foo2 =
-            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+        let foo2 = isolate_scope
+            .create_native_function_template(|args, _isolate_scope, _ctx_scope| {
                 let v = args.get(0);
-                let s = v.to_utf8().unwrap();
+                let s: LocalUtf8 = v.try_into().unwrap();
                 assert_eq!(s.as_str(), "2");
                 None
-            });
-        let foo2_name = isolate_scope.new_string("foo2");
+            })
+            .try_into()
+            .unwrap();
+        let foo2_name = isolate_scope.create_string("foo2").try_into().unwrap();
 
-        let mut globals = isolate_scope.new_object_template();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.set_native_function(&foo1_name, &foo1);
         globals.set_native_function(&foo2_name, &foo2);
 
-        let code_str = isolate_scope.new_string("foo1(()=>{foo2(2)})");
+        let code_str = isolate_scope
+            .create_string("foo1(()=>{foo2(2)})")
+            .try_into()
+            .unwrap();
         let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
+        let ctx = i_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
@@ -175,29 +195,38 @@ mod json_path_tests {
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
-        let foo1 = isolate_scope.new_native_function_template(|args, isolate_scope, ctx_scope| {
-            let foo = isolate_scope.new_string("foo");
-            let v = args.get(0);
-            let _res = v.call(ctx_scope, Some(&[&foo.to_value()]));
-            None
-        });
-        let foo1_name = isolate_scope.new_string("foo1");
+        let foo1 = isolate_scope
+            .create_native_function_template(|args, isolate_scope, ctx_scope| {
+                let foo: LocalValueAny = isolate_scope.create_string("foo").try_into().unwrap();
+                let v: LocalValueAny = args.get(0).try_into().unwrap();
+                let _res = v.call(ctx_scope, Some(&[&foo.into()]));
+                None
+            })
+            .try_into()
+            .unwrap();
+        let foo1_name = isolate_scope.create_string("foo1").try_into().unwrap();
 
-        let foo2 =
-            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+        let foo2 = isolate_scope
+            .create_native_function_template(|args, _isolate_scope, _ctx_scope| {
                 let v = args.get(0);
-                let s = v.to_utf8().unwrap();
+                let s: LocalUtf8 = v.try_into().unwrap();
                 assert_eq!(s.as_str(), "foo");
                 None
-            });
-        let foo2_name = isolate_scope.new_string("foo2");
+            })
+            .try_into()
+            .unwrap();
+        let foo2_name = isolate_scope.create_string("foo2").try_into().unwrap();
 
-        let mut globals = isolate_scope.new_object_template();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.set_native_function(&foo1_name, &foo1);
         globals.set_native_function(&foo2_name, &foo2);
 
-        let code_str = isolate_scope.new_string("foo1((a)=>{foo2(a)})");
-        let ctx = isolate_scope.new_context(Some(&globals));
+        let code_str = isolate_scope
+            .create_string("foo1((a)=>{foo2(a)})")
+            .try_into()
+            .unwrap();
+        let ctx = isolate_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         script.run(&ctx_scope).unwrap();
@@ -209,21 +238,25 @@ mod json_path_tests {
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
-        let native = isolate_scope.new_native_function_template(|_args, isolate, _ctx_scope| {
-            isolate.raise_exception_str("this is an error");
-            None
-        });
-        let native_funciton_name = isolate_scope.new_string("foo");
-        let mut globals = isolate_scope.new_object_template();
+        let native = isolate_scope
+            .create_native_function_template(|_args, isolate, _ctx_scope| {
+                isolate.raise_exception_str("this is an error");
+                None
+            })
+            .try_into()
+            .unwrap();
+        let native_funciton_name = isolate_scope.create_string("foo").try_into().unwrap();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate_scope.new_string("foo(2)");
-        let ctx = isolate_scope.new_context(Some(&globals));
+        let code_str = isolate_scope.create_string("foo(2)").try_into().unwrap();
+        let ctx = isolate_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
-        let trycatch = isolate_scope.new_try_catch();
+        let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         assert!(script.run(&ctx_scope).is_none());
         let exception = trycatch.get_exception();
-        let exception_msg = exception.to_utf8().unwrap();
+        let exception_msg = exception.into_utf8().unwrap();
         assert_eq!(exception_msg.as_str(), "this is an error");
     }
 
@@ -233,17 +266,19 @@ mod json_path_tests {
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
         let code_str = isolate_scope
-            .new_string("function foo(){throw new Error('this is an error!');};foo();");
-        let ctx = isolate_scope.new_context(None);
+            .create_string("function foo(){throw new Error('this is an error!');};foo();")
+            .try_into()
+            .unwrap();
+        let ctx = isolate_scope.create_context(None);
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
-        let trycatch = isolate_scope.new_try_catch();
+        let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         assert!(script.run(&ctx_scope).is_none());
         let exception = trycatch.get_exception();
-        let exception_msg = exception.to_utf8().unwrap();
+        let exception_msg = exception.into_utf8().unwrap();
         assert_eq!(exception_msg.as_str(), "Error: this is an error!");
         let trace = trycatch.get_trace(&ctx_scope);
-        let trace_str = trace.unwrap().to_utf8().unwrap();
+        let trace_str = trace.unwrap().into_utf8().unwrap();
         assert!(trace_str.as_str().contains("at foo"));
     }
 
@@ -252,12 +287,12 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let code_str = isolate_scope.new_string("1+1");
-        let ctx = isolate_scope.new_context(None);
+        let code_str = isolate_scope.create_string("1+1").try_into().unwrap();
+        let ctx = isolate_scope.create_context(None);
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
-        let res_utf8 = res.to_utf8().unwrap();
+        let res_utf8: LocalUtf8 = res.try_into().unwrap();
         assert_eq!(res_utf8.as_str(), "2");
     }
 
@@ -267,18 +302,25 @@ mod json_path_tests {
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
 
-        let mut globals = isolate_scope.new_object_template();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.add_native_function("log", |args, _isolate_scope, _ctx_scope| {
             assert_eq!(args.len(), 1);
             let v = args.get(0);
-            let res_utf8 = v.to_utf8().unwrap();
+            let res_utf8: LocalUtf8 = v.try_into().unwrap();
             assert_eq!(res_utf8.as_str(), "foo");
             None
         });
 
-        let code_name = isolate_scope.new_string("base_module");
-        let code_str = isolate_scope.new_string("import {msg} from \"foo\"; log(msg);");
-        let ctx = isolate_scope.new_context(Some(&globals));
+        let code_name = isolate_scope
+            .create_string("base_module")
+            .try_into()
+            .unwrap();
+        let code_str = isolate_scope
+            .create_string("import {msg} from \"foo\"; log(msg);")
+            .try_into()
+            .unwrap();
+        let ctx = isolate_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
 
         let module = ctx_scope
@@ -287,12 +329,15 @@ mod json_path_tests {
         module.initialize(
             &ctx_scope,
             |isolate_scope, ctx_scope, name_to_load, _identity_hash| {
-                let code_str = isolate_scope.new_string("export let msg = \"foo\";");
+                let code_str = isolate_scope
+                    .create_string("export let msg = \"foo\";")
+                    .try_into()
+                    .unwrap();
                 ctx_scope.compile_as_module(name_to_load, &code_str, true)
             },
         );
         let res = module.evaluate(&ctx_scope).unwrap();
-        let res = res.as_promise();
+        let res: LocalPromise = res.try_into().unwrap();
         assert_eq!(
             res.state(),
             crate::v8::types::promise::PromiseState::Fulfilled
@@ -304,21 +349,24 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let code_str = isolate_scope.new_string("async function f(){return 1}; f");
-        let ctx = isolate_scope.new_context(None);
+        let code_str = isolate_scope
+            .create_string("async function f(){return 1}; f")
+            .try_into()
+            .unwrap();
+        let ctx = isolate_scope.create_context(None);
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope).unwrap();
+        let res: LocalValueAny = res.try_into().unwrap();
         assert!(res.is_async_function());
         let async_res = res.call(&ctx_scope, None).unwrap();
-        assert!(async_res.is_promise());
-        let promise = async_res.as_promise();
+        let promise: LocalPromise = async_res.try_into().unwrap();
         assert_eq!(
             promise.state(),
             crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.to_utf8().unwrap();
+        let res_utf8 = promise_res.into_utf8().unwrap();
         assert_eq!(res_utf8.as_str(), "1");
     }
 
@@ -327,28 +375,34 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let mut globals = isolate_scope.new_object_template();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.add_native_function("foo", |_args, isolate_scope, ctx_scope| {
-            let resolver = ctx_scope.new_resolver();
-            resolver.resolve(&ctx_scope, &isolate_scope.new_string("foo").to_value());
+            let resolver = ctx_scope.create_resolver();
+            resolver.resolve(
+                &ctx_scope,
+                &isolate_scope.create_string("foo").try_into().unwrap(),
+            );
             let promise = resolver.get_promise();
-            let promise_val = promise.to_value();
-            Some(promise_val)
+            // let promise_val = promise.to_value();
+            Some(promise.try_into().unwrap())
         });
-        let code_str = isolate_scope.new_string("foo()");
-        let ctx = isolate_scope.new_context(Some(&globals));
+        let code_str = isolate_scope.create_string("foo()").try_into().unwrap();
+        let ctx = isolate_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
-        let script = ctx_scope.compile(&code_str).unwrap();
+        let script = ctx_scope
+            .compile(&code_str)
+            .expect("Couldn't compile script");
         let res = script.run(&ctx_scope).unwrap();
-        println!("{}", res.to_utf8().unwrap().as_str());
-        assert!(res.is_promise());
-        let promise = res.as_promise();
+        let s: LocalUtf8 = res.clone().try_into().unwrap();
+        println!("{}", s.as_str());
+        let promise: LocalPromise = res.try_into().unwrap();
         assert_eq!(
             promise.state(),
             crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.to_utf8().unwrap();
+        let res_utf8 = promise_res.into_utf8().unwrap();
         assert_eq!(res_utf8.as_str(), "foo");
     }
 
@@ -357,14 +411,14 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let code_str = isolate_scope.new_string("foo(");
-        let ctx = isolate_scope.new_context(None);
+        let code_str = isolate_scope.create_string("foo(").try_into().unwrap();
+        let ctx = isolate_scope.create_context(None);
         let ctx_scope = ctx.enter(&isolate_scope);
-        let trycatch = isolate_scope.new_try_catch();
+        let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         let script = ctx_scope.compile(&code_str);
         assert!(script.is_none());
         assert_eq!(
-            trycatch.get_exception().to_utf8().unwrap().as_str(),
+            trycatch.get_exception().into_utf8().unwrap().as_str(),
             "SyntaxError: Unexpected end of input"
         );
     }
@@ -374,15 +428,15 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let code_str = isolate_scope.new_string("foo()");
-        let ctx = isolate_scope.new_context(None);
+        let code_str = isolate_scope.create_string("foo()").try_into().unwrap();
+        let ctx = isolate_scope.create_context(None);
         let ctx_scope = ctx.enter(&isolate_scope);
-        let trycatch = isolate_scope.new_try_catch();
+        let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         let script = ctx_scope.compile(&code_str).unwrap();
         let res = script.run(&ctx_scope);
         assert!(res.is_none());
         assert_eq!(
-            trycatch.get_exception().to_utf8().unwrap().as_str(),
+            trycatch.get_exception().into_utf8().unwrap().as_str(),
             "ReferenceError: foo is not defined"
         );
     }
@@ -392,7 +446,7 @@ mod json_path_tests {
             &types::native_function_template::LocalNativeFunctionArgs<'d, 'e>,
             &'d isolate_scope::IsolateScope<'e>,
             &context_scope::ContextScope<'d, 'e>,
-        ) -> Option<types::LocalValueGeneric<'d, 'e>>,
+        ) -> Option<LocalValueAny<'d, 'e>>,
     >(
         code: &str,
         func_name: &str,
@@ -401,20 +455,24 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::Isolate::new();
         let isolate_scope = isolate.enter();
-        let native = isolate_scope.new_native_function_template(f);
-        let native_funciton_name = isolate_scope.new_string(func_name);
-        let mut globals = isolate_scope.new_object_template();
+        let native: LocalNativeFunctionTemplate = isolate_scope
+            .create_native_function_template(f)
+            .try_into()
+            .unwrap();
+        let native_funciton_name = isolate_scope.create_string(func_name).try_into().unwrap();
+        let mut globals: LocalObjectTemplate =
+            isolate_scope.create_object_template().try_into().unwrap();
         globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate_scope.new_string(code);
-        let ctx = isolate_scope.new_context(Some(&globals));
+        let code_str = isolate_scope.create_string(code).try_into().unwrap();
+        let ctx = isolate_scope.create_context(Some(&globals));
         let ctx_scope = ctx.enter(&isolate_scope);
         let script = ctx_scope.compile(&code_str).unwrap();
-        let trycatch = isolate_scope.new_try_catch();
+        let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         let res = match script.run(&ctx_scope) {
             Some(_res) => Ok(()),
             None => Err(trycatch
                 .get_exception()
-                .to_utf8()
+                .into_utf8()
                 .unwrap()
                 .as_str()
                 .to_string()),
@@ -425,7 +483,11 @@ mod json_path_tests {
     #[test]
     fn test_value_is_object() {
         define_function_and_call("foo({})", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_object());
+            if let Value::Object(_) = args.get(0) {
+                assert!(true);
+            } else {
+                assert!(false, "The value should have been an object!");
+            }
             None
         })
         .expect("Got error on function run");
@@ -434,7 +496,11 @@ mod json_path_tests {
     #[test]
     fn test_value_is_function() {
         define_function_and_call("foo(()=>{})", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_function());
+            if let Value::Other(any) = args.get(0) {
+                assert!(any.is_function());
+            } else {
+                assert!(false, "The value should have been an object!");
+            }
             None
         })
         .expect("Got error on function run");
@@ -446,7 +512,11 @@ mod json_path_tests {
             "foo(async function(){})",
             "foo",
             |args, _isolate, _ctx_scope| {
-                assert!(args.get(0).is_async_function());
+                if let Value::Other(any) = args.get(0) {
+                    assert!(any.is_async_function());
+                } else {
+                    assert!(false, "The value should have been an object!");
+                }
                 None
             },
         )
@@ -456,7 +526,11 @@ mod json_path_tests {
     #[test]
     fn test_value_is_string() {
         define_function_and_call("foo(\"foo\")", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_string());
+            if let Value::String(_) = args.get(0) {
+                assert!(true);
+            } else {
+                assert!(false, "The value should have been a string!");
+            }
             None
         })
         .expect("Got error on function run");
@@ -465,7 +539,11 @@ mod json_path_tests {
     #[test]
     fn test_value_is_number() {
         define_function_and_call("foo(1)", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_number());
+            if let Value::Double(_) = args.get(0) {
+                assert!(true);
+            } else {
+                assert!(false, "The value should have been a number!");
+            }
             None
         })
         .expect("Got error on function run");
@@ -477,7 +555,11 @@ mod json_path_tests {
             "foo(async function(){}())",
             "foo",
             |args, _isolate, _ctx_scope| {
-                assert!(args.get(0).is_promise());
+                if let Value::Other(any) = args.get(0) {
+                    assert!(any.is_promise());
+                } else {
+                    assert!(false, "The value should have been a number!");
+                }
                 None
             },
         )
@@ -492,7 +574,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -506,7 +588,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -521,7 +603,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
                 assert_eq!(arg3, "test");
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -536,7 +618,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
                 assert_eq!(arg3, true);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -549,7 +631,7 @@ mod json_path_tests {
             "test",
             new_native_function!(|_isolate, _ctx_scope, arg1: types::utf8::LocalUtf8| {
                 assert_eq!(arg1.as_str(), "test");
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -560,9 +642,10 @@ mod json_path_tests {
         define_function_and_call(
             "test('test')",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: types::LocalValueGeneric| {
-                assert_eq!(arg1.to_utf8().unwrap().as_str(), "test");
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+            new_native_function!(|_isolate, _ctx_scope, arg1: Value| {
+                let utf8 = LocalUtf8::try_from(arg1).unwrap();
+                assert_eq!(utf8.as_ref(), "test");
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -574,7 +657,7 @@ mod json_path_tests {
             "test(new Set())",
             "test",
             new_native_function!(|_isolate, _ctx_scope, _arg1: types::set::LocalSet| {
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -587,7 +670,7 @@ mod json_path_tests {
             "test",
             new_native_function!(|_isolate, _ctx_scope, arg1: types::array::LocalArray| {
                 assert_eq!(arg1.len(), 2);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -601,7 +684,7 @@ mod json_path_tests {
             new_native_function!(
                 |_isolate, _ctx_scope, arg1: types::array_buffer::LocalArrayBuffer| {
                     assert_eq!(arg1.data(), &[255, 255, 255, 255]);
-                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                    Result::<Option<LocalValueAny>, String>::Ok(None)
                 }
             ),
         )
@@ -617,15 +700,15 @@ mod json_path_tests {
                 |isolate_scope: &isolate_scope::IsolateScope,
                  ctx_scope,
                  arg1: types::object::LocalObject| {
-                    assert_eq!(
-                        arg1.get(ctx_scope, &isolate_scope.new_string("foo").to_value())
-                            .unwrap()
-                            .to_utf8()
-                            .unwrap()
-                            .as_str(),
-                        "bar"
-                    );
-                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                    let value = arg1
+                        .get(
+                            ctx_scope,
+                            &isolate_scope.create_string("foo").try_into().unwrap(),
+                        )
+                        .unwrap();
+                    let string = String::try_from(value).unwrap();
+                    assert_eq!(&string, "bar");
+                    Result::<Option<LocalValueAny>, String>::Ok(None)
                 }
             ),
         )
@@ -640,7 +723,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -658,7 +741,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -681,7 +764,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
                 assert_eq!(arg3, None);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -704,7 +787,7 @@ mod json_path_tests {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2);
                 assert_eq!(arg3, Some(2.2));
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");
@@ -728,7 +811,7 @@ mod json_path_tests {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
                     assert!(arg3.is_none());
-                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                    Result::<Option<LocalValueAny>, String>::Ok(None)
                 }
             ),
         )
@@ -752,8 +835,13 @@ mod json_path_tests {
                  arg3: Option<types::array::LocalArray>| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
-                    assert_eq!(arg3.unwrap().len(), 2);
-                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                    if let Some(array) = arg3 {
+                        assert_eq!(array.len(), 2);
+                        assert!(true);
+                    } else {
+                        assert!(false, "Should have been an array.");
+                    }
+                    Result::<Option<LocalValueAny>, String>::Ok(None)
                 }
             ),
         )
@@ -766,23 +854,24 @@ mod json_path_tests {
 
     #[test]
     fn test_native_function_macro_optional_arguments_value() {
-        let err = define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(
-                |_isolate,
-                 _ctx_scope,
-                 arg1: i64,
-                 arg2: i64,
-                 arg3: Option<types::LocalValueGeneric>| {
-                    assert_eq!(arg1, 1);
-                    assert_eq!(arg2, 2);
-                    assert_eq!(arg3.unwrap().is_array(), true);
-                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect_err("Did not get error when suppose to.");
+        let err =
+            define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(
+                    |_isolate, _ctx_scope, arg1: i64, arg2: i64, arg3: Option<types::Value>| {
+                        assert_eq!(arg1, 1);
+                        assert_eq!(arg2, 2);
+                        if let Some(Value::Array(_)) = arg3 {
+                            assert!(true);
+                        } else {
+                            assert!(false, "Should have been an array.");
+                        }
+                        Result::<Option<LocalValueAny>, String>::Ok(None)
+                    }
+                ),
+            )
+            .expect_err("Did not get error when suppose to.");
         assert_eq!(
             err,
             "Can not convert value at position 1 into i64. Value is not long."
@@ -794,9 +883,9 @@ mod json_path_tests {
         define_function_and_call(
             "test(1, 'foo', [1, 2])",
             "test",
-            new_native_function!(|_isolate, _ctx_scope, arg: Vec<types::LocalValueGeneric>| {
+            new_native_function!(|_isolate, _ctx_scope, arg: Vec<types::Value>| {
                 assert_eq!(arg.len(), 3);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect("Got error on function run");
@@ -807,13 +896,11 @@ mod json_path_tests {
         define_function_and_call(
             "test(1, 'foo', [1, 2])",
             "test",
-            new_native_function!(
-                |_isolate, _ctx_scope, arg1: i64, arg2: Vec<types::LocalValueGeneric>| {
-                    assert_eq!(arg1, 1);
-                    assert_eq!(arg2.len(), 2);
-                    Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
-                }
-            ),
+            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: Vec<types::Value>| {
+                assert_eq!(arg1, 1);
+                assert_eq!(arg2.len(), 2);
+                Result::<Option<LocalValueAny>, String>::Ok(None)
+            }),
         )
         .expect("Got error on function run");
     }
@@ -826,7 +913,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: Vec<i64>| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2.len(), 2);
-                Result::<Option<types::LocalValueGeneric>, String>::Ok(None)
+                Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
         .expect_err("Did not get error when suppose to.");

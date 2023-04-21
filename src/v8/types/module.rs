@@ -15,15 +15,17 @@ use crate::v8::context_scope::ContextScope;
 use crate::v8::isolate::Isolate;
 use crate::v8::isolate_scope::IsolateScope;
 use crate::v8::types::LocalString;
-use crate::v8::types::LocalValueGeneric;
+use crate::v8::types::ScopedValue;
 use std::os::raw::c_int;
 use std::ptr;
 
+use super::any::LocalValueAny;
+use super::Value;
+
 /// JS script object
-pub struct LocalModule<'isolate_scope, 'isolate> {
-    pub(crate) inner_module: *mut v8_local_module,
-    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
-}
+pub struct LocalModule<'isolate_scope, 'isolate>(
+    pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_module>,
+);
 
 pub struct PersistedModule {
     pub(crate) inner_persisted_module: *mut v8_persisted_module,
@@ -51,16 +53,16 @@ pub(crate) extern "C" fn load_module<
         exit_on_drop: false,
         isolate_scope: &isolate_scope,
     };
-    let name_obj = LocalString {
-        inner_string: name,
+    let name_obj = LocalString(ScopedValue {
+        inner_val: name,
         isolate_scope: &isolate_scope,
-    };
+    });
     let load_callback: &T = ctx_scope.get_private_data_mut_raw(RawIndex(0)).unwrap();
     let res = load_callback(&isolate_scope, &ctx_scope, &name_obj, identity_hash as i64);
     match res {
         Some(mut r) => {
-            let inner_module = r.inner_module;
-            r.inner_module = ptr::null_mut();
+            let inner_module = r.0.inner_val;
+            r.0.inner_val = ptr::null_mut();
             inner_module
         }
         None => ptr::null_mut(),
@@ -83,7 +85,7 @@ impl<'isolate_scope, 'isolate> LocalModule<'isolate_scope, 'isolate> {
         ctx_scope.set_private_data_raw(RawIndex(0), &load_module_callback);
         let res = unsafe {
             v8_InitiateModule(
-                self.inner_module,
+                self.0.inner_val,
                 ctx_scope.inner_ctx_ref,
                 Some(load_module::<T>),
             )
@@ -92,33 +94,32 @@ impl<'isolate_scope, 'isolate> LocalModule<'isolate_scope, 'isolate> {
         res != 0
     }
 
-    pub fn evaluate(
-        &self,
-        ctx_scope: &ContextScope,
-    ) -> Option<LocalValueGeneric<'isolate_scope, 'isolate>> {
-        let res = unsafe { v8_EvaluateModule(self.inner_module, ctx_scope.inner_ctx_ref) };
+    pub fn evaluate(&self, ctx_scope: &ContextScope) -> Option<Value<'isolate_scope, 'isolate>> {
+        let res = unsafe { v8_EvaluateModule(self.0.inner_val, ctx_scope.inner_ctx_ref) };
         if res.is_null() {
             None
         } else {
-            Some(LocalValueGeneric {
-                inner_val: res,
-                isolate_scope: self.isolate_scope,
-            })
+            Some(
+                LocalValueAny(ScopedValue {
+                    inner_val: res,
+                    isolate_scope: self.0.isolate_scope,
+                })
+                .into(),
+            )
         }
     }
 
     /// Convert the module into a generic JS value
-    #[must_use]
     pub fn persist(&self, isolate: &Isolate) -> PersistedModule {
         let inner_persisted_module =
-            unsafe { v8_ModulePersist(isolate.inner_isolate, self.inner_module) };
+            unsafe { v8_ModulePersist(isolate.inner_isolate, self.0.inner_val) };
         PersistedModule {
             inner_persisted_module,
         }
     }
 
     pub fn get_identity_hash(&self) -> i64 {
-        unsafe { v8_ModuleGetIdentityHash(self.inner_module) as i64 }
+        unsafe { v8_ModuleGetIdentityHash(self.0.inner_val) as i64 }
     }
 }
 
@@ -127,23 +128,23 @@ impl PersistedModule {
         &self,
         isolate_scope: &'isolate_scope IsolateScope<'isolate>,
     ) -> LocalModule<'isolate_scope, 'isolate> {
-        let inner_module = unsafe {
+        let inner_val = unsafe {
             v8_ModuleToLocal(
                 isolate_scope.isolate.inner_isolate,
                 self.inner_persisted_module,
             )
         };
-        LocalModule {
-            inner_module,
+        LocalModule(ScopedValue {
+            inner_val,
             isolate_scope,
-        }
+        })
     }
 }
 
 impl<'isolate_scope, 'isolate> Drop for LocalModule<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
-        if !self.inner_module.is_null() {
-            unsafe { v8_FreeModule(self.inner_module) }
+        if !self.0.inner_val.is_null() {
+            unsafe { v8_FreeModule(self.0.inner_val) }
         }
     }
 }

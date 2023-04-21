@@ -4,6 +4,7 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
+use crate::v8_c_raw::bindings::v8_NewNativeFunctionTemplate;
 use crate::v8_c_raw::bindings::{
     v8_ArgsGet, v8_ArgsGetSelf, v8_FreeNativeFunctionTemplate, v8_GetCurrentCtxRef,
     v8_GetCurrentIsolate, v8_NativeFunctionTemplateToFunction, v8_local_native_function_template,
@@ -18,12 +19,44 @@ use crate::v8::isolate::Isolate;
 use crate::v8::isolate_scope::IsolateScope;
 use crate::v8::types::native_function::LocalNativeFunction;
 use crate::v8::types::LocalObject;
-use crate::v8::types::LocalValueGeneric;
+use crate::v8::types::ScopedValue;
 
-/// Native function template object
-pub struct LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
-    pub(crate) inner_func: *mut v8_local_native_function_template,
-    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+use super::any::LocalValueAny;
+use super::Value;
+
+/// Native function template object.
+#[derive(Debug, Clone)]
+pub struct LocalNativeFunctionTemplate<'isolate_scope, 'isolate>(
+    pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_native_function_template>,
+);
+
+impl<'isolate_scope, 'isolate> LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
+    /// Creates a new local native function template within the
+    /// provided [IsolateScope].
+    pub fn new<
+        T: for<'d, 'e> Fn(
+            &LocalNativeFunctionArgs<'d, 'e>,
+            &'d IsolateScope<'e>,
+            &ContextScope<'d, 'e>,
+        ) -> Option<LocalValueAny<'d, 'e>>,
+    >(
+        function: T,
+        isolate_scope: &'isolate_scope IsolateScope<'isolate>,
+    ) -> Self {
+        let inner_val = unsafe {
+            v8_NewNativeFunctionTemplate(
+                isolate_scope.isolate.inner_isolate,
+                Some(native_basic_function::<T>),
+                Box::into_raw(Box::new(function)).cast(),
+                Some(free_pd::<T>),
+            )
+        };
+
+        Self(ScopedValue {
+            inner_val,
+            isolate_scope,
+        })
+    }
 }
 
 /// Native function args
@@ -38,7 +71,7 @@ pub(crate) extern "C" fn free_pd<
         &LocalNativeFunctionArgs<'d, 'c>,
         &'d IsolateScope<'c>,
         &ContextScope<'d, 'c>,
-    ) -> Option<LocalValueGeneric<'d, 'c>>,
+    ) -> Option<LocalValueAny<'d, 'c>>,
 >(
     pd: *mut c_void,
 ) {
@@ -52,7 +85,7 @@ pub(crate) extern "C" fn native_basic_function<
         &LocalNativeFunctionArgs<'d, 'c>,
         &'d IsolateScope<'c>,
         &ContextScope<'d, 'c>,
-    ) -> Option<LocalValueGeneric<'d, 'c>>,
+    ) -> Option<LocalValueAny<'d, 'c>>,
 >(
     args: *mut v8_local_value_arr,
     len: usize,
@@ -85,8 +118,8 @@ pub(crate) extern "C" fn native_basic_function<
 
     match res {
         Some(mut r) => {
-            let inner_val = r.inner_val;
-            r.inner_val = ptr::null_mut();
+            let inner_val = r.0.inner_val;
+            r.0.inner_val = ptr::null_mut();
             inner_val
         }
         None => ptr::null_mut(),
@@ -98,13 +131,13 @@ impl<'isolate_scope, 'isolate> LocalNativeFunctionTemplate<'isolate_scope, 'isol
         &self,
         ctx_scope: &ContextScope,
     ) -> LocalNativeFunction<'isolate_scope, 'isolate> {
-        let inner_func = unsafe {
-            v8_NativeFunctionTemplateToFunction(ctx_scope.inner_ctx_ref, self.inner_func)
+        let inner_val = unsafe {
+            v8_NativeFunctionTemplateToFunction(ctx_scope.inner_ctx_ref, self.0.inner_val)
         };
-        LocalNativeFunction {
-            inner_func,
-            isolate_scope: self.isolate_scope,
-        }
+        LocalNativeFunction(ScopedValue {
+            inner_val,
+            isolate_scope: self.0.isolate_scope,
+        })
     }
 }
 
@@ -112,13 +145,14 @@ impl<'isolate_scope, 'isolate> LocalNativeFunctionArgs<'isolate_scope, 'isolate>
     /// Return the i-th argument from the native function args
     /// # Panics
     #[must_use]
-    pub fn get(&self, i: usize) -> LocalValueGeneric<'isolate_scope, 'isolate> {
+    pub fn get(&self, i: usize) -> Value<'isolate_scope, 'isolate> {
         assert!(i <= self.len);
         let val = unsafe { v8_ArgsGet(self.inner_arr, i) };
-        LocalValueGeneric {
+        LocalValueAny(ScopedValue {
             inner_val: val,
             isolate_scope: self.isolate_scope,
-        }
+        })
+        .into()
     }
 
     /// Return the amount of arguments passed to the native function
@@ -136,11 +170,11 @@ impl<'isolate_scope, 'isolate> LocalNativeFunctionArgs<'isolate_scope, 'isolate>
     /// Checks if the list of args is empty
     #[must_use]
     pub fn get_self(&self) -> LocalObject<'isolate_scope, 'isolate> {
-        let val = unsafe { v8_ArgsGetSelf(self.inner_arr) };
-        LocalObject {
-            inner_obj: val,
+        let inner_val = unsafe { v8_ArgsGetSelf(self.inner_arr) };
+        LocalObject(ScopedValue {
+            inner_val,
             isolate_scope: self.isolate_scope,
-        }
+        })
     }
 
     pub const fn persist(&self) {}
@@ -161,7 +195,7 @@ pub struct V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
 impl<'isolate_scope, 'isolate, 'a> Iterator
     for V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>
 {
-    type Item = LocalValueGeneric<'isolate_scope, 'isolate>;
+    type Item = Value<'isolate_scope, 'isolate>;
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.args.len() {
             return None;
@@ -174,6 +208,6 @@ impl<'isolate_scope, 'isolate, 'a> Iterator
 
 impl<'isolate_scope, 'isolate> Drop for LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
-        unsafe { v8_FreeNativeFunctionTemplate(self.inner_func) }
+        unsafe { v8_FreeNativeFunctionTemplate(self.0.inner_val) }
     }
 }

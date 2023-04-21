@@ -56,7 +56,7 @@ unsafe impl Send for Context {}
 impl Context {
     pub(crate) fn new(isolate: &Isolate, globals: Option<&LocalObjectTemplate>) -> Self {
         let inner_ctx = match globals {
-            Some(g) => unsafe { v8_NewContext(isolate.inner_isolate, g.inner_obj) },
+            Some(g) => unsafe { v8_NewContext(isolate.inner_isolate, g.0.inner_val) },
             None => unsafe { v8_NewContext(isolate.inner_isolate, ptr::null_mut()) },
         };
         Self { inner_ctx }

@@ -11,14 +11,14 @@ use crate::v8_c_raw::bindings::{
 };
 
 use crate::v8::context_scope::ContextScope;
-use crate::v8::isolate_scope::IsolateScope;
 use crate::v8::types::native_function::LocalNativeFunction;
-use crate::v8::types::LocalValueGeneric;
+use crate::v8::types::ScopedValue;
 
-pub struct LocalPromise<'isolate_scope, 'isolate> {
-    pub(crate) inner_promise: *mut v8_local_promise,
-    pub(crate) isolate_scope: &'isolate_scope IsolateScope<'isolate>,
-}
+use super::any::LocalValueAny;
+
+pub struct LocalPromise<'isolate_scope, 'isolate>(
+    pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_promise>,
+);
 
 #[derive(Debug, PartialEq)]
 pub enum PromiseState {
@@ -38,19 +38,17 @@ impl<'isolate_scope, 'isolate> LocalPromise<'isolate_scope, 'isolate> {
     ) {
         unsafe {
             v8_PromiseThen(
-                self.inner_promise,
+                self.0.inner_val,
                 ctx.inner_ctx_ref,
-                resolve.inner_func,
-                reject.inner_func,
+                resolve.0.inner_val,
+                reject.0.inner_val,
             );
         };
     }
 
-    /// Return the state on the promise object
-    /// # Panics
-    #[must_use]
+    /// Return the state on the promise object.
     pub fn state(&self) -> PromiseState {
-        let inner_state = unsafe { v8_PromiseGetState(self.inner_promise) };
+        let inner_state = unsafe { v8_PromiseGetState(self.0.inner_val) };
         if inner_state == v8_PromiseState_v8_PromiseState_Fulfilled {
             PromiseState::Fulfilled
         } else if inner_state == v8_PromiseState_v8_PromiseState_Rejected {
@@ -58,34 +56,49 @@ impl<'isolate_scope, 'isolate> LocalPromise<'isolate_scope, 'isolate> {
         } else if inner_state == v8_PromiseState_v8_PromiseState_Pending {
             PromiseState::Pending
         } else {
-            panic!("bad promise state");
+            PromiseState::Unknown
         }
     }
 
     /// Return the result of the promise object.
     /// Only applicable if the promise object was resolved/rejected.
-    #[must_use]
-    pub fn get_result(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
-        let inner_val = unsafe { v8_PromiseGetResult(self.inner_promise) };
-        LocalValueGeneric {
+    pub fn get_result(&self) -> LocalValueAny<'isolate_scope, 'isolate> {
+        let inner_val = unsafe { v8_PromiseGetResult(self.0.inner_val) };
+        LocalValueAny(ScopedValue {
             inner_val,
-            isolate_scope: self.isolate_scope,
-        }
-    }
-
-    /// Convert the promise object into a generic JS value
-    #[must_use]
-    pub fn to_value(&self) -> LocalValueGeneric<'isolate_scope, 'isolate> {
-        let inner_val = unsafe { v8_PromiseToValue(self.inner_promise) };
-        LocalValueGeneric {
-            inner_val,
-            isolate_scope: self.isolate_scope,
-        }
+            isolate_scope: self.0.isolate_scope,
+        })
     }
 }
 
 impl<'isolate_scope, 'isolate> Drop for LocalPromise<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
-        unsafe { v8_FreePromise(self.inner_promise) }
+        unsafe { v8_FreePromise(self.0.inner_val) }
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<LocalPromise<'isolate_scope, 'isolate>>
+    for LocalValueAny<'isolate_scope, 'isolate>
+{
+    fn from(value: LocalPromise<'isolate_scope, 'isolate>) -> Self {
+        let inner_val = unsafe { v8_PromiseToValue(value.0.inner_val) };
+        Self(ScopedValue {
+            inner_val,
+            isolate_scope: value.0.isolate_scope,
+        })
+    }
+}
+
+impl<'isolate_scope, 'isolate> TryFrom<LocalValueAny<'isolate_scope, 'isolate>>
+    for LocalPromise<'isolate_scope, 'isolate>
+{
+    type Error = &'static str;
+
+    fn try_from(value: LocalValueAny<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+        if value.is_promise() {
+            Ok(unsafe { value.as_promise() })
+        } else {
+            Err("The value is not a promise.")
+        }
     }
 }

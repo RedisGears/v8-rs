@@ -209,7 +209,7 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
 
             fn __create_closure__<F, E>(f: F) -> F
                 where
-                F: for<'i_s, 'i> Fn(&'i_s v8_rs::v8::isolate_scope::IsolateScope<'i>, &v8_rs::v8::context_scope::ContextScope<'i_s, 'i>, #(#types_for_closure, )*) -> Result<Option<v8_rs::v8::types::LocalValue<'i_s, 'i>>, E>,
+                F: for<'i_s, 'i> Fn(&'i_s v8_rs::v8::isolate_scope::IsolateScope<'i>, &v8_rs::v8::context_scope::ContextScope<'i_s, 'i>, #(#types_for_closure, )*) -> Result<Option<v8_rs::v8::types::any::LocalValueAny<'i_s, 'i>>, E>,
                 E: std::fmt::Display,
             {
                 f

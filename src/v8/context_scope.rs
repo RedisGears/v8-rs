@@ -14,6 +14,7 @@ use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+use std::ptr::NonNull;
 
 use crate::v8::isolate_scope::IsolateScope;
 use crate::v8::types::module::LocalModule;
@@ -25,7 +26,10 @@ use crate::v8::types::object::LocalObject;
 use crate::v8::types::resolver::LocalResolver;
 use crate::v8::types::script::LocalScript;
 use crate::v8::types::string::LocalString;
-use crate::v8::types::LocalValueGeneric;
+use crate::v8::types::ScopedValue;
+
+use super::types::any::LocalValueAny;
+use super::types::Value;
 
 /// An RAII data guard which resets the private data slot after going
 /// out of scope.
@@ -69,51 +73,45 @@ pub struct ContextScope<'isolate_scope, 'isolate> {
 
 impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
     /// Compile the given code into a script object.
-    #[must_use]
     pub fn compile(&self, s: &LocalString) -> Option<LocalScript<'isolate_scope, 'isolate>> {
-        let inner_script = unsafe { v8_Compile(self.inner_ctx_ref, s.inner_string) };
-        if inner_script.is_null() {
-            None
-        } else {
-            Some(LocalScript {
-                inner_script,
+        NonNull::new(unsafe { v8_Compile(self.inner_ctx_ref, s.0.inner_val) }).map(|ptr| {
+            LocalScript(ScopedValue {
+                inner_val: ptr.as_ptr(),
                 isolate_scope: self.isolate_scope,
             })
-        }
+        })
     }
 
-    #[must_use]
     pub fn get_globals(&self) -> LocalObject<'isolate_scope, 'isolate> {
-        let inner_obj = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
-        LocalObject {
-            inner_obj,
+        let inner_val = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
+        LocalObject(ScopedValue {
+            inner_val,
             isolate_scope: self.isolate_scope,
-        }
+        })
     }
 
     /// Compile the given code as a module.
-    #[must_use]
     pub fn compile_as_module(
         &self,
         name: &LocalString,
         code: &LocalString,
         is_module: bool,
     ) -> Option<LocalModule<'isolate_scope, 'isolate>> {
-        let inner_module = unsafe {
+        let inner_val = unsafe {
             v8_CompileAsModule(
                 self.inner_ctx_ref,
-                name.inner_string,
-                code.inner_string,
+                name.0.inner_val,
+                code.0.inner_val,
                 i32::from(is_module),
             )
         };
-        if inner_module.is_null() {
+        if inner_val.is_null() {
             None
         } else {
-            Some(LocalModule {
-                inner_module,
+            Some(LocalModule(ScopedValue {
+                inner_val,
                 isolate_scope: self.isolate_scope,
-            })
+            }))
         }
     }
 
@@ -141,14 +139,12 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
     }
 
     /// Return the private data that was set on the context
-    #[must_use]
     pub fn get_private_data<T, I: Into<UserIndex>>(&self, index: I) -> Option<&T> {
         let index = index.into();
         self.get_private_data_raw(index)
     }
 
     /// Return the private data that was set on the context as a mut reference
-    #[must_use]
     pub fn get_private_data_mut<T, I: Into<UserIndex>>(&self, index: I) -> Option<&mut T> {
         let index = index.into();
         self.get_private_data_mut_raw(index)
@@ -169,7 +165,6 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
     /// Sets the private data at the specified index (V8 data slot).
     /// Returns an RAII guard that takes care of resetting the data
     /// at the specified index.
-    #[must_use]
     pub fn set_private_data<'context_scope, 'data, T, I: Into<UserIndex>>(
         &'context_scope self,
         index: I,
@@ -186,57 +181,56 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
     }
 
     /// Create a new resolver object
-    #[must_use]
-    pub fn new_resolver(&self) -> LocalResolver<'isolate_scope, 'isolate> {
-        let inner_resolver = unsafe { v8_NewResolver(self.inner_ctx_ref) };
-        LocalResolver {
-            inner_resolver,
-            isolate_scope: self.isolate_scope,
-        }
-    }
-
-    #[must_use]
-    pub fn new_object_from_json(
-        &self,
-        val: &LocalString,
-    ) -> Option<LocalValueGeneric<'isolate_scope, 'isolate>> {
-        let inner_val = unsafe { v8_NewObjectFromJsonString(self.inner_ctx_ref, val.inner_string) };
-        if inner_val.is_null() {
-            return None;
-        }
-        Some(LocalValueGeneric {
+    pub fn create_resolver(&self) -> LocalResolver<'isolate_scope, 'isolate> {
+        let inner_val = unsafe { v8_NewResolver(self.inner_ctx_ref) };
+        LocalResolver(ScopedValue {
             inner_val,
             isolate_scope: self.isolate_scope,
         })
     }
 
-    #[must_use]
-    pub fn json_stringify(
+    pub fn create_object_from_json(
         &self,
-        val: &LocalValueGeneric,
-    ) -> Option<LocalString<'isolate_scope, 'isolate>> {
-        let inner_string = unsafe { v8_JsonStringify(self.inner_ctx_ref, val.inner_val) };
-        if inner_string.is_null() {
+        val: &LocalString,
+    ) -> Option<Value<'isolate_scope, 'isolate>> {
+        let inner_val = unsafe { v8_NewObjectFromJsonString(self.inner_ctx_ref, val.0.inner_val) };
+        if inner_val.is_null() {
             return None;
         }
-        Some(LocalString {
-            inner_string,
-            isolate_scope: self.isolate_scope,
-        })
+        Some(
+            LocalValueAny(ScopedValue {
+                inner_val,
+                isolate_scope: self.isolate_scope,
+            })
+            .into(),
+        )
     }
 
-    #[must_use]
-    pub fn new_native_function<
+    pub fn json_stringify(
+        &self,
+        val: &LocalValueAny,
+    ) -> Option<LocalString<'isolate_scope, 'isolate>> {
+        let inner_val = unsafe { v8_JsonStringify(self.inner_ctx_ref, val.0.inner_val) };
+        if inner_val.is_null() {
+            return None;
+        }
+        Some(LocalString(ScopedValue {
+            inner_val,
+            isolate_scope: self.isolate_scope,
+        }))
+    }
+
+    pub fn create_native_function<
         T: for<'d, 'c> Fn(
             &LocalNativeFunctionArgs<'d, 'c>,
             &'d IsolateScope<'c>,
             &ContextScope<'d, 'c>,
-        ) -> Option<LocalValueGeneric<'d, 'c>>,
+        ) -> Option<LocalValueAny<'d, 'c>>,
     >(
         &self,
         func: T,
     ) -> LocalNativeFunction<'isolate_scope, 'isolate> {
-        let inner_func = unsafe {
+        let inner_val = unsafe {
             v8_NewNativeFunction(
                 self.inner_ctx_ref,
                 Some(native_basic_function::<T>),
@@ -244,10 +238,10 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
                 Some(free_pd::<T>),
             )
         };
-        LocalNativeFunction {
-            inner_func,
+        LocalNativeFunction(ScopedValue {
+            inner_val,
             isolate_scope: self.isolate_scope,
-        }
+        })
     }
 }
 
