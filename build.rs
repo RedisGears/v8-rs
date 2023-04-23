@@ -63,6 +63,7 @@ fn main() {
         }
 
         run_cmd("rm", &["-rf", *V8_HEADERS_DIRECTORY]);
+        run_cmd("mkdir", &["-p", *V8_HEADERS_DIRECTORY]);
         run_cmd("unzip", &[&V8_HEADERS_PATH, "-d", *V8_HEADERS_DIRECTORY]);
     }
 
