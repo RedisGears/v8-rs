@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! Contains the native function template facilities.
 
 use crate::v8_c_raw::bindings::v8_NewNativeFunctionTemplate;
 use crate::v8_c_raw::bindings::{
@@ -25,6 +26,13 @@ use super::any::LocalValueAny;
 use super::Value;
 
 /// Native function template object.
+///
+/// A [LocalNativeFunctionTemplate] is used to create functions at
+/// runtime. There can only be one function created from a
+/// [LocalNativeFunctionTemplate] in a context. The lifetime of the
+/// created function is equal to the lifetime of the context. So in case
+/// the embedder needs to create temporary functions that can be
+/// collected using Scripts is preferred.
 #[derive(Debug, Clone)]
 pub struct LocalNativeFunctionTemplate<'isolate_scope, 'isolate>(
     pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_native_function_template>,
@@ -59,7 +67,7 @@ impl<'isolate_scope, 'isolate> LocalNativeFunctionTemplate<'isolate_scope, 'isol
     }
 }
 
-/// Native function args
+/// An array of arguments for a [LocalNativeFunctionTemplate].
 pub struct LocalNativeFunctionArgs<'isolate_scope, 'isolate> {
     pub(crate) inner_arr: *mut v8_local_value_arr,
     len: usize,
@@ -127,10 +135,9 @@ pub(crate) extern "C" fn native_basic_function<
 }
 
 impl<'isolate_scope, 'isolate> LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
-    pub fn to_function(
-        &self,
-        ctx_scope: &ContextScope,
-    ) -> LocalNativeFunction<'isolate_scope, 'isolate> {
+    /// Builds (instantiates) a [LocalNativeFunction] out of this
+    /// template.
+    pub fn build(&self, ctx_scope: &ContextScope) -> LocalNativeFunction<'isolate_scope, 'isolate> {
         let inner_val = unsafe {
             v8_NativeFunctionTemplateToFunction(ctx_scope.inner_ctx_ref, self.0.inner_val)
         };
@@ -177,23 +184,26 @@ impl<'isolate_scope, 'isolate> LocalNativeFunctionArgs<'isolate_scope, 'isolate>
         })
     }
 
-    pub const fn persist(&self) {}
+    // pub const fn persist(&self) {}
 
-    pub fn iter<'a>(&'a self) -> V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
-        V8LocalNativeFunctionArgsIter {
+    /// Returns an iterator [LocalNativeFunctionArgsIter] over the
+    /// function arguments.
+    pub fn iter<'a>(&'a self) -> LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
+        LocalNativeFunctionArgsIter {
             args: self,
             index: 0,
         }
     }
 }
 
-pub struct V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
+/// An iterator over the function arguments of a [LocalNativeFunction].
+pub struct LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
     args: &'a LocalNativeFunctionArgs<'isolate_scope, 'isolate>,
     index: usize,
 }
 
 impl<'isolate_scope, 'isolate, 'a> Iterator
-    for V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>
+    for LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>
 {
     type Item = Value<'isolate_scope, 'isolate>;
     fn next(&mut self) -> Option<Self::Item> {

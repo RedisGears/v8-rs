@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! See [Context].
 
 use crate::v8_c_raw::bindings::{
     v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
@@ -21,14 +22,14 @@ use crate::v8::types::object_template::LocalObjectTemplate;
 
 /// An RAII data guard which resets the private data slot after going
 /// out of scope.
-pub struct V8ContextDataGuard<'context, 'data, T: 'data> {
+pub struct ContextDataGuard<'context, 'data, T: 'data> {
     /// A raw index to reset after the guard goes out of scope.
     index: RawIndex,
     /// The context in which the guard should reset the variable.
     context: &'context Context,
     _phantom_data: PhantomData<&'data T>,
 }
-impl<'context, 'data, T: 'data> V8ContextDataGuard<'context, 'data, T> {
+impl<'context, 'data, T: 'data> ContextDataGuard<'context, 'data, T> {
     /// Creates a new data guard with the provided index and context scope.
     pub(crate) fn new<I: Into<RawIndex>>(index: I, context: &'context Context) -> Self {
         let index = index.into();
@@ -40,12 +41,14 @@ impl<'context, 'data, T: 'data> V8ContextDataGuard<'context, 'data, T> {
     }
 }
 
-impl<'context, 'data, T: 'data> Drop for V8ContextDataGuard<'context, 'data, T> {
+impl<'context, 'data, T: 'data> Drop for ContextDataGuard<'context, 'data, T> {
     fn drop(&mut self) {
         self.context.reset_private_data_raw(self.index);
     }
 }
 
+/// A sandboxed execution context with its own set of built-in objects
+/// and functions.
 pub struct Context {
     pub(crate) inner_ctx: *mut v8_context,
 }
@@ -94,10 +97,10 @@ impl Context {
         &'context self,
         index: I,
         data: &'data T,
-    ) -> V8ContextDataGuard<'context, 'data, T> {
+    ) -> ContextDataGuard<'context, 'data, T> {
         let index = index.into();
         self.set_private_data_raw(index, data);
-        V8ContextDataGuard::new(index, self)
+        ContextDataGuard::new(index, self)
     }
 
     /// Resets a private data on the context considering the index as

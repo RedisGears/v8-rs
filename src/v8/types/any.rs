@@ -32,21 +32,146 @@ use super::{
 /// A type the objects of [LocalValueAny] can hold.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub enum Type {
-    Integer,
-    Double,
+    /// The `BigInt` type in JavaScript.
+    /// BigInt values represent numeric values which are too large to be
+    /// represented by the number
+    BigInteger,
+    /// The `Number` type in JavaScript.
+    /// All primitive numbers in JavaScript are of this (`Number`) type,
+    /// even "Integer" literals like `5` is a floating-point value of
+    /// type `Number`.
+    ///
+    /// # Example
+    ///
+    /// ```javascript
+    /// 255; // two-hundred and fifty-five
+    /// 255.0; // same number
+    /// 255 === 255.0; // true
+    /// 255 === 0xff; // true (hexadecimal notation)
+    /// 255 === 0b11111111; // true (binary notation)
+    /// 255 === 0.255e+3; // true (decimal exponential notation)
+    /// ```
+    ///
+    /// See more at
+    /// <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number>.
+    Number,
+    /// A boolean JavaScript object (not primitive!).
+    ///
+    /// # Example
+    ///
+    /// ```javascript
+    /// const x = new Boolean(false);
+    /// if (x) {
+    ///   // this code is executed
+    /// }
+    /// // However:
+    /// const x = false;
+    /// if (x) {
+    ///   // this code is not executed
+    /// }
+    /// ```
     Boolean,
+    /// A JavaScript's `null` value.
     Null,
+    /// The Set object lets you store unique values of any type,
+    /// whether primitive values or object references.
+    ///
+    /// # Example
+    ///
+    /// ```javascript
+    /// const mySet1 = new Set();
+    ///
+    /// mySet1.add(1); // Set(1) { 1 }
+    /// ```
     Set,
+    /// A foreign, non-JavaScript object which can be worked with in
+    /// JavaScript. It doesn't have methods, but can be passed and
+    /// received. Usually, for such objects an API is provided to work
+    /// with those. An example may be a C++ object, for which a pointer
+    /// is provided to JavaScript as [Type::ExternalData].
     ExternalData,
+    /// A JavaScript object. See more at
+    /// <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object>.
     Object,
+    /// Resolver is an object which can resolve or reject promises.
+    /// See more at
+    /// <https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/resolve>.
     Resolver,
+    /// The Promise object represents the eventual completion
+    /// (or failure) of an asynchronous operation and its resulting
+    /// value.
+    ///
+    /// # Example
+    ///
+    /// ```javascript
+    /// new Promise((resolveOuter) => {
+    ///   resolveOuter(
+    ///     new Promise((resolveInner) => {
+    ///       setTimeout(resolveInner, 1000);
+    ///     }),
+    ///   );
+    /// });
+    /// ```
     Promise,
+    /// A JavaScript function. Every function is actually an object of
+    /// type `Function`.
+    ///
+    /// # [Example](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Function)
+    ///
+    /// ```javascript
+    /// // Create a global property with `var`
+    /// var x = 10;
+    ///
+    /// function createFunction1() {
+    ///     const x = 20;
+    ///     return new Function("return x;"); // this `x` refers to global `x`
+    /// }
+    ///
+    /// function createFunction2() {
+    ///     const x = 20;
+    ///     function f() {
+    ///         return x; // this `x` refers to the local `x` above
+    ///     }
+    ///     return f;
+    /// }
+    ///
+    /// const f1 = createFunction1();
+    /// console.log(f1()); // 10
+    /// const f2 = createFunction2();
+    /// console.log(f2()); // 20
+    /// ```
     Function,
+    /// An asynchrous function. Every async function in JavaScript is
+    /// actually an AsyncFunction object.
+    ///
     AsyncFunction,
+    /// A javascript array, which can be created like this:
+    /// ```javascript
+    /// const fruits = [];
+    /// fruits.push("banana", "apple", "peach");
+    /// ```
     Array,
+    /// The ArrayBuffer is used to represent a generic raw binary data
+    /// buffer. Example:
+    /// ```javascript
+    /// const buffer = new ArrayBuffer(8);
+    /// const view = new Int32Array(buffer);
+    /// ```
     ArrayBuffer,
+    /// A literal string in JavaScript. For example:
+    /// ```javascript
+    /// const string1 = "A string primitive";
+    /// const string2 = 'Also a string primitive';
+    /// const string3 = `Yet another string primitive`;
+    /// ```
     String,
+    /// A string object. A string object is a proper JavaScript object
+    /// which can be created the following way:
+    /// ```javascript
+    /// const stringObject = new String("A String object");
+    /// ```
     StringObject,
+    /// A UTF-8 encoded string.
     Utf8,
 }
 
@@ -74,11 +199,11 @@ impl<'isolate_scope, 'isolate> LocalValueAny<'isolate_scope, 'isolate> {
         } else if self.is_function() {
             Type::Function
         } else if self.is_long() {
-            Type::Integer
+            Type::BigInteger
         } else if self.is_null() {
             Type::Null
         } else if self.is_number() {
-            Type::Double
+            Type::Number
         } else if self.is_object() {
             Type::Object
         } else if self.is_promise() {
@@ -319,6 +444,8 @@ impl<'isolate_scope, 'isolate> LocalValueAny<'isolate_scope, 'isolate> {
         })
     }
 
+    /// Returns `true` if the value stored is of type `External`. If it
+    /// is so, this object can be converted into the [LocalExternalData].
     pub fn is_external_data(&self) -> bool {
         (unsafe { v8_ValueIsExternalData(self.0.inner_val) } != 0)
     }

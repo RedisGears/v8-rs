@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! The JavaScript object facilities.
 
 use crate::v8_c_raw::bindings::{
     v8_FreeObject, v8_GetInternalFieldCount, v8_NewObject, v8_ObjectFreeze, v8_ObjectGet,
@@ -70,6 +71,7 @@ impl<'isolate_scope, 'isolate> LocalObject<'isolate_scope, 'isolate> {
         self.get(ctx_scope, &key)
     }
 
+    /// Sets the value for the key within this [LocalObject].
     pub fn set(&self, ctx_scope: &ContextScope, key: &LocalValueAny, val: &LocalValueAny) {
         unsafe {
             v8_ObjectSet(
@@ -81,6 +83,7 @@ impl<'isolate_scope, 'isolate> LocalObject<'isolate_scope, 'isolate> {
         };
     }
 
+    /// Adds a method to this [LocalObject].
     pub fn set_native_function<
         T: for<'d, 'e> Fn(
             &LocalNativeFunctionArgs<'d, 'e>,
@@ -107,10 +110,13 @@ impl<'isolate_scope, 'isolate> LocalObject<'isolate_scope, 'isolate> {
         };
     }
 
+    /// Sets the value in an internal field.
     pub fn set_internal_field(&self, index: usize, val: &LocalValueAny) {
         unsafe { v8_ObjectSetInternalField(self.0.inner_val, index, val.0.inner_val) };
     }
 
+    /// Returns the value of an internal field accessible by the
+    /// provided `index`.
     pub fn get_internal_field(&self, index: usize) -> Value<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ObjectGetInternalField(self.0.inner_val, index) };
         LocalValueAny(ScopedValue {
@@ -120,10 +126,18 @@ impl<'isolate_scope, 'isolate> LocalObject<'isolate_scope, 'isolate> {
         .into()
     }
 
+    /// Returns the number of internal fields.
     pub fn get_internal_field_count(&self) -> usize {
         unsafe { v8_GetInternalFieldCount(self.0.inner_val) }
     }
 
+    /// Freezes this [LocalObject]. Freezing an object prevents
+    /// extensions and makes existing properties non-writable and
+    /// non-configurable. A frozen object can no longer be changed:
+    /// new properties cannot be added, existing properties cannot be
+    /// removed, their enumerability, configurability, writability, or
+    /// value cannot be changed, and the object's prototype cannot be
+    /// re-assigned. freeze() returns the same object that was passed in.
     pub fn freeze(&self, ctx_scope: &ContextScope) {
         unsafe { v8_ObjectFreeze(ctx_scope.inner_ctx_ref, self.0.inner_val) };
     }

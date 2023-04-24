@@ -20,6 +20,8 @@ use super::any::LocalValueAny;
 /// A promise is an object representing an eventual completion
 /// (successful or not) of an asynchronous operation and its resulting
 /// value.
+///
+/// See [Mozilla Documentation](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise).
 pub struct LocalPromise<'isolate_scope, 'isolate>(
     pub(crate) ScopedValue<'isolate_scope, 'isolate, v8_local_promise>,
 );
@@ -36,7 +38,7 @@ pub enum PromiseState {
 }
 
 impl<'isolate_scope, 'isolate> LocalPromise<'isolate_scope, 'isolate> {
-    /// Set resolve and reject callbacks
+    /// Set resolve and reject callbacks.
     pub fn then(
         &self,
         ctx: &ContextScope,

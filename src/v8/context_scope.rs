@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! See [ContextScope].
 
 use crate::v8_c_raw::bindings::v8_SetPrivateDataOnCtxRef;
 use crate::v8_c_raw::bindings::{
@@ -65,6 +66,8 @@ impl<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data> Drop
     }
 }
 
+/// A lifetime guard for [super::context::Context], which sets the
+/// execution context for all operations executed within a local scope.
 pub struct ContextScope<'isolate_scope, 'isolate> {
     pub(crate) inner_ctx_ref: *mut v8_context_ref,
     pub(crate) exit_on_drop: bool,
@@ -82,6 +85,7 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         })
     }
 
+    /// Returns all the global variables attached to an object.
     pub fn get_globals(&self) -> LocalObject<'isolate_scope, 'isolate> {
         let inner_val = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
         LocalObject(ScopedValue {
@@ -175,6 +179,7 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         ContextScopeDataGuard::new(index, self)
     }
 
+    /// Resets the private data at the provided slot.
     pub fn reset_private_data<I: Into<UserIndex>>(&self, index: I) {
         let index = index.into();
         self.reset_private_data_raw(index)
@@ -189,6 +194,9 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         })
     }
 
+    /// Creates a new JavaScript object from the passed JavaScript
+    /// string object. The string should contain the object structure in
+    /// the JavaScript Object Notation (JSON).
     pub fn create_object_from_json(
         &self,
         val: &LocalString,
@@ -206,6 +214,9 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         )
     }
 
+    /// Creates a JavaScript string for the provided JavaScript object
+    /// containing its representation in the JavaScript Object Notation
+    /// (JSON).
     pub fn json_stringify(
         &self,
         val: &LocalValueAny,
@@ -220,6 +231,7 @@ impl<'isolate_scope, 'isolate> ContextScope<'isolate_scope, 'isolate> {
         }))
     }
 
+    /// Creates a function. See [LocalNativeFunction].
     pub fn create_native_function<
         T: for<'d, 'c> Fn(
             &LocalNativeFunctionArgs<'d, 'c>,

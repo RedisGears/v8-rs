@@ -5,7 +5,7 @@
  */
 //! V8-rs is a crate containing bindings to the V8 C++ API.
 
-#![warn(missing_docs)]
+#![deny(missing_docs)]
 
 /// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
@@ -57,17 +57,13 @@ impl From<UserIndex> for RawIndex {
 mod json_path_tests {
     use crate as v8_rs;
     use crate::v8::types::any::LocalValueAny;
-    use crate::v8::types::native_function::LocalNativeFunction;
     use crate::v8::types::native_function_template::LocalNativeFunctionTemplate;
     use crate::v8::types::object_template::LocalObjectTemplate;
     use crate::v8::types::promise::LocalPromise;
     use crate::v8::types::try_catch::TryCatch;
     use crate::v8::types::utf8::LocalUtf8;
     use crate::v8::types::Value;
-    use crate::v8::{
-        context_scope, isolate, isolate_scope, types, types::array, types::array_buffer,
-        types::native_function_template, types::object, types::set, types::utf8, v8_init,
-    };
+    use crate::v8::{context_scope, isolate, isolate_scope, types, v8_init};
 
     use v8_derive::new_native_function;
 
@@ -199,7 +195,7 @@ mod json_path_tests {
             .create_native_function_template(|args, isolate_scope, ctx_scope| {
                 let foo: LocalValueAny = isolate_scope.create_string("foo").try_into().unwrap();
                 let v: LocalValueAny = args.get(0).try_into().unwrap();
-                let _res = v.call(ctx_scope, Some(&[&foo.into()]));
+                let _res = v.call(ctx_scope, Some(&[&foo]));
                 None
             })
             .try_into()
@@ -256,7 +252,7 @@ mod json_path_tests {
         let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         assert!(script.run(&ctx_scope).is_none());
         let exception = trycatch.get_exception();
-        let exception_msg = exception.into_utf8().unwrap();
+        let exception_msg = LocalUtf8::try_from(exception).unwrap();
         assert_eq!(exception_msg.as_str(), "this is an error");
     }
 
@@ -275,10 +271,10 @@ mod json_path_tests {
         let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         assert!(script.run(&ctx_scope).is_none());
         let exception = trycatch.get_exception();
-        let exception_msg = exception.into_utf8().unwrap();
+        let exception_msg = LocalUtf8::try_from(exception).unwrap();
         assert_eq!(exception_msg.as_str(), "Error: this is an error!");
         let trace = trycatch.get_trace(&ctx_scope);
-        let trace_str = trace.unwrap().into_utf8().unwrap();
+        let trace_str = LocalUtf8::try_from(trace.unwrap()).unwrap();
         assert!(trace_str.as_str().contains("at foo"));
     }
 
@@ -368,7 +364,7 @@ mod json_path_tests {
             crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.into_utf8().unwrap();
+        let res_utf8 = LocalUtf8::try_from(promise_res).unwrap();
         assert_eq!(res_utf8.as_str(), "1");
     }
 
@@ -382,7 +378,7 @@ mod json_path_tests {
         globals.add_native_function("foo", |_args, isolate_scope, ctx_scope| {
             let resolver = ctx_scope.create_resolver();
             resolver.resolve(
-                &ctx_scope,
+                ctx_scope,
                 &isolate_scope.create_string("foo").try_into().unwrap(),
             );
             let promise = resolver.get_promise();
@@ -404,7 +400,7 @@ mod json_path_tests {
             crate::v8::types::promise::PromiseState::Fulfilled
         );
         let promise_res = promise.get_result();
-        let res_utf8 = promise_res.into_utf8().unwrap();
+        let res_utf8 = LocalUtf8::try_from(promise_res).unwrap();
         assert_eq!(res_utf8.as_str(), "foo");
     }
 
@@ -420,7 +416,9 @@ mod json_path_tests {
         let script = ctx_scope.compile(&code_str);
         assert!(script.is_none());
         assert_eq!(
-            trycatch.get_exception().into_utf8().unwrap().as_str(),
+            LocalUtf8::try_from(trycatch.get_exception())
+                .unwrap()
+                .as_str(),
             "SyntaxError: Unexpected end of input"
         );
     }
@@ -438,7 +436,9 @@ mod json_path_tests {
         let res = script.run(&ctx_scope);
         assert!(res.is_none());
         assert_eq!(
-            trycatch.get_exception().into_utf8().unwrap().as_str(),
+            LocalUtf8::try_from(trycatch.get_exception())
+                .unwrap()
+                .as_str(),
             "ReferenceError: foo is not defined"
         );
     }
@@ -472,9 +472,7 @@ mod json_path_tests {
         let trycatch: TryCatch = isolate_scope.create_try_catch().try_into().unwrap();
         let res = match script.run(&ctx_scope) {
             Some(_res) => Ok(()),
-            None => Err(trycatch
-                .get_exception()
-                .into_utf8()
+            None => Err(LocalUtf8::try_from(trycatch.get_exception())
                 .unwrap()
                 .as_str()
                 .to_string()),
@@ -485,11 +483,7 @@ mod json_path_tests {
     #[test]
     fn test_value_is_object() {
         define_function_and_call("foo({})", "foo", |args, _isolate, _ctx_scope| {
-            if let Value::Object(_) = args.get(0) {
-                assert!(true);
-            } else {
-                assert!(false, "The value should have been an object!");
-            }
+            assert!(args.get(0).is_object());
             None
         })
         .expect("Got error on function run");
@@ -501,7 +495,7 @@ mod json_path_tests {
             if let Value::Other(any) = args.get(0) {
                 assert!(any.is_function());
             } else {
-                assert!(false, "The value should have been an object!");
+                unreachable!("The value should have been a function!");
             }
             None
         })
@@ -517,7 +511,7 @@ mod json_path_tests {
                 if let Value::Other(any) = args.get(0) {
                     assert!(any.is_async_function());
                 } else {
-                    assert!(false, "The value should have been an object!");
+                    unreachable!("The value should have been an async function!");
                 }
                 None
             },
@@ -528,11 +522,7 @@ mod json_path_tests {
     #[test]
     fn test_value_is_string() {
         define_function_and_call("foo(\"foo\")", "foo", |args, _isolate, _ctx_scope| {
-            if let Value::String(_) = args.get(0) {
-                assert!(true);
-            } else {
-                assert!(false, "The value should have been a string!");
-            }
+            assert!(args.get(0).is_string());
             None
         })
         .expect("Got error on function run");
@@ -541,11 +531,7 @@ mod json_path_tests {
     #[test]
     fn test_value_is_number() {
         define_function_and_call("foo(1)", "foo", |args, _isolate, _ctx_scope| {
-            if let Value::Double(_) = args.get(0) {
-                assert!(true);
-            } else {
-                assert!(false, "The value should have been a number!");
-            }
+            assert!(args.get(0).is_number());
             None
         })
         .expect("Got error on function run");
@@ -557,11 +543,7 @@ mod json_path_tests {
             "foo(async function(){}())",
             "foo",
             |args, _isolate, _ctx_scope| {
-                if let Value::Other(any) = args.get(0) {
-                    assert!(any.is_promise());
-                } else {
-                    assert!(false, "The value should have been a number!");
-                }
+                assert!(args.get(0).is_promise());
                 None
             },
         )
@@ -619,7 +601,7 @@ mod json_path_tests {
             new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64, arg3: bool| {
                 assert_eq!(arg1, 1);
                 assert_eq!(arg2, 2.2);
-                assert_eq!(arg3, true);
+                assert!(arg3);
                 Result::<Option<LocalValueAny>, String>::Ok(None)
             }),
         )
@@ -839,9 +821,8 @@ mod json_path_tests {
                     assert_eq!(arg2, 2);
                     if let Some(array) = arg3 {
                         assert_eq!(array.len(), 2);
-                        assert!(true);
                     } else {
-                        assert!(false, "Should have been an array.");
+                        unreachable!("Should have been an array.");
                     }
                     Result::<Option<LocalValueAny>, String>::Ok(None)
                 }
@@ -864,11 +845,7 @@ mod json_path_tests {
                     |_isolate, _ctx_scope, arg1: i64, arg2: i64, arg3: Option<types::Value>| {
                         assert_eq!(arg1, 1);
                         assert_eq!(arg2, 2);
-                        if let Some(Value::Array(_)) = arg3 {
-                            assert!(true);
-                        } else {
-                            assert!(false, "Should have been an array.");
-                        }
+                        assert!(arg3.unwrap().is_array());
                         Result::<Option<LocalValueAny>, String>::Ok(None)
                     }
                 ),

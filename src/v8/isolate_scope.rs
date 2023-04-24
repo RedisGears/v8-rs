@@ -3,6 +3,7 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
+//! See [IsolateScope].
 
 use crate::v8_c_raw::bindings::{
     v8_FreeHandlersScope, v8_IsolateEnter, v8_IsolateExit, v8_IsolateRaiseException,
@@ -19,6 +20,10 @@ use super::types::any::LocalValueAny;
 use super::types::native_function_template::LocalNativeFunctionArgs;
 use super::types::Value;
 
+/// Isolate scope is a lifetime guard for the [Isolate].
+/// It allows working with the bound [Isolate] object and correctly
+/// drop the data associated with the [Isolate] when it goes out of
+/// scope.
 #[derive(Debug)]
 pub struct IsolateScope<'isolate> {
     pub(crate) isolate: &'isolate Isolate,
@@ -54,8 +59,8 @@ impl<'isolate> IsolateScope<'isolate> {
         unsafe { v8_IsolateRaiseException(self.isolate.inner_isolate, value.0.inner_val) };
     }
 
-    /// Return a new try catch object. The object will catch any exception that was
-    /// raised during the JS code invocation.
+    /// Returns a new try catch object. The object will catch any
+    /// exception that was raised during the JS code invocation.
     #[must_use]
     pub fn create_try_catch<'isolate_scope>(
         &'isolate_scope self,
@@ -63,50 +68,62 @@ impl<'isolate> IsolateScope<'isolate> {
         Value::new_try_catch(self)
     }
 
-    /// Create a new string object.
+    /// Create a new string object. See
+    /// [crate::v8::types::string::LocalString].
     #[must_use]
     pub fn create_string<'isolate_scope>(
         &'isolate_scope self,
         s: &str,
     ) -> Value<'isolate_scope, 'isolate> {
-        Value::new_string(s, self)
+        Value::from_str(s, self)
     }
 
-    /// Create a new array object.
+    /// Create a new array object. See
+    /// [crate::v8::types::array::LocalArray].
     #[must_use]
     pub fn create_array<'isolate_scope>(
         &'isolate_scope self,
         values: &[&LocalValueAny],
     ) -> Value<'isolate_scope, 'isolate> {
-        Value::new_array(values, self)
+        Value::from_array(values, self)
     }
 
+    /// Creates a new array buffer. See
+    /// [crate::v8::types::array_buffer::LocalArrayBuffer].
     #[must_use]
     pub fn create_array_buffer<'isolate_scope>(
         &'isolate_scope self,
         bytes: &[u8],
     ) -> Value<'isolate_scope, 'isolate> {
-        Value::new_array_buffer(bytes, self)
+        Value::from_array_buffer(bytes, self)
     }
 
+    /// Creates a new object. See
+    /// [crate::v8::types::object::LocalObject].
     #[must_use]
     pub fn create_object<'isolate_scope>(&'isolate_scope self) -> Value<'isolate_scope, 'isolate> {
         Value::new_object(self)
     }
 
+    /// Creates a new external data object. See
+    /// [crate::v8::types::external_data::LocalExternalData].
     #[must_use]
     pub fn create_external_data<'isolate_scope, T>(
         &'isolate_scope self,
         data: T,
     ) -> Value<'isolate_scope, 'isolate> {
-        Value::new_external_data(data, self)
+        Value::from_external_data(data, self)
     }
 
+    /// Creates a new set object. See
+    /// [crate::v8::types::set::LocalSet].
     #[must_use]
     pub fn create_set<'isolate_scope>(&'isolate_scope self) -> Value<'isolate_scope, 'isolate> {
         Value::new_set(self)
     }
 
+    /// Creates a new boolean object. See
+    /// [crate::v8::types::LocalValueBoolean].
     #[must_use]
     pub fn create_bool<'isolate_scope>(
         &'isolate_scope self,
@@ -115,6 +132,8 @@ impl<'isolate> IsolateScope<'isolate> {
         Value::from_bool(val, self)
     }
 
+    /// Creates a new `BigInt` object. See
+    /// [crate::v8::types::LocalValueBigInteger].
     pub fn create_long<'isolate_scope>(
         &'isolate_scope self,
         val: i64,
@@ -122,6 +141,8 @@ impl<'isolate> IsolateScope<'isolate> {
         Value::from_i64(val, self)
     }
 
+    /// Creates a new `Number` primitive. See
+    /// [crate::v8::types::LocalValueNumber].
     pub fn create_double<'isolate_scope>(
         &'isolate_scope self,
         val: f64,
@@ -129,6 +150,8 @@ impl<'isolate> IsolateScope<'isolate> {
         Value::from_f64(val, self)
     }
 
+    /// Creates a new `null` object. See
+    /// [crate::v8::types::LocalValueNull].
     pub fn create_null<'isolate_scope>(&'isolate_scope self) -> Value<'isolate_scope, 'isolate> {
         Value::new_null(self)
     }
