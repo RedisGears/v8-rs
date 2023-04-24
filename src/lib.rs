@@ -253,6 +253,29 @@ mod json_path_tests {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("new Set([1, 2, 3, 4]);");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+        let res = script.run(&ctx_scope).unwrap();
+
+        assert!(res.is_set());
+        let s = res.as_set();
+        let arr = s.as_array();
+        assert_eq!(arr.len(), 4);
+        assert_eq!(
+            arr.iter(&ctx_scope)
+                .map(|v| v.get_long())
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3, 4],
+        );
+    }
+
+    #[test]
+    fn test_set_api() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
         let code_str = isolate_scope.new_string("1+1");
         let ctx = isolate_scope.new_context(None);
         let ctx_scope = ctx.enter(&isolate_scope);

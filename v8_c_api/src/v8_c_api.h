@@ -451,6 +451,9 @@ v8_local_set* v8_NewSet(v8_isolate *i);
 /* Add a value to the set */
 void v8_SetAdd(v8_context_ref *ctx_ref, v8_local_set *set, v8_local_value *val);
 
+/* Turn the set into an array for iterations. */
+v8_local_array* v8_SetAsArray(v8_local_set *set);
+
 /* Convert the given JS set into JS generic value */
 v8_local_value* v8_SetToValue(v8_local_set *set);
 
