@@ -5,12 +5,14 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_ArrayGet, v8_ArrayLen, v8_ArrayToValue, v8_FreeArray, v8_local_array,
+    v8_ArrayGet, v8_ArrayLen, v8_ArrayToValue, v8_FreeArray, v8_SetAsArray, v8_local_array,
 };
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
+
+use super::v8_set::V8LocalSet;
 
 /// JS object
 pub struct V8LocalArray<'isolate_scope, 'isolate> {
@@ -112,5 +114,25 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
         }
 
         Ok(val.as_array())
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalSet<'isolate_scope, 'isolate>>
+    for V8LocalArray<'isolate_scope, 'isolate>
+{
+    fn from(val: V8LocalSet<'isolate_scope, 'isolate>) -> Self {
+        (&val).into()
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<&V8LocalSet<'isolate_scope, 'isolate>>
+    for V8LocalArray<'isolate_scope, 'isolate>
+{
+    fn from(val: &V8LocalSet<'isolate_scope, 'isolate>) -> Self {
+        let inner_array = unsafe { v8_SetAsArray(val.inner_set) };
+        V8LocalArray {
+            inner_array,
+            isolate_scope: val.isolate_scope,
+        }
     }
 }

@@ -56,6 +56,7 @@ impl From<UserIndex> for RawIndex {
 #[cfg(test)]
 mod json_path_tests {
     use crate as v8_rs;
+    use crate::v8::v8_array::V8LocalArray;
     use crate::v8::{
         isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
         v8_native_function_template, v8_object, v8_set, v8_utf8,
@@ -246,6 +247,28 @@ mod json_path_tests {
         let trace = trycatch.get_trace(&ctx_scope);
         let trace_str = trace.unwrap().to_utf8().unwrap();
         assert!(trace_str.as_str().contains("at foo"));
+    }
+
+    #[test]
+    fn test_set_api() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("new Set([1, 2, 3, 4]);");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+        let res = script.run(&ctx_scope).unwrap();
+
+        assert!(res.is_set());
+        let arr: V8LocalArray = res.as_set().into();
+        assert_eq!(arr.len(), 4);
+        assert_eq!(
+            arr.iter(&ctx_scope)
+                .map(|v| v.get_long())
+                .collect::<Vec<_>>(),
+            vec![1, 2, 3, 4],
+        );
     }
 
     #[test]

@@ -1220,6 +1220,14 @@ v8_local_set* v8_NewSet(v8_isolate *i) {
 /* Add a value to the set */
 void v8_SetAdd(v8_context_ref *ctx_ref, v8_local_set *set, v8_local_value *val) {
 	v8::MaybeLocal<v8::Set> res = set->set->Add(ctx_ref->context, val->val);
+
+}
+
+v8_local_array* v8_SetAsArray(v8_local_set *set) {
+	v8::Local<v8::Array> arr = set->set->AsArray();
+	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array(arr);
+	return res;
 }
 
 /* Convert the given JS set into JS generic value */
