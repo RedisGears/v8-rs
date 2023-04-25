@@ -4,15 +4,11 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-use crate::v8_c_raw::bindings::{
-    v8_FreeSet, v8_SetAdd, v8_SetAsArray, v8_SetToValue, v8_local_set,
-};
+use crate::v8_c_raw::bindings::{v8_FreeSet, v8_SetAdd, v8_SetToValue, v8_local_set};
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
-
-use super::v8_array::V8LocalArray;
 
 /// JS object
 pub struct V8LocalSet<'isolate_scope, 'isolate> {
@@ -33,14 +29,6 @@ impl<'isolate_scope, 'isolate> V8LocalSet<'isolate_scope, 'isolate> {
 
     pub fn add(&self, ctx_scope: &V8ContextScope, val: &V8LocalValue) {
         unsafe { v8_SetAdd(ctx_scope.inner_ctx_ref, self.inner_set, val.inner_val) };
-    }
-
-    pub fn as_array(&self) -> V8LocalArray<'isolate_scope, 'isolate> {
-        let inner_array = unsafe { v8_SetAsArray(self.inner_set) };
-        V8LocalArray {
-            inner_array,
-            isolate_scope: self.isolate_scope,
-        }
     }
 }
 
