@@ -35,7 +35,7 @@ impl<'isolate_scope, 'isolate> V8LocalSet<'isolate_scope, 'isolate> {
         unsafe { v8_SetAdd(ctx_scope.inner_ctx_ref, self.inner_set, val.inner_val) };
     }
 
-    pub fn as_array(&self) -> V8LocalArray {
+    pub fn as_array(&self) -> V8LocalArray<'isolate_scope, 'isolate> {
         let inner_array = unsafe { v8_SetAsArray(self.inner_set) };
         V8LocalArray {
             inner_array,

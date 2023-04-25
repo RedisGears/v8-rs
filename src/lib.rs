@@ -56,6 +56,7 @@ impl From<UserIndex> for RawIndex {
 #[cfg(test)]
 mod json_path_tests {
     use crate as v8_rs;
+    use crate::v8::v8_array::V8LocalArray;
     use crate::v8::{
         isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
         v8_native_function_template, v8_object, v8_set, v8_utf8,
@@ -249,7 +250,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_simple_code_run() {
+    fn test_set_api() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -260,8 +261,7 @@ mod json_path_tests {
         let res = script.run(&ctx_scope).unwrap();
 
         assert!(res.is_set());
-        let s = res.as_set();
-        let arr = s.as_array();
+        let arr: V8LocalArray = res.as_set().into();
         assert_eq!(arr.len(), 4);
         assert_eq!(
             arr.iter(&ctx_scope)
@@ -272,7 +272,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_set_api() {
+    fn test_simple_code_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
