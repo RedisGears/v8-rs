@@ -121,7 +121,7 @@ impl<'isolate_scope, 'isolate> From<V8LocalSet<'isolate_scope, 'isolate>>
     for V8LocalArray<'isolate_scope, 'isolate>
 {
     fn from(val: V8LocalSet<'isolate_scope, 'isolate>) -> Self {
-        val.into()
+        (&val).into()
     }
 }
 
