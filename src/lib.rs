@@ -4,9 +4,44 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 //! V8-rs is a crate containing bindings to the V8 C++ API.
+//!
+//! # Example
+//!
+//! ```rust
+//! use v8_rs::v8::*;
+//!
+//! // Initialise the V8 engine:
+//! v8_init(1);
+//!
+//! // Create a new isolate:
+//! let isolate = isolate::V8Isolate::new();
+//!
+//! // Enter the isolate created:
+//! let i_scope = isolate.enter();
+//!
+//! // Create the code string object:
+//! let code_str = i_scope.new_string("1+1");
+//!
+//! // Create a JS execution context for code invocation:""
+//! let ctx = i_scope.new_context(None);
+//!
+//! // Enter the created execution context:
+//! let ctx_scope = ctx.enter(&i_scope);
+//!
+//! // Compile the code:
+//! let script = ctx_scope.compile(&code_str).unwrap();
+//!
+//! // Run the compiled code:
+//! let res = script.run(&ctx_scope).unwrap();
+//!
+//! // Get the result:
+//! let res_utf8 = res.to_utf8().unwrap();
+//! assert_eq!(res_utf8.as_str(), "2");
+//! ```
 
-// #![deny(missing_docs)]
+#![warn(missing_docs)]
 
+pub mod inspector;
 /// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
 mod v8_c_raw;
