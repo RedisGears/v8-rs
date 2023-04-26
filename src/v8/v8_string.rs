@@ -18,7 +18,42 @@ pub struct V8LocalString<'isolate_scope, 'isolate> {
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
+impl<'isolate_scope, 'isolate> std::fmt::Debug for V8LocalString<'isolate_scope, 'isolate> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let string_value = String::from(self.to_owned());
+        #[allow(dead_code)]
+        #[derive(Debug)]
+        struct V8StringDebugPrinter {
+            address: *mut v8_local_string,
+            value: String,
+        }
+        let inner_string = V8StringDebugPrinter {
+            address: self.inner_string,
+            value: string_value,
+        };
+        f.debug_struct("V8LocalString")
+            .field("inner_string", &inner_string)
+            .field("isolate_scope", self.isolate_scope)
+            .finish()
+    }
+}
+
 impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
+    /// Creates a new string within the provided isolate.
+    pub fn new(isolate_scope: &'isolate_scope V8IsolateScope<'isolate>, s: &str) -> Self {
+        let inner_string = unsafe {
+            crate::v8_c_raw::bindings::v8_NewString(
+                isolate_scope.isolate.inner_isolate,
+                s.as_ptr().cast(),
+                s.len(),
+            )
+        };
+        Self {
+            inner_string,
+            isolate_scope,
+        }
+    }
+
     /// Convert the string object into a generic JS object.
     #[must_use]
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
@@ -29,7 +64,7 @@ impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
         }
     }
 
-    /// Same as writing 'new String(...)'.
+    /// Same as writing `new String(...)` in JavaScript.
     #[must_use]
     pub fn to_string_object(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj = unsafe {
@@ -39,6 +74,44 @@ impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
             inner_obj,
             isolate_scope: self.isolate_scope,
         }
+    }
+}
+
+extern "C" fn convert_c_string_to_rust(
+    string: *mut ::std::os::raw::c_void,
+    data: *const ::std::os::raw::c_char,
+    length: usize,
+) {
+    let string: *mut String = string as _;
+    let data = data as *const u8;
+    let bytes = unsafe { std::slice::from_raw_parts(data, length) };
+    unsafe { string.replace(std::str::from_utf8(bytes).unwrap().to_owned()) };
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalString<'isolate_scope, 'isolate>> for String {
+    fn from(value: V8LocalString<'isolate_scope, 'isolate>) -> Self {
+        String::from(&value)
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<&V8LocalString<'isolate_scope, 'isolate>> for String {
+    fn from(value: &V8LocalString<'isolate_scope, 'isolate>) -> Self {
+        let mut string = String::default();
+        let string_ptr = &mut string as *mut String as _;
+        unsafe {
+            crate::v8_c_raw::bindings::get_v8_string_value_with_callback(
+                value.inner_string,
+                Some(convert_c_string_to_rust),
+                string_ptr,
+            )
+        };
+        string
+    }
+}
+
+impl<'isolate_scope, 'isolate> Clone for V8LocalString<'isolate_scope, 'isolate> {
+    fn clone(&self) -> Self {
+        Self::new(self.isolate_scope, &String::from(self))
     }
 }
 

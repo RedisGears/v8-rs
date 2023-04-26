@@ -47,6 +47,8 @@ class V8_EXPORT EmbedderRootsHandler {
    * Note that the |handle| is different from the handle that the embedder holds
    * for retaining the object. It is up to the embedder to find the original
    * handle via the object or class id.
+   *
+   * The concrete implementations must be thread-safe.
    */
   virtual void ResetRoot(const v8::TracedReference<v8::Value>& handle) = 0;
 
