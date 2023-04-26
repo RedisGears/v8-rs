@@ -12,13 +12,18 @@
 /* Allocator definition
  * Note: only structs memory will be allocated using the allocator,
  *       v8 memory will be allocate and manage by b8. */
-typedef struct v8_alloctor {
+typedef struct v8_allocator {
 	void* (*v8_Alloc)(size_t bytes);
 	void* (*v8_Realloc)(void *ptr, size_t bytes);
 	void  (*v8_Free)(void *ptr);
 	void* (*v8_Calloc)(size_t nmemb, size_t size);
 	char* (*v8_Strdup)(const char *str);
-}v8_alloctor;
+} v8_allocator;
+
+typedef struct v8_inspector_c_wrapper v8_inspector_c_wrapper;
+
+/* An opaque struct representing a v8 platform. */
+typedef struct v8_platform v8_platform;
 
 /* Opaque struct representing a v8 interpreter.
  * There is no limit to the amount of isolates that can be
@@ -110,7 +115,71 @@ typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 
 /* Initialize v8, must be called before any v8 API.
  * if allocator is NULL, use default memory functions. */
-void v8_Initialize(v8_alloctor *allocator, int thread_pool_size);
+void v8_Initialize(v8_allocator *allocator, int thread_pool_size);
+/* Initialises the engine with the provided allocator and platform. */
+void v8_InitializeWithInitializedPlatform(v8_allocator *alloc, v8_platform *platform);
+/* Creates a new platform with the thread pool size provided. */
+v8_platform* v8_NewPlatform(const int thread_pool_size);
+/* Initialises a created platform. */
+void v8_InitializePlatform(v8_platform *platform);
+
+typedef void (*v8_InspectorOnResponseCallback)(const char *string, void *userdata);
+typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *inspector,  void *userdata);
+
+/* Creates a debugging inspector for the global platform. */
+v8_inspector_c_wrapper* create_inspector_wrapper(
+	v8_context_ref *context,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData
+);
+
+/* Deletes (invokes the destructor and deallocates) an inspector object.
+*/
+void delete_inspector_wrapper(v8_inspector_c_wrapper *inspector);
+/* Dispatches an inspector protocol message to the inspector passed. */
+void inspector_dispatch_protocol_message(v8_inspector_c_wrapper *inspector, const char *message_json);
+/*
+Schedules a pause (sets a breakpoint) on the next statement, with
+the reason message provided.
+*/
+void inspector_schedule_pause_on_next_statement(v8_inspector_c_wrapper *inspector, const char *reason);
+/* TODO */
+void inspector_wait_frontend_message_on_pause(v8_inspector_c_wrapper *inspector);
+
+/* Sets the "onResponse" callback. */
+void inspector_set_on_response_callback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData
+);
+
+/* Sets the "onWaitFrontendMessageOnPause" callback. */
+void inspector_set_on_wait_frontend_message_on_pause_callback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData
+);
+
+void inspector_set_context(
+	v8_inspector_c_wrapper *inspector,
+	v8_context_ref *context
+);
+
+void get_v8_string_value(
+	v8_local_string *v8_string,
+	unsigned char *bytes,
+	const size_t length
+);
+
+typedef void (*v8_StringToUtf8StringCallback)(void *userdata, const char *data, const size_t length);
+
+void get_v8_string_value_with_callback(
+	v8_local_string *v8_string,
+	v8_StringToUtf8StringCallback callback,
+	void *userdata
+);
 
 const char* v8_Version();
 
