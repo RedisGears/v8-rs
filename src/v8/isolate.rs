@@ -22,6 +22,7 @@ use std::os::raw::{c_char, c_int};
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.
 /// In order to free an isolate, one must call [`V8Isolate::free_isolate`].
+#[derive(Debug)]
 pub struct V8Isolate {
     pub(crate) inner_isolate: *mut v8_isolate,
     pub(crate) no_release: bool,

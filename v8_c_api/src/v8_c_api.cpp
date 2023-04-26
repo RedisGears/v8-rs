@@ -5,19 +5,27 @@
  */
 
 #include "v8.h"
+#include "v8-inspector.h"
 #include "libplatform/libplatform.h"
 
 #include <cassert>
+#include <memory>
 
-static v8::Platform* platform = NULL;
+namespace {
+v8::Platform* GLOBAL_PLATFORM = NULL;
+} // anonymous namespace
 
+/// Our slot is a slot where we store our own data. The 0th index of
+/// V8 is forbidden from being used, so we store our data at this index
+/// instead.
+#define OUR_SLOT 1
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-#define INTERNAL_OFFSET 2
+#define INTERNAL_OFFSET 2 + OUR_SLOT
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
 
 #define STRINGIFY(s) _STRINGIFY(s)
@@ -31,7 +39,7 @@ extern "C" {
 #include <stdlib.h>
 #include <string.h>
 
-static v8_alloctor DefaultAllocator = {
+static v8_allocator DefaultAllocator = {
 		.v8_Alloc = malloc,
 		.v8_Realloc = realloc,
 		.v8_Free = free,
@@ -39,12 +47,213 @@ static v8_alloctor DefaultAllocator = {
 		.v8_Strdup = strdup,
 };
 
-static v8_alloctor *allocator;
+static v8_allocator *allocator;
 #define V8_ALLOC allocator->v8_Alloc
 #define V8_REALLOC allocator->v8_Realloc
 #define V8_FREE allocator->v8_Free
 #define V8_CALLOC allocator->v8_Calloc
 #define V8_STRDUP allocator->v8_Strdup
+
+
+// Some parts of the contents of this anonymous namespace below
+// were borrowed and changed.
+namespace {
+/*
+MIT License
+
+Copyright (c) 2019 Elmi Ahmadov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+static inline v8_inspector::StringView convertToStringView(const std::string &str) {
+  auto* stringView = reinterpret_cast<const uint8_t*>(str.c_str());
+  return { stringView, str.length() };
+}
+
+static inline std::string convertToString(v8::Isolate* isolate, const v8_inspector::StringView stringView) {
+  int length = static_cast<int>(stringView.length());
+  v8::Local<v8::String> message = (
+        stringView.is8Bit()
+          ? v8::String::NewFromOneByte(isolate, reinterpret_cast<const uint8_t*>(stringView.characters8()), v8::NewStringType::kNormal, length)
+          : v8::String::NewFromTwoByte(isolate, reinterpret_cast<const uint16_t*>(stringView.characters16()), v8::NewStringType::kNormal, length)
+      ).ToLocalChecked();
+  v8::String::Utf8Value result(isolate, message);
+  return *result;
+}
+
+class v8_inspector_channel_wrapper final: public v8_inspector::V8Inspector::Channel {
+public:
+  explicit v8_inspector_channel_wrapper(
+	v8::Isolate *isolate,
+	const std::function<void(std::string)> &onResponse = {}
+  );
+
+  void sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) override;
+  void sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) override;
+  void flushProtocolNotifications() override;
+
+  void setOnResponseCallback(const std::function<void(std::string)> &callback);
+
+private:
+  v8::Isolate* isolate_;
+  std::function<void(std::string)> onResponse_;
+};
+
+
+v8_inspector_channel_wrapper::v8_inspector_channel_wrapper(v8::Isolate *isolate, const std::function<void(std::string)> &onResponse) {
+    isolate_ = isolate;
+    onResponse_ = onResponse;
+}
+
+void v8_inspector_channel_wrapper::sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) {
+    const std::string response = convertToString(isolate_, message->string());
+    if (onResponse_) {
+		onResponse_(response);
+	}
+}
+
+void v8_inspector_channel_wrapper::sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) {
+    const std::string notification = convertToString(isolate_, message->string());
+    if (onResponse_) {
+		onResponse_(notification);
+	}
+}
+
+void v8_inspector_channel_wrapper::flushProtocolNotifications() {
+    // flush protocol notification
+}
+
+void v8_inspector_channel_wrapper::setOnResponseCallback(const std::function<void(std::string)> &callback) {
+	onResponse_ = callback;
+}
+
+using InspectorOnResponseCallback = std::function<void(std::string)>;
+using InspectorOnWaitFrontendMessageOnPauseCallback = std::function<int(v8_inspector_c_wrapper *)>;
+
+class v8_inspector_client_wrapper final: public v8_inspector::V8InspectorClient {
+public:
+  explicit v8_inspector_client_wrapper(
+	v8::Platform *platform,
+    const v8::Local<v8::Context> &context,
+	const InspectorOnResponseCallback &onResponse = {},
+	const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause = {}
+  );
+
+  void setContext(const v8::Local<v8::Context> &context);
+  void setOnResponseCallback(const InspectorOnResponseCallback &callback);
+  void setOnWaitFrontendMessageOnPauseCallback(const InspectorOnWaitFrontendMessageOnPauseCallback &callback);
+
+  void dispatchProtocolMessage(const v8_inspector::StringView &message_view);
+  void runMessageLoopOnPause(const int contextGroupId) override;
+  void quitMessageLoopOnPause() override;
+
+  void schedulePauseOnNextStatement(const v8_inspector::StringView &reason);
+  void waitFrontendMessageOnPause();
+
+  v8::Local<v8::Context> ensureDefaultContextInGroup(const int contextGroupId) override;
+
+private:
+  static const int kContextGroupId = 1;
+  v8::Platform* platform_;
+  std::unique_ptr<v8_inspector::V8Inspector> inspector_;
+  std::unique_ptr<v8_inspector::V8InspectorSession> session_;
+  std::unique_ptr<v8_inspector_channel_wrapper> channel_;
+  v8::Isolate* isolate_;
+  v8::Handle<v8::Context> context_;
+  InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
+  bool terminated_;
+  bool run_nested_loop_;
+};
+
+v8_inspector_client_wrapper::v8_inspector_client_wrapper(
+	v8::Platform *platform,
+	const v8::Local<v8::Context> &context,
+	const InspectorOnResponseCallback &onResponse,
+	const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause
+) :
+    platform_(platform),
+	context_(context),
+	onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause)
+{
+	isolate_ = context_->GetIsolate();
+	inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
+    channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse));
+    session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
+    context_->SetAlignedPointerInEmbedderData(1, this);
+
+    v8_inspector::StringView contextName = convertToStringView("inspector");
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+	terminated_ = true;
+	run_nested_loop_ = false;
+}
+
+void v8_inspector_client_wrapper::setContext(const v8::Local<v8::Context> &context) {
+	context_ = context;
+    context_->SetAlignedPointerInEmbedderData(1, this);
+    v8_inspector::StringView contextName = convertToStringView("inspector");
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+}
+
+void v8_inspector_client_wrapper::setOnResponseCallback(const InspectorOnResponseCallback &callback) {
+	channel_->setOnResponseCallback(callback);
+}
+
+void v8_inspector_client_wrapper::setOnWaitFrontendMessageOnPauseCallback(const InspectorOnWaitFrontendMessageOnPauseCallback &callback) {
+	onWaitFrontendMessageOnPause_ = callback;
+}
+
+void v8_inspector_client_wrapper::dispatchProtocolMessage(const v8_inspector::StringView &message_view) {
+    session_->dispatchProtocolMessage(message_view);
+}
+
+void v8_inspector_client_wrapper::runMessageLoopOnPause(int contextGroupId) {
+    if (run_nested_loop_) {
+        return;
+    }
+    terminated_ = false;
+    run_nested_loop_ = true;
+    while (!terminated_ && onWaitFrontendMessageOnPause_ && onWaitFrontendMessageOnPause_(reinterpret_cast<v8_inspector_c_wrapper *>(this))) {
+        while (v8::platform::PumpMessageLoop(platform_, isolate_)) {}
+    }
+    terminated_ = true;
+    run_nested_loop_ = false;
+}
+
+void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
+    terminated_ = true;
+}
+
+v8::Local<v8::Context> v8_inspector_client_wrapper::ensureDefaultContextInGroup(int contextGroupId) {
+    return context_;
+}
+
+void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
+    session_->schedulePauseOnNextStatement(reason, reason);
+}
+
+void v8_inspector_client_wrapper::waitFrontendMessageOnPause() {
+    terminated_ = false;
+}
+} // anonymous namespace
+
+
 
 struct v8_isolate_scope {
 	v8::Isolate *isolate;
@@ -70,6 +279,14 @@ struct v8_local_string {
 	}
 	v8_local_string(v8::Local<v8::String> val): str(val) {}
 	~v8_local_string() {}
+
+	inline std::string toString(v8::Isolate *isolate) const {
+		if (!isolate) {
+			isolate = v8::Isolate::GetCurrent();
+		}
+		v8::String::Utf8Value s(isolate, str);
+		return std::string(*s);
+	}
 };
 
 struct v8_local_script {
@@ -163,6 +380,122 @@ struct v8_local_array_buff {
 	v8::Local<v8::ArrayBuffer> arr_buff;
 	v8_local_array_buff(v8::Local<v8::ArrayBuffer> a): arr_buff(a) {}
 };
+
+v8_inspector_c_wrapper* v8_InspectorCreate(
+	v8_context_ref *context,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData
+) {
+	std::function<void(std::string)> onResponseWrapper = [onResponse, onResponseUserData](const std::string &string){
+		onResponse(string.c_str(), onResponseUserData);
+	};
+	std::function<int(v8_inspector_c_wrapper *)> onWaitFrontendMessageOnPauseWrapper = [onWaitFrontendMessageOnPause, onWaitUserData](v8_inspector_c_wrapper *inspector) {
+		return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
+	};
+	auto platform = GLOBAL_PLATFORM;
+	return reinterpret_cast<v8_inspector_c_wrapper *>(
+		new v8_inspector_client_wrapper(
+			platform,
+			context->context,
+			onResponseWrapper,
+			onWaitFrontendMessageOnPauseWrapper
+		)
+	);
+}
+
+void v8_FreeInspector(v8_inspector_c_wrapper *wrapper) {
+	delete reinterpret_cast<v8_inspector_client_wrapper *>(wrapper);
+}
+
+void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *wrapper, const char *message) {
+	const std::string string = message;
+	const auto view = convertToStringView(string);
+	reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->dispatchProtocolMessage(view);
+}
+
+void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *wrapper, const char *reason) {
+	const std::string string = reason;
+	const auto view = convertToStringView(string);
+	reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->schedulePauseOnNextStatement(view);
+}
+
+void v8_InspectorWaitFrontendMessageOnPause(v8_inspector_c_wrapper *wrapper) {
+	reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->waitFrontendMessageOnPause();
+}
+
+void v8_InspectorSetOnResponseCallback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData
+) {
+	std::function<void(std::string)> onResponseWrapper = {};
+
+	if (onResponse) {
+		onResponseWrapper = [onResponse, onResponseUserData](const std::string &string){
+			onResponse(string.c_str(), onResponseUserData);
+		};
+	}
+
+	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnResponseCallback(onResponseWrapper);
+}
+
+/* Sets the "onWaitFrontendMessageOnPause" callback. */
+void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData
+) {
+	std::function<int(v8_inspector_c_wrapper *)> onWaitFrontendMessageOnPauseWrapper = {};
+
+	if (onWaitFrontendMessageOnPause) {
+		onWaitFrontendMessageOnPauseWrapper = [onWaitFrontendMessageOnPause, onWaitUserData](v8_inspector_c_wrapper *inspector) {
+			return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
+		};
+	}
+
+	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnWaitFrontendMessageOnPauseCallback(onWaitFrontendMessageOnPauseWrapper);
+}
+
+void v8_InspectorSetContext(
+	v8_inspector_c_wrapper *inspector,
+	v8_context_ref *context
+) {
+	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setContext(context->context);
+}
+
+void get_v8_string_value(
+	v8_local_string *v8_string,
+	unsigned char *bytes,
+	const size_t length
+) {
+	if (!v8_string || !bytes || !length) {
+		return;
+	}
+
+	auto str = v8_string->toString(nullptr);
+	if (!str.empty()) {
+		for (size_t i = 0; i < std::min(str.length(), length); ++i) {
+			bytes[i] = str[i];
+		}
+	}
+}
+
+void get_v8_string_value_with_callback(
+	v8_local_string *v8_string,
+	v8_StringToUtf8StringCallback callback,
+	void *userdata
+) {
+	if (!v8_string || !callback) {
+		return;
+	}
+
+	auto str = v8_string->toString(nullptr);
+	if (!str.empty()) {
+		callback(userdata, str.c_str(), str.size());
+	}
+}
 
 struct v8_embedded_data {
 	std::vector<void*> vec;
@@ -274,15 +607,21 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 	return native_data;
 }
 
-int v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
+void v8_SetInitializationFlags() {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 	v8::V8::SetFlagsFromString("--stack-size=50");
+}
+
+int v8_Initialize(v8_allocator *alloc, const int thread_pool_size) {
+	v8_SetInitializationFlags();
+
 	if (strcmp(v8_Version(), HEADER_VERSION)) {
 		fprintf(stderr, "The library (%s) and the header versions (%s) mismatch.", v8_Version(), HEADER_VERSION);
 		return 0;
 	}
-	platform = v8::platform::NewDefaultPlatform(thread_pool_size).release();
-	v8::V8::InitializePlatform(platform);
+
+	GLOBAL_PLATFORM = v8::platform::NewDefaultPlatform(thread_pool_size).release();
+	v8::V8::InitializePlatform(GLOBAL_PLATFORM);
 	v8::V8::Initialize();
 
 	if (alloc) {
@@ -291,7 +630,15 @@ int v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
 		allocator = &DefaultAllocator;
 	}
 
-    return 1;
+	return 1;
+}
+
+v8_platform* v8_NewPlatform(const int thread_pool_size) {
+	return reinterpret_cast<v8_platform *>(v8::platform::NewDefaultPlatform(thread_pool_size).release());
+}
+
+void v8_InitializePlatform(v8_platform *platform) {
+	v8::V8::InitializePlatform(reinterpret_cast<v8::Platform *>(platform));
 }
 
 const char* v8_Version() {
@@ -300,7 +647,7 @@ const char* v8_Version() {
 
 void v8_Dispose() {
 	v8::V8::Dispose();
-	delete platform;
+	delete GLOBAL_PLATFORM;
 }
 
 static void v8_FreeAllocator(v8::ArrayBuffer::Allocator* allocator) {
@@ -314,7 +661,7 @@ v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap
 	v8::Isolate *isolate = v8::Isolate::New(create_params);
 
 	v8_pd_list *native_data = v8_PDListCreate(create_params.array_buffer_allocator);
-	isolate->SetData(0, native_data);
+	isolate->SetData(OUR_SLOT, native_data);
 
 	return (v8_isolate*)isolate;
 }
@@ -331,7 +678,7 @@ void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char*
 
 void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void* data, size_t current_heap_limit, size_t initial_heap_limit), void *pd, void(*free_pd)(void*)) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_PDListAdd(native_data, pd, free_pd);
 	isolate->AddNearHeapLimitCallback(near_oom_callback, pd);
 	isolate->AutomaticallyRestoreInitialHeapLimit();
@@ -379,7 +726,7 @@ void v8_CancelTerminateExecution(v8_isolate* i) {
 
 void v8_FreeIsolate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8::ArrayBuffer::Allocator *allocator = native_data->allocator;
 	v8_PDListFree(native_data);
 	isolate->Dispose();
@@ -632,7 +979,7 @@ v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* i, n
 	nf_pd->pd = pd;
 	nf_pd->freePD = freePD;
 
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
 
 	v8::Local<v8::External> data = v8::External::New(isolate, (void*)nf_pd);
@@ -659,7 +1006,7 @@ v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_f
 	nf_pd->pd = pd;
 	nf_pd->freePD = freePD;
 
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
 
 	v8::Local<v8::External> data = v8::External::New(ctx_ref->context->GetIsolate(), (void*)nf_pd);
@@ -1134,7 +1481,7 @@ v8_local_external_data* v8_NewExternalData(v8_isolate *i, void *data, void(*free
 	nf_pd->pd = data;
 	nf_pd->freePD = free;
 
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
 
 	v8::Local<v8::External> d = v8::External::New(isolate, (void*)nf_pd);
