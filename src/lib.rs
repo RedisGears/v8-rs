@@ -272,6 +272,37 @@ mod json_path_tests {
     }
 
     #[test]
+    fn test_delete_object_property() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+
+        let property_name = isolate_scope.new_string("foo").to_value();
+        let object = isolate_scope.new_object();
+        object.set(&ctx_scope, &property_name, &isolate_scope.new_long(1));
+
+        assert_eq!(
+            &object
+                .get_own_property_names(&ctx_scope)
+                .iter(&ctx_scope)
+                .map(|v| v.to_utf8().unwrap().as_str().to_owned())
+                .collect::<Vec<String>>(),
+            &["foo".to_owned()]
+        );
+
+        assert!(object.delete(&ctx_scope, &property_name));
+
+        assert!(object
+            .get_own_property_names(&ctx_scope)
+            .iter(&ctx_scope)
+            .map(|v| v.to_utf8().unwrap().as_str().to_owned())
+            .collect::<Vec<String>>()
+            .is_empty());
+    }
+
+    #[test]
     fn test_simple_code_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();

@@ -140,6 +140,9 @@ size_t v8_IsolateUsedHeapSize(v8_isolate* i);
 /* Return the currently total heap size */
 size_t v8_IsolateTotalHeapSize(v8_isolate* i);
 
+/* Return the current heap size limit */
+size_t v8_IsolateHeapSizeLimit(v8_isolate* i);
+
 void v8_IsolateNotifyMemoryPressure(v8_isolate* i);
 
 /* Return the currently used isolate or NULL if not isolate is in used */
@@ -390,8 +393,14 @@ int v8_ValueIsObject(v8_local_value *val);
 
 int v8_ValueIsExternalData(v8_local_value *val);
 
-/* Return an array contains the propery names of the given object */
+/* Return an array contains the enumerable properties names of the given object */
 v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj);
+
+/* Return an array contains the all properties names of the given object */
+v8_local_array* v8_ValueGetOwnPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj);
+
+/* Deleted the given propery from the object */
+int v8_DeletePropery(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key);
 
 /* Return 1 if the given JS value is an array and 0 otherwise */
 int v8_ValueIsArray(v8_local_value *val);

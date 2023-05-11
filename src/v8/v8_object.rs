@@ -5,9 +5,9 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_FreeObject, v8_GetInternalFieldCount, v8_ObjectFreeze, v8_ObjectGet,
+    v8_DeletePropery, v8_FreeObject, v8_GetInternalFieldCount, v8_ObjectFreeze, v8_ObjectGet,
     v8_ObjectGetInternalField, v8_ObjectSet, v8_ObjectSetInternalField, v8_ObjectToValue,
-    v8_ValueGetPropertyNames, v8_local_object,
+    v8_ValueGetOwnPropertyNames, v8_ValueGetPropertyNames, v8_local_object,
 };
 
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -120,7 +120,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         unsafe { v8_ObjectFreeze(ctx_scope.inner_ctx_ref, self.inner_obj) };
     }
 
-    /// Convert the object into a generic JS value
+    /// Return an array contains the enumerable properties names of the given object
     #[must_use]
     pub fn get_property_names(
         &self,
@@ -132,6 +132,28 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
             inner_array,
             isolate_scope: self.isolate_scope,
         }
+    }
+
+    /// Return an array contains all the properties names of the given object
+    #[must_use]
+    pub fn get_own_property_names(
+        &self,
+        ctx_scope: &V8ContextScope,
+    ) -> V8LocalArray<'isolate_scope, 'isolate> {
+        let inner_array =
+            unsafe { v8_ValueGetOwnPropertyNames(ctx_scope.inner_ctx_ref, self.inner_obj) };
+        V8LocalArray {
+            inner_array,
+            isolate_scope: self.isolate_scope,
+        }
+    }
+
+    /// Delete a property from the object by the property name.
+    /// Return `true` if the delete was done successfully.
+    pub fn delete(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue) -> bool {
+        let res =
+            unsafe { v8_DeletePropery(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
+        res != 0
     }
 }
 

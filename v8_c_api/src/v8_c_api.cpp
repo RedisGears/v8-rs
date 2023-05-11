@@ -342,6 +342,13 @@ size_t v8_IsolateTotalHeapSize(v8_isolate* i) {
 	return heap.total_heap_size();
 }
 
+size_t v8_IsolateHeapSizeLimit(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::HeapStatistics heap;
+	isolate->GetHeapStatistics(&heap);
+	return heap.heap_size_limit();
+}
+
 void v8_IsolateNotifyMemoryPressure(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	isolate->MemoryPressureNotification(v8::MemoryPressureLevel::kCritical);
@@ -1068,6 +1075,25 @@ v8_local_array* v8_ValueGetPropertyNames(v8_context_ref *ctx_ref, v8_local_objec
 	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
 	res = new (res) v8_local_array(arr);
 	return res;
+}
+
+v8_local_array* v8_ValueGetOwnPropertyNames(v8_context_ref *ctx_ref, v8_local_object *obj) {
+	v8::MaybeLocal<v8::Array> maybe_res = obj->obj->GetOwnPropertyNames(ctx_ref->context, v8::PropertyFilter::ALL_PROPERTIES);
+	if (maybe_res.IsEmpty()) {
+		return NULL;
+	}
+	v8::Local<v8::Array> arr = maybe_res.ToLocalChecked();
+	v8_local_array *res = (v8_local_array*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_array(arr);
+	return res;
+}
+
+int v8_DeletePropery(v8_context_ref *ctx_ref, v8_local_object *obj, v8_local_value *key) {
+	v8::Maybe<bool> res = obj->obj->Delete(ctx_ref->context, key->val);
+	if (res.IsNothing()) {
+		return false;
+	}
+	return res.ToChecked();
 }
 
 int v8_ValueIsArray(v8_local_value *val) {
