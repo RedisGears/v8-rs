@@ -342,6 +342,13 @@ size_t v8_IsolateTotalHeapSize(v8_isolate* i) {
 	return heap.total_heap_size();
 }
 
+size_t v8_IsolateHeapSizeLimit(v8_isolate* i) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::HeapStatistics heap;
+	isolate->GetHeapStatistics(&heap);
+	return heap.heap_size_limit();
+}
+
 void v8_IsolateNotifyMemoryPressure(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	isolate->MemoryPressureNotification(v8::MemoryPressureLevel::kCritical);

@@ -7,9 +7,10 @@
 
 use crate::v8_c_raw::bindings::{
     v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateGetCurrent,
-    v8_IsolateNotifyMemoryPressure, v8_IsolateSetFatalErrorHandler, v8_IsolateSetNearOOMHandler,
-    v8_IsolateSetOOMErrorHandler, v8_IsolateTotalHeapSize, v8_IsolateUsedHeapSize, v8_NewIsolate,
-    v8_RequestInterrupt, v8_TerminateCurrExecution, v8_isolate,
+    v8_IsolateHeapSizeLimit, v8_IsolateNotifyMemoryPressure, v8_IsolateSetFatalErrorHandler,
+    v8_IsolateSetNearOOMHandler, v8_IsolateSetOOMErrorHandler, v8_IsolateTotalHeapSize,
+    v8_IsolateUsedHeapSize, v8_NewIsolate, v8_RequestInterrupt, v8_TerminateCurrExecution,
+    v8_isolate,
 };
 
 use std::os::raw::c_void;
@@ -169,6 +170,12 @@ impl V8Isolate {
     /// garbage-collected.
     pub fn total_heap_size(&self) -> usize {
         unsafe { v8_IsolateTotalHeapSize(self.inner_isolate) }
+    }
+
+    /// Returns the statistics about the heap memory usage.
+    /// The number returned is current heap size limit.
+    pub fn heap_size_limit(&self) -> usize {
+        unsafe { v8_IsolateHeapSizeLimit(self.inner_isolate) }
     }
 
     /// Sets the notification that the system is running low on memory.

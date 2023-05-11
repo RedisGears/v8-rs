@@ -140,6 +140,9 @@ size_t v8_IsolateUsedHeapSize(v8_isolate* i);
 /* Return the currently total heap size */
 size_t v8_IsolateTotalHeapSize(v8_isolate* i);
 
+/* Return the current heap size limit */
+size_t v8_IsolateHeapSizeLimit(v8_isolate* i);
+
 void v8_IsolateNotifyMemoryPressure(v8_isolate* i);
 
 /* Return the currently used isolate or NULL if not isolate is in used */
