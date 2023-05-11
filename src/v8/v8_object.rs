@@ -150,7 +150,6 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
 
     /// Delete a property from the object by the property name.
     /// Return `true` if the delete was done successfully.
-    #[must_use]
     pub fn delete(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue) -> bool {
         let res =
             unsafe { v8_DeletePropery(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
