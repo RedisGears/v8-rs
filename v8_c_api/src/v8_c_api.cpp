@@ -1228,6 +1228,12 @@ v8_local_value* v8_ObjectToValue(v8_local_object *obj) {
 	return res;
 }
 
+v8_local_value* v8_ValueToValue(v8_local_value *val) {
+	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
+	res = new (res) v8_local_value(val->val);
+	return res;
+}
+
 v8_local_value* v8_ExternalDataToValue(v8_local_external_data *ext) {
 	v8::Local<v8::Value> val = v8::Local<v8::Value>::Cast(ext->ext);
 	v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));

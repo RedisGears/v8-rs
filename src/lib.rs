@@ -56,6 +56,9 @@ impl From<UserIndex> for RawIndex {
 #[cfg(test)]
 mod json_path_tests {
     use crate::v8::v8_array::V8LocalArray;
+    use crate::v8::v8_object::V8LocalObject;
+    use crate::v8::v8_utf8::V8LocalUtf8;
+    use crate::v8::v8_value::V8LocalValue;
     use crate::v8::{
         isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
         v8_native_function_template, v8_object, v8_set, v8_utf8,
@@ -947,7 +950,7 @@ mod json_path_tests {
             }),
         )
         .expect_err("Did not get error when suppose to.");
-        assert!(err.contains("Failed getting field inner, Given argument must be an object"));
+        assert!(err.contains("Field inner does not exists"));
     }
 
     #[test]
@@ -972,5 +975,29 @@ mod json_path_tests {
         )
         .expect_err("Did not get error when suppose to.");
         assert!(err.contains("Unknown properties given: extra"));
+    }
+
+    #[derive(NativeFunctionArgument)]
+    struct JSArgs<'isolate_scope, 'isolate> {
+        v: V8LocalValue<'isolate_scope, 'isolate>,
+        o: V8LocalObject<'isolate_scope, 'isolate>,
+        a: V8LocalArray<'isolate_scope, 'isolate>,
+        s: V8LocalUtf8<'isolate_scope, 'isolate>,
+    }
+
+    #[test]
+    fn test_object_argument_macro_with_v8_objects() {
+        define_function_and_call(
+            "test({v: 1, o: { i: 10 }, a: [], s: 'foo' })",
+            "test",
+            new_native_function!(|_isolate, ctx_scope, args: JSArgs| {
+                assert!(args.v.is_long());
+                assert!(args.o.get_str_field(ctx_scope, "i").map_or(false, |_| true));
+                assert!(args.a.is_empty());
+                assert_eq!(args.s.as_str(), "foo");
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect("Got error on function run");
     }
 }

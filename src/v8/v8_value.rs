@@ -11,7 +11,8 @@ use crate::v8_c_raw::bindings::{
     v8_ValueAsString, v8_ValueIsArray, v8_ValueIsArrayBuffer, v8_ValueIsAsyncFunction,
     v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsExternalData, v8_ValueIsFunction, v8_ValueIsNull,
     v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
-    v8_ValueIsStringObject, v8_ValueIsUndefined, v8_local_value, v8_persisted_value,
+    v8_ValueIsStringObject, v8_ValueIsUndefined, v8_ValueToValue, v8_local_value,
+    v8_persisted_value,
 };
 
 use std::ptr;
@@ -232,6 +233,18 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
         let inner_obj = unsafe { v8_ValueAsObject(self.inner_val) };
         V8LocalObject {
             inner_obj,
+            isolate_scope: self.isolate_scope,
+        }
+    }
+
+    /// Convert the value into a another JS value. notice that both will point to the same
+    /// JS value. the differece is that they are different local pointers which means that
+    /// the new given value can be used for `try_from` line functions.
+    #[must_use]
+    pub fn as_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
+        let inner_val = unsafe { v8_ValueToValue(self.inner_val) };
+        V8LocalValue {
+            inner_val,
             isolate_scope: self.isolate_scope,
         }
     }
@@ -475,6 +488,18 @@ impl<'isolate_scope, 'isolate, 'ctx_scope, 'a>
         val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
     ) -> Result<Self, Self::Error> {
         val.next().ok_or("Wrong number of arguments given")
+    }
+}
+
+impl<'isolate_scope, 'isolate, 'value, 'ctx_scope>
+    TryFrom<V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope>>
+    for V8LocalValue<'isolate_scope, 'isolate>
+{
+    type Error = &'static str;
+    fn try_from(
+        val: V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope>,
+    ) -> Result<Self, Self::Error> {
+        Ok(val.get_value().as_value())
     }
 }
 

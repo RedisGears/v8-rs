@@ -452,6 +452,9 @@ void v8_FreeExternalData(v8_local_external_data *ext);
 /* Convert the given JS object into JS generic value */
 v8_local_value* v8_ObjectToValue(v8_local_object *obj);
 
+/* Shellow copy of the given JS value. */
+v8_local_value* v8_ValueToValue(v8_local_value *obj);
+
 v8_local_value* v8_ExternalDataToValue(v8_local_external_data *ext);
 
 /* Create a new set */
