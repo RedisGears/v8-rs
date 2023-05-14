@@ -1304,6 +1304,10 @@ int v8_ValueIsNull(v8_local_value *val) {
 	return val->val->IsNull();
 }
 
+int v8_ValueIsUndefined(v8_local_value *val) {
+	return val->val->IsUndefined();
+}
+
 v8_local_array_buff* v8_NewArrayBuffer(v8_isolate *i, const char *data, size_t len) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Local<v8::ArrayBuffer> arr_buff = v8::ArrayBuffer::New(isolate, len);

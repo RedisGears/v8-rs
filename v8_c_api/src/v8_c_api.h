@@ -484,6 +484,9 @@ v8_local_value* v8_NewNull(v8_isolate *i);
 /* Return 1 if the given JS value is null 0 otherwise */
 int v8_ValueIsNull(v8_local_value *val);
 
+/* Return 1 if the given JS value is undefined 0 otherwise */
+int v8_ValueIsUndefined(v8_local_value *val);
+
 /* Create a js ArrayBuffer */
 v8_local_array_buff* v8_NewArrayBuffer(v8_isolate *i, const char *data, size_t len);
 

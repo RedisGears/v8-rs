@@ -145,21 +145,34 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionArgs<'isolate_scope, 'isolat
 
     pub const fn persist(&self) {}
 
-    pub fn iter<'a>(&'a self) -> V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
+    pub fn iter<'a, 'ctx_scope>(
+        &'a self,
+        ctx_scope: &'ctx_scope V8ContextScope<'isolate_scope, 'isolate>,
+    ) -> V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a> {
         V8LocalNativeFunctionArgsIter {
             args: self,
             index: 0,
+            ctx_scope: ctx_scope,
         }
     }
 }
 
-pub struct V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a> {
+pub struct V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a> {
     args: &'a V8LocalNativeFunctionArgs<'isolate_scope, 'isolate>,
     index: usize,
+    ctx_scope: &'ctx_scope V8ContextScope<'isolate_scope, 'isolate>,
 }
 
-impl<'isolate_scope, 'isolate, 'a> Iterator
-    for V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a>
+    V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>
+{
+    pub fn get_ctx_scope(&self) -> &'ctx_scope V8ContextScope<'isolate_scope, 'isolate> {
+        self.ctx_scope
+    }
+}
+
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a> Iterator
+    for V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>
 {
     type Item = V8LocalValue<'isolate_scope, 'isolate>;
     fn next(&mut self) -> Option<Self::Item> {

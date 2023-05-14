@@ -55,15 +55,15 @@ impl From<UserIndex> for RawIndex {
 
 #[cfg(test)]
 mod json_path_tests {
-    use crate as v8_rs;
     use crate::v8::v8_array::V8LocalArray;
     use crate::v8::{
         isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
         v8_native_function_template, v8_object, v8_set, v8_utf8,
         v8_value::{self},
     };
+    use crate::{self as v8_rs};
 
-    use v8_derive::new_native_function;
+    use v8_derive::{new_native_function, NativeFunctionArgument};
 
     static mut IS_INITIALIZED: bool = false;
 
@@ -886,5 +886,67 @@ mod json_path_tests {
         )
         .expect_err("Did not get error when suppose to.");
         assert_eq!(err, "Failed consuming arguments. Value is not long.");
+    }
+
+    #[derive(NativeFunctionArgument, PartialEq, Eq, Debug)]
+    struct InnerArgs {
+        i: i64,
+    }
+
+    #[derive(NativeFunctionArgument, PartialEq, Eq, Debug)]
+    struct Args {
+        i: i64,
+        s: String,
+        b: bool,
+        o: Option<String>,
+        inner: InnerArgs,
+        optional_inner: Option<InnerArgs>,
+    }
+
+    #[test]
+    fn test_object_argument_macro() {
+        define_function_and_call(
+            "test({i: 1, s: 'foo', b: false, inner: { i: 10 }})",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect("Got error on function run");
+    }
+
+    #[test]
+    fn test_error_on_object_argument_macro() {
+        let err = define_function_and_call(
+            "test({i: 1, s: 'foo', b: false })",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect_err("Did not get error when suppose to.");
+        assert!(err.contains("Failed getting field inner, Given argument must be an object"));
     }
 }

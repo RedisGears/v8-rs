@@ -4,10 +4,147 @@ use quote::quote;
 use quote::quote_spanned;
 use quote::ToTokens;
 use syn;
+use syn::parse_macro_input;
 use syn::spanned::Spanned;
+use syn::Data;
+use syn::DeriveInput;
 use syn::ExprClosure;
+use syn::Fields;
 use syn::GenericArgument;
 use syn::PathArguments;
+
+/// This derive proc macro can be specified on a struct
+/// and provide the ability to automatically generate the
+/// struct from the native function JS argument.
+/// It should be used along side the `new_native_function` proc
+/// macro in the following maner:
+///
+/// ```rust,no_run,ignore
+/// #[derive(NativeFunctionArgument)]
+/// struct InnerArgs {
+///     i: i64,
+/// }
+
+/// #[derive(NativeFunctionArgument)]
+/// struct Args {
+///     i: i64,
+///     s: String,
+///     b: bool,
+///     o: Option<String>,
+///     inner: InnerArgs,
+///     optional_inner: Option<InnerArgs>,
+/// }
+///
+/// let native_function = isolate_scope.new_native_function_template(new_native_function!(|_isolate, _ctx_scope, args: Args| { /* put your code here */});
+/// ```
+///
+/// The above example will automatically generate a code that
+/// takes the argument given from the JS and translate it to `Args`.
+///
+/// This macro expect that the JS will pass a single
+/// JS object that matches the give struct. For example, the following
+/// JS object will match our `Args` struct:
+///
+/// ```JS
+/// {i: 1, s: 'foo', b: false, inner: {i: 10} }
+/// ```
+///
+/// Notice that any optional field is not mandatory and will be set
+/// to `None` if not given.
+///
+/// And error will be raised if the given argument do not match the
+/// struct definition.
+#[proc_macro_derive(NativeFunctionArgument)]
+pub fn object_argument(item: TokenStream) -> TokenStream {
+    let struct_input: DeriveInput = parse_macro_input!(item);
+    let struct_data = match struct_input.data {
+        Data::Struct(s) => s,
+        _ => {
+            return syn::Error::new(
+                struct_input.span(),
+                "Input must be a struct. Not enum nor union",
+            )
+            .to_compile_error()
+            .into()
+        }
+    };
+
+    let fields = match struct_data.fields {
+        Fields::Named(f) => f,
+        _ => {
+            return syn::Error::new(
+                struct_data.fields.span(),
+                "Struct must contains a names fieds.",
+            )
+            .to_compile_error()
+            .into()
+        }
+    };
+
+    let fields: Vec<_> = fields.named
+        .into_iter()
+        .map(|v| {
+            let fname = v.ident;
+            let fname_str = fname.to_token_stream().to_string();
+            let t = v.ty;
+            if t.to_token_stream().to_string().starts_with("Option") {
+                // handle optional field
+                quote! {
+                    #fname: obj.get_str_field(ctx_scope, #fname_str).map_or(Result::<#t, String>::Ok(None), |v| {
+                        if v.is_null() || v.is_undefined() {
+                            return Ok(None);
+                        }
+                        Ok(Some(v8_rs::v8::v8_value::V8CtxValue::new(&v, ctx_scope).try_into().map_err(|e| format!("Failed getting field {}, {}.", #fname_str, e))?))
+                    })?
+                }
+            } else {
+                quote! {
+                    #fname: v8_rs::v8::v8_value::V8CtxValue::new(
+                        &obj.get_str_field(ctx_scope, #fname_str).ok_or(stringify!(#fname was not given).to_owned())?, ctx_scope
+                    ).try_into().map_err(|e| format!("Failed getting field {}, {}.", #fname_str, e))?
+                }
+            }
+        })
+        .collect();
+
+    let struct_name = struct_input.ident;
+
+    let gen = quote! {
+        impl<'isolate_scope, 'isolate, 'ctx_scope, 'a> TryFrom<&mut v8_rs::v8::v8_native_function_template::V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>> for #struct_name {
+            type Error = String;
+
+            fn try_from(it: &mut v8_rs::v8::v8_native_function_template::V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>) -> Result<Self, Self::Error> {
+                let ctx_scope = it.get_ctx_scope();
+                let next_value = it.next().ok_or("Wrong number of arguments given".to_owned())?;
+                if !next_value.is_object() {
+                    return Err("Given argument must be an object".to_owned());
+                }
+                let obj = next_value.as_object();
+                Ok(#struct_name {
+                    #(#fields,)*
+                })
+            }
+        }
+
+        impl<'isolate_scope, 'isolate, 'value, 'ctx_value> TryFrom<v8_rs::v8::v8_value::V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_value>> for #struct_name {
+            type Error = String;
+
+            fn try_from(ctx_value: v8_rs::v8::v8_value::V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_value>) -> Result<Self, Self::Error> {
+                let val = ctx_value.get_value();
+                if !val.is_object() {
+                    return Err("Given argument must be an object".to_owned());
+                }
+                let ctx_scope = ctx_value.get_ctx_scope();;
+                let obj = val.as_object();
+                Ok(#struct_name {
+                    #(#fields,)*
+                })
+            }
+        }
+    };
+
+    gen.into()
+}
 
 #[proc_macro]
 pub fn new_native_function(item: TokenStream) -> TokenStream {
@@ -201,7 +338,7 @@ pub fn new_native_function(item: TokenStream) -> TokenStream {
     let gen = quote! {
         |__args, __isolate, __ctx_scope| {
 
-            let mut __args_iter = __args.iter();
+            let mut __args_iter = __args.iter(__ctx_scope);
 
             #(
                 let #names: #types = #get_argument_code;

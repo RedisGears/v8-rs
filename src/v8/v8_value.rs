@@ -11,7 +11,7 @@ use crate::v8_c_raw::bindings::{
     v8_ValueAsString, v8_ValueIsArray, v8_ValueIsArrayBuffer, v8_ValueIsAsyncFunction,
     v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsExternalData, v8_ValueIsFunction, v8_ValueIsNull,
     v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
-    v8_ValueIsStringObject, v8_local_value, v8_persisted_value,
+    v8_ValueIsStringObject, v8_ValueIsUndefined, v8_local_value, v8_persisted_value,
 };
 
 use std::ptr;
@@ -36,10 +36,38 @@ pub struct V8LocalValue<'isolate_scope, 'isolate> {
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
+/// This stuct is a wrapper for `V8LocalValue` that also have access
+/// to the current `V8ContextScope`.
+/// It is used by `NativeFunctionArgument` derive macro to be able
+/// to get arguments from JS object.
+pub struct V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope> {
+    pub(crate) val: &'value V8LocalValue<'isolate_scope, 'isolate>,
+    pub(crate) ctx_scope: &'ctx_scope V8ContextScope<'isolate_scope, 'isolate>,
+}
+
 /// JS generic persisted value
 pub struct V8PersistValue {
     pub(crate) inner_val: *mut v8_persisted_value,
     forget: bool,
+}
+
+impl<'isolate_scope, 'isolate, 'value, 'ctx_scope>
+    V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope>
+{
+    pub fn new(
+        val: &'value V8LocalValue<'isolate_scope, 'isolate>,
+        ctx_scope: &'ctx_scope V8ContextScope<'isolate_scope, 'isolate>,
+    ) -> V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope> {
+        V8CtxValue { val, ctx_scope }
+    }
+
+    pub fn get_ctx_scope(&self) -> &'ctx_scope V8ContextScope<'isolate_scope, 'isolate> {
+        self.ctx_scope
+    }
+
+    pub fn get_value(&self) -> &'value V8LocalValue<'isolate_scope, 'isolate> {
+        self.val
+    }
 }
 
 impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
@@ -116,6 +144,12 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     #[must_use]
     pub fn is_null(&self) -> bool {
         (unsafe { v8_ValueIsNull(self.inner_val) } != 0)
+    }
+
+    /// Return true if the value is null and false otherwise.
+    #[must_use]
+    pub fn is_undefined(&self) -> bool {
+        (unsafe { v8_ValueIsUndefined(self.inner_val) } != 0)
     }
 
     /// Return true if the value is function and false otherwise.
@@ -323,10 +357,10 @@ impl Drop for V8PersistValue {
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for i64 {
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalValue<'isolate_scope, 'isolate>> for i64 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: &V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_long() {
             return Err("Value is not long");
         }
@@ -335,10 +369,10 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for f64 {
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalValue<'isolate_scope, 'isolate>> for f64 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: &V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_number() {
             return Err("Value is not number");
         }
@@ -347,10 +381,10 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for String {
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalValue<'isolate_scope, 'isolate>> for String {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: &V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_string() && !val.is_string_object() {
             return Err("Value is not string");
         }
@@ -363,10 +397,10 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for bool {
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalValue<'isolate_scope, 'isolate>> for bool {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: &V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_boolean() {
             return Err("Value is not a boolean");
         }
@@ -386,17 +420,37 @@ impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> f
 
 macro_rules! from_iter_impl {
     ( $x:ty ) => {
-        impl<'isolate_scope, 'isolate, 'a>
-            TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for $x
+        impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>> for $x {
+            type Error = &'static str;
+
+            fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+                (&val).try_into()
+            }
+        }
+
+        impl<'isolate_scope, 'isolate, 'ctx_scope, 'a>
+            TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>>
+            for $x
         {
             type Error = &'static str;
             fn try_from(
-                val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+                val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
             ) -> Result<Self, Self::Error> {
                 match val.next() {
                     Some(val) => val.try_into(),
                     None => Err("Wrong number of arguments given".into()),
                 }
+            }
+        }
+
+        impl<'isolate_scope, 'isolate, 'value, 'ctx_scope>
+            TryFrom<V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope>> for $x
+        {
+            type Error = &'static str;
+            fn try_from(
+                val: V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope>,
+            ) -> Result<Self, Self::Error> {
+                val.val.try_into()
             }
         }
     };
@@ -412,26 +466,27 @@ from_iter_impl!(V8LocalObject<'isolate_scope, 'isolate>);
 from_iter_impl!(V8LocalSet<'isolate_scope, 'isolate>);
 from_iter_impl!(V8LocalUtf8<'isolate_scope, 'isolate>);
 
-impl<'isolate_scope, 'isolate, 'a>
-    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a>
+    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>>
     for V8LocalValue<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
     fn try_from(
-        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
     ) -> Result<Self, Self::Error> {
         val.next().ok_or("Wrong number of arguments given")
     }
 }
 
-impl<'isolate_scope, 'isolate, 'a, T>
-    OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for T
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a, T>
+    OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>>
+    for T
 where
     T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
 {
     type Error = &'static str;
     fn optional_try_from(
-        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
     ) -> Result<Option<Self>, Self::Error> {
         let val = match val.next() {
             Some(v) => v,
@@ -441,26 +496,26 @@ where
     }
 }
 
-impl<'isolate_scope, 'isolate, 'a>
-    OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a>
+    OptionalTryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>>
     for V8LocalValue<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
     fn optional_try_from(
-        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
     ) -> Result<Option<Self>, Self::Error> {
         Ok(val.next())
     }
 }
 
-impl<'isolate_scope, 'isolate, 'a, T>
-    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>> for Vec<T>
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a, T>
+    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>> for Vec<T>
 where
     T: TryFrom<V8LocalValue<'isolate_scope, 'isolate>, Error = &'static str>,
 {
     type Error = &'static str;
     fn try_from(
-        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
     ) -> Result<Self, Self::Error> {
         let mut res = Self::new();
         for v in val {
@@ -473,13 +528,13 @@ where
     }
 }
 
-impl<'isolate_scope, 'isolate, 'a>
-    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>>
+impl<'isolate_scope, 'isolate, 'ctx_scope, 'a>
+    TryFrom<&mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>>
     for Vec<V8LocalValue<'isolate_scope, 'isolate>>
 {
     type Error = &'static str;
     fn try_from(
-        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'a>,
+        val: &mut V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>,
     ) -> Result<Self, Self::Error> {
         Ok(val.collect())
     }
