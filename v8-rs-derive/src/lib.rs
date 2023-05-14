@@ -90,7 +90,7 @@ pub fn object_argument(item: TokenStream) -> TokenStream {
             if t.to_token_stream().to_string().starts_with("Option") {
                 // handle optional field
                 quote! {
-                    #fname: obj.get_str_field(ctx_scope, #fname_str).map_or(Result::<#t, String>::Ok(None), |v| {
+                    #fname: obj.pop_str_field(ctx_scope, #fname_str).map_or(Result::<#t, String>::Ok(None), |v| {
                         if v.is_null() || v.is_undefined() {
                             return Ok(None);
                         }
@@ -100,7 +100,7 @@ pub fn object_argument(item: TokenStream) -> TokenStream {
             } else {
                 quote! {
                     #fname: v8_rs::v8::v8_value::V8CtxValue::new(
-                        &obj.get_str_field(ctx_scope, #fname_str).ok_or(stringify!(#fname was not given).to_owned())?, ctx_scope
+                        &obj.pop_str_field(ctx_scope, #fname_str).ok_or(stringify!(#fname was not given).to_owned())?, ctx_scope
                     ).try_into().map_err(|e| format!("Failed getting field {}, {}.", #fname_str, e))?
                 }
             }
@@ -120,9 +120,17 @@ pub fn object_argument(item: TokenStream) -> TokenStream {
                     return Err("Given argument must be an object".to_owned());
                 }
                 let obj = next_value.as_object();
-                Ok(#struct_name {
+                let res = #struct_name {
                     #(#fields,)*
-                })
+                };
+
+                let properties_left = obj.get_own_property_names(ctx_scope);
+                if !properties_left.is_empty() {
+                    let properties: Vec<_> = properties_left.iter(ctx_scope).map(|v| v.to_utf8().map(|v| v.as_str().to_owned()).unwrap_or("property name is not valid utf8".to_owned())).collect();
+                    return Err(format!("Unknown properties given: {}", properties.join(",")));
+                }
+
+                Ok(res)
             }
         }
 
@@ -136,9 +144,17 @@ pub fn object_argument(item: TokenStream) -> TokenStream {
                 }
                 let ctx_scope = ctx_value.get_ctx_scope();;
                 let obj = val.as_object();
-                Ok(#struct_name {
+                let res = #struct_name {
                     #(#fields,)*
-                })
+                };
+
+                let properties_left = obj.get_own_property_names(ctx_scope);
+                if !properties_left.is_empty() {
+                    let properties: Vec<_> = properties_left.iter(ctx_scope).map(|v| v.to_utf8().map(|v| v.as_str().to_owned()).unwrap_or("property name is not valid utf8".to_owned())).collect();
+                    return Err(format!("Unknown properties given: {}", properties.join(",")));
+                }
+
+                Ok(res)
             }
         }
     };

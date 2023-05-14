@@ -949,4 +949,28 @@ mod json_path_tests {
         .expect_err("Did not get error when suppose to.");
         assert!(err.contains("Failed getting field inner, Given argument must be an object"));
     }
+
+    #[test]
+    fn test_extra_fields_on_object_argument_macro() {
+        let err = define_function_and_call(
+            "test({i: 1, s: 'foo', b: false, inner: { i: 10, extra: true }})",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect_err("Did not get error when suppose to.");
+        assert!(err.contains("Unknown properties given: extra"));
+    }
 }
