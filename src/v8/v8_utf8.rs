@@ -35,12 +35,12 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalUtf8<'isolate_scope, 'isolate> {
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalValue<'isolate_scope, 'isolate>>
     for V8LocalUtf8<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: &V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_string() && !val.is_string_object() {
             return Err("Value is not string");
         }

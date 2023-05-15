@@ -452,6 +452,9 @@ void v8_FreeExternalData(v8_local_external_data *ext);
 /* Convert the given JS object into JS generic value */
 v8_local_value* v8_ObjectToValue(v8_local_object *obj);
 
+/* Shellow copy of the given JS value. */
+v8_local_value* v8_ValueToValue(v8_local_value *obj);
+
 v8_local_value* v8_ExternalDataToValue(v8_local_external_data *ext);
 
 /* Create a new set */
@@ -483,6 +486,9 @@ v8_local_value* v8_NewNull(v8_isolate *i);
 
 /* Return 1 if the given JS value is null 0 otherwise */
 int v8_ValueIsNull(v8_local_value *val);
+
+/* Return 1 if the given JS value is undefined 0 otherwise */
+int v8_ValueIsUndefined(v8_local_value *val);
 
 /* Create a js ArrayBuffer */
 v8_local_array_buff* v8_NewArrayBuffer(v8_isolate *i, const char *data, size_t len);

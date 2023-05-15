@@ -55,15 +55,18 @@ impl From<UserIndex> for RawIndex {
 
 #[cfg(test)]
 mod json_path_tests {
-    use crate as v8_rs;
     use crate::v8::v8_array::V8LocalArray;
+    use crate::v8::v8_object::V8LocalObject;
+    use crate::v8::v8_utf8::V8LocalUtf8;
+    use crate::v8::v8_value::V8LocalValue;
     use crate::v8::{
         isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
         v8_native_function_template, v8_object, v8_set, v8_utf8,
         v8_value::{self},
     };
+    use crate::{self as v8_rs};
 
-    use v8_derive::new_native_function;
+    use v8_derive::{new_native_function, NativeFunctionArgument};
 
     static mut IS_INITIALIZED: bool = false;
 
@@ -886,5 +889,139 @@ mod json_path_tests {
         )
         .expect_err("Did not get error when suppose to.");
         assert_eq!(err, "Failed consuming arguments. Value is not long.");
+    }
+
+    #[derive(NativeFunctionArgument, PartialEq, Eq, Debug)]
+    struct InnerArgs {
+        i: i64,
+    }
+
+    #[derive(NativeFunctionArgument, PartialEq, Eq, Debug)]
+    struct Args {
+        i: i64,
+        s: String,
+        b: bool,
+        o: Option<String>,
+        inner: InnerArgs,
+        optional_inner: Option<InnerArgs>,
+    }
+
+    #[test]
+    fn test_object_argument_macro() {
+        define_function_and_call(
+            "test({i: 1, s: 'foo', b: false, inner: { i: 10 }})",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect("Got error on function run");
+    }
+
+    #[test]
+    fn test_error_on_object_argument_macro() {
+        let err = define_function_and_call(
+            "test({i: 1, s: 'foo', b: false })",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect_err("Did not get error when suppose to.");
+        assert!(err.contains("Field inner does not exists"));
+    }
+
+    #[test]
+    fn test_wrong_type_on_object_argument_macro() {
+        let err = define_function_and_call(
+            "test({i: 1, s: 'foo', b: 'false', inner: { i: 10 }})",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect_err("Did not get error when suppose to.");
+        assert!(err.contains("Failed getting field b, Value is not a boolean"));
+    }
+
+    #[test]
+    fn test_extra_fields_on_object_argument_macro() {
+        let err = define_function_and_call(
+            "test({i: 1, s: 'foo', b: false, inner: { i: 10, extra: true }})",
+            "test",
+            new_native_function!(|_isolate, _ctx_scope, args: Args| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect_err("Did not get error when suppose to.");
+        assert!(err.contains("Unknown properties given: extra"));
+    }
+
+    #[derive(NativeFunctionArgument)]
+    struct JSArgs<'isolate_scope, 'isolate> {
+        v: V8LocalValue<'isolate_scope, 'isolate>,
+        o: V8LocalObject<'isolate_scope, 'isolate>,
+        a: V8LocalArray<'isolate_scope, 'isolate>,
+        s: V8LocalUtf8<'isolate_scope, 'isolate>,
+    }
+
+    #[test]
+    fn test_object_argument_macro_with_v8_objects() {
+        define_function_and_call(
+            "test({v: 1, o: { i: 10 }, a: [], s: 'foo' })",
+            "test",
+            new_native_function!(|_isolate, ctx_scope, args: JSArgs| {
+                assert!(args.v.is_long());
+                assert!(args.o.get_str_field(ctx_scope, "i").map_or(false, |_| true));
+                assert!(args.a.is_empty());
+                assert_eq!(args.s.as_str(), "foo");
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect("Got error on function run");
     }
 }

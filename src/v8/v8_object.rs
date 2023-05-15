@@ -53,6 +53,27 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         self.get(ctx_scope, &key.to_value())
     }
 
+    /// Pop the given key out of the object and return it
+    pub fn pop(
+        &self,
+        ctx_scope: &V8ContextScope,
+        key: &V8LocalValue,
+    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+        let res = self.get(ctx_scope, key);
+        self.delete(ctx_scope, key);
+        res
+    }
+
+    /// Sugar for pop that recieve the field name as &str
+    pub fn pop_str_field(
+        &self,
+        ctx_scope: &V8ContextScope,
+        key: &str,
+    ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
+        let key = self.isolate_scope.new_string(key);
+        self.pop(ctx_scope, &key.to_value())
+    }
+
     pub fn set(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue, val: &V8LocalValue) {
         unsafe {
             v8_ObjectSet(
@@ -163,12 +184,12 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalObject<'isolate_scope, 'isolate> 
     }
 }
 
-impl<'isolate_scope, 'isolate> TryFrom<V8LocalValue<'isolate_scope, 'isolate>>
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalValue<'isolate_scope, 'isolate>>
     for V8LocalObject<'isolate_scope, 'isolate>
 {
     type Error = &'static str;
 
-    fn try_from(val: V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
+    fn try_from(val: &V8LocalValue<'isolate_scope, 'isolate>) -> Result<Self, Self::Error> {
         if !val.is_object() {
             return Err("Value is not an object");
         }
