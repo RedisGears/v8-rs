@@ -13,10 +13,8 @@ use syn::Fields;
 use syn::GenericArgument;
 use syn::PathArguments;
 
-/// This derive proc macro can be specified on a struct
-/// and provide the ability to automatically generate the
-/// struct from the native function JS argument.
-/// It should be used along side the `new_native_function` proc
+/// This derive proc macro can be specified on a struct and provide the ability to automatically generate the
+/// struct from the native function JS argument. It should be used along side the `new_native_function` proc
 /// macro in the following maner:
 ///
 /// ```rust,no_run,ignore
@@ -38,22 +36,32 @@ use syn::PathArguments;
 /// let native_function = isolate_scope.new_native_function_template(new_native_function!(|_isolate, _ctx_scope, args: Args| { /* put your code here */});
 /// ```
 ///
-/// The above example will automatically generate a code that
-/// takes the argument given from the JS and translate it to `Args`.
+/// The above example will automatically generate a code that takes the argument given from the JS and translate it to `Args`.
 ///
-/// This macro expect that the JS will pass a single
-/// JS object that matches the give struct. For example, the following
+/// This macro expect that the JS will pass a single JS object that matches the give struct. For example, the following
 /// JS object will match our `Args` struct:
 ///
 /// ```JS
 /// {i: 1, s: 'foo', b: false, inner: {i: 10} }
 /// ```
 ///
-/// Notice that any optional field is not mandatory and will be set
-/// to `None` if not given.
+/// Notice that any optional field is not mandatory and will be set to `None` if not given.
 ///
-/// And error will be raised if the given argument do not match the
-/// struct definition.
+/// And error will be raised if the given argument do not match the struct definition.
+///
+/// The following table demonstrate how JS objects are parsed into rust types:
+///
+/// | JS type        | rust type                 |
+/// |----------------|---------------------------|
+/// | `string`       | `String` | `V8LocalUtf8`  |
+/// | `array_buffer` | `V8LocalArrayBuffer`      |
+/// | `bool`         | `bool`                    |
+/// | `big integer`  | `i64`                     |
+/// | `number`       | `f64`                     |
+/// | `array`        | `V8LocalArray`            |
+/// | `map`          | `V8LocalObject`           |
+/// | `set`          | `V8LocalSet`              |
+///
 #[proc_macro_derive(NativeFunctionArgument)]
 pub fn object_argument(item: TokenStream) -> TokenStream {
     let struct_input: DeriveInput = parse_macro_input!(item);
