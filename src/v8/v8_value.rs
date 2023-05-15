@@ -148,7 +148,6 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     }
 
     /// Return true if the value is null and false otherwise.
-    #[must_use]
     pub fn is_undefined(&self) -> bool {
         (unsafe { v8_ValueIsUndefined(self.inner_val) } != 0)
     }
