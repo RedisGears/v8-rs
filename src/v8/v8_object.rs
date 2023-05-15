@@ -53,8 +53,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         self.get(ctx_scope, &key.to_value())
     }
 
-    /// Sugar for get that recieve the field name as &str
-    #[must_use]
+    /// Pop the given key out of the object and return it
     pub fn pop(
         &self,
         ctx_scope: &V8ContextScope,
@@ -65,8 +64,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         res
     }
 
-    /// Sugar for get that recieve the field name as &str
-    #[must_use]
+    /// Sugar for pop that recieve the field name as &str
     pub fn pop_str_field(
         &self,
         ctx_scope: &V8ContextScope,
