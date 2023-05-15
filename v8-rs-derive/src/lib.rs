@@ -53,14 +53,14 @@ use syn::PathArguments;
 ///
 /// | JS type        | rust type                 |
 /// |----------------|---------------------------|
-/// | `string`       | `String` | `V8LocalUtf8`  |
-/// | `array_buffer` | `V8LocalArrayBuffer`      |
-/// | `bool`         | `bool`                    |
-/// | `big integer`  | `i64`                     |
-/// | `number`       | `f64`                     |
-/// | `array`        | `V8LocalArray`            |
-/// | `map`          | `V8LocalObject`           |
-/// | `set`          | `V8LocalSet`              |
+/// | `string`       | [String] | [V8LocalUtf8]  |
+/// | `array_buffer` | [V8LocalArrayBuffer]      |
+/// | `bool`         | [bool]                    |
+/// | `big integer`  | [i64]                     |
+/// | `number`       | [f64]                     |
+/// | `array`        | [V8LocalArray]            |
+/// | `map`          | [V8LocalObject]           |
+/// | `set`          | [V8LocalSet]              |
 ///
 #[proc_macro_derive(NativeFunctionArgument)]
 pub fn object_argument(item: TokenStream) -> TokenStream {
