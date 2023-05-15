@@ -13,6 +13,14 @@ use syn::Fields;
 use syn::GenericArgument;
 use syn::PathArguments;
 
+// those imports are used on docs so we will have them available
+// without them the docs links will be long and ugly.
+#[allow(unused_imports)]
+use v8_rs::v8::{
+    v8_array::V8LocalArray, v8_array_buffer::V8LocalArrayBuffer, v8_object::V8LocalObject,
+    v8_set::V8LocalSet, v8_utf8::V8LocalUtf8,
+};
+
 /// This derive proc macro can be specified on a struct and provide the ability to automatically generate the
 /// struct from the native function JS argument. It should be used along side the `new_native_function` proc
 /// macro in the following maner:
@@ -53,14 +61,14 @@ use syn::PathArguments;
 ///
 /// | JS type        | rust type                                             |
 /// |----------------|-------------------------------------------------------|
-/// | `string`       | [String] or [v8_rs::v8::v8_utf8::V8LocalUtf8]         |
-/// | `array_buffer` | [v8_rs::v8::v8_array_buffer::V8LocalArrayBuffer]      |
+/// | `string`       | [String] or [V8LocalUtf8]                             |
+/// | `array_buffer` | [V8LocalArrayBuffer]                                  |
 /// | `bool`         | [bool]                                                |
 /// | `big integer`  | [i64]                                                 |
 /// | `number`       | [f64]                                                 |
-/// | `array`        | [v8_rs::v8::v8_array::V8LocalArray]                   |
-/// | `map`          | [v8_rs::v8::v8_object::V8LocalObject]                 |
-/// | `set`          | [v8_rs::v8::v8_set::V8LocalSet]                       |
+/// | `array`        | [V8LocalArray]                                        |
+/// | `map`          | [V8LocalObject]                                       |
+/// | `set`          | [V8LocalSet]                                          |
 ///
 #[proc_macro_derive(NativeFunctionArgument)]
 pub fn object_argument(item: TokenStream) -> TokenStream {
