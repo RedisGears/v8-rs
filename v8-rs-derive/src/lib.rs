@@ -15,7 +15,7 @@ use syn::PathArguments;
 
 // those imports are used on docs so we will have them available
 // without them the docs links will be long and ugly.
-#[allow(unused_imports)]
+#[cfg(feature = "docs")]
 use v8_rs::v8::{
     v8_array::V8LocalArray, v8_array_buffer::V8LocalArrayBuffer, v8_object::V8LocalObject,
     v8_set::V8LocalSet, v8_utf8::V8LocalUtf8,
