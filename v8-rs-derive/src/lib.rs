@@ -51,16 +51,16 @@ use syn::PathArguments;
 ///
 /// The following table demonstrate how JS objects are parsed into rust types:
 ///
-/// | JS type        | rust type                 |
-/// |----------------|---------------------------|
-/// | `string`       | [String] | [V8LocalUtf8]  |
-/// | `array_buffer` | [V8LocalArrayBuffer]      |
-/// | `bool`         | [bool]                    |
-/// | `big integer`  | [i64]                     |
-/// | `number`       | [f64]                     |
-/// | `array`        | [V8LocalArray]            |
-/// | `map`          | [V8LocalObject]           |
-/// | `set`          | [V8LocalSet]              |
+/// | JS type        | rust type                                             |
+/// |----------------|-------------------------------------------------------|
+/// | `string`       | [String] or [v8_rs::v8::v8_utf8::V8LocalUtf8]         |
+/// | `array_buffer` | [v8_rs::v8::v8_array_buffer::V8LocalArrayBuffer]      |
+/// | `bool`         | [bool]                                                |
+/// | `big integer`  | [i64]                                                 |
+/// | `number`       | [f64]                                                 |
+/// | `array`        | [v8_rs::v8::v8_array::V8LocalArray]                   |
+/// | `map`          | [v8_rs::v8::v8_object::V8LocalObject]                 |
+/// | `set`          | [v8_rs::v8::v8_set::V8LocalSet]                       |
 ///
 #[proc_macro_derive(NativeFunctionArgument)]
 pub fn object_argument(item: TokenStream) -> TokenStream {
