@@ -8,7 +8,10 @@ edition = "2021"
 [dependencies]
 syn = { version="1.0", features = ["full"]}
 quote = "1.0"
-v8_rs = { path = "../" }
+v8_rs = { path = "../", optional = true }
+
+[features]
+docs = ["v8_rs"]
 
 [lib]
 name = "v8_derive"
