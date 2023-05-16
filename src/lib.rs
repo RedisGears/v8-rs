@@ -930,6 +930,45 @@ mod json_path_tests {
     }
 
     #[test]
+    fn test_object_argument_macro_with_optional_argument() {
+        define_function_and_call(
+            "test({i: 1, s: 'foo', b: false, inner: { i: 10 }}, {i: 1, s: 'foo', b: false, inner: { i: 10 }})",
+            "test",
+            new_native_function!(|_isolate,
+                                  _ctx_scope,
+                                  args: Args,
+                                  optional_args1: Option<Args>,
+                                  optional_args2: Option<Args>| {
+                assert_eq!(
+                    args,
+                    Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    },
+                );
+                assert_eq!(
+                    optional_args1,
+                    Some(Args {
+                        i: 1,
+                        s: "foo".to_owned(),
+                        b: false,
+                        o: None,
+                        inner: InnerArgs { i: 10 },
+                        optional_inner: None,
+                    }),
+                );
+                assert_eq!(optional_args2, None);
+                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+            }),
+        )
+        .expect("Got error on function run");
+    }
+
+    #[test]
     fn test_error_on_object_argument_macro() {
         let err = define_function_and_call(
             "test({i: 1, s: 'foo', b: false })",
