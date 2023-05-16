@@ -155,6 +155,19 @@ pub fn object_argument(item: TokenStream) -> TokenStream {
             }
         }
 
+        impl<'isolate_scope, 'isolate, 'ctx_scope, 'a> v8_rs::v8::OptionalTryFrom<&mut v8_rs::v8::v8_native_function_template::V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>> for #struct_name #generics {
+            type Error = String;
+
+            fn optional_try_from(it: &mut v8_rs::v8::v8_native_function_template::V8LocalNativeFunctionArgsIter<'isolate_scope, 'isolate, 'ctx_scope, 'a>) -> Result<Option<Self>, Self::Error> {
+                let val = match it.next() {
+                    Some(v) => v,
+                    None => return Ok(None),
+                };
+                let ctx_scope = it.get_ctx_scope();
+                v8_rs::v8::v8_value::V8CtxValue::new(&val, ctx_scope).try_into().map(|v| Some(v))
+            }
+        }
+
         impl<'isolate_scope, 'isolate, 'value, 'ctx_value> TryFrom<v8_rs::v8::v8_value::V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_value>> for #struct_name #generics {
             type Error = String;
 
