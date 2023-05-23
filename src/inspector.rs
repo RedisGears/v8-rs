@@ -39,7 +39,7 @@
 //! 4. Using the V8's [D8 console debugger](https://v8.dev/docs/d8).
 //! 5. Using the [Visual Studio Code](https://code.visualstudio.com/),
 //! for example, using a configuration like this:
-//!     ```
+//!     ```json
 //!     {
 //!         "version": "0.2.0",
 //!         "configurations": [
@@ -53,61 +53,7 @@
 //!         ]
 //!     }
 //!     ```
-
 //!
-
-/* Questions:
-0. Does RedisGears execute only one script at a time or it may execute
-several scripts at a time?
-1. Web-socket server or a plain socket server without protocol?
-2. Start server once and then attach/detach inspectors?
-3. How does the client signal that he wants to debug?
-4. How will the debugging work for the background scripts (which are
-not immediately executed)?
-5. Should we focus on D8 as the main debugging client or we would also
-prefer some GUI alternative?
-6. Can we bring tokio with one thread (in a separate thread)?
-7. The server must be synchronised with the isolate execution.
-8. Should the server connection use encryption?
-9. Multiplexing many different inspectors - we need some form of
-channels to drive the execution via different inspectors so that the
-debugging sessions don't overlap.
-10. Debugging a script will occupy its execution thread. Is this okay?
-Will the other scripts still proceed?
-11. How should we deal with asynchronous functions?
-12. Should we store the inspector object inside the `script_ctx` or in
-the `run_ctx` instead?
-13. Should we introduce something like "DCALL" instead of an "FCALL"?
-*/
-
-/* Answers:
-
-1. We should only debug on a local redis server, not in production.
-Does that mean we will have to build the RedisGears module with some
-feature enabled? Debug feature. Expose it in Docker.
-2. One web-server socket. But we can also start it per isolate.
-3. No encryption.
-4. FCALL with Debug feature.
-5.
-
-To check:
-- When a debugger is attached - remove all the timeouts.
-
-
-The workflow:
-1. We start the Redis server with Debug and RedisGears.
-2. RedisGears starts the websocket server and tells the user where to
-connect to for debugging, - we create an inspector when the load a library
-for the isolate.
-3. See everything in the debugger and FCALL to run.
-
-Problems:
-1. We either need to recompile the module with the debugger,
-2. Or we need to compile with debug symbols and provide those.
-
-*/
-
-use std::marker::PhantomData;
 use std::net::TcpListener;
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -115,7 +61,6 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use crate::v8::v8_context::V8Context;
 use crate::v8::v8_context_scope::V8ContextScope;
 
 /// The remote debugging server port for the [Server].
@@ -147,12 +92,6 @@ impl TcpServer {
         Ok(Self { server })
     }
 
-    /// Creates a new [Server] object with a tcp listener on the
-    /// localhost.
-    pub fn new_default() -> Result<Self, std::io::Error> {
-        Self::new(LOCAL_HOST)
-    }
-
     /// Returns the currently listening address.
     pub fn get_listening_address(&self) -> Result<std::net::SocketAddr, std::io::Error> {
         self.server.local_addr()
@@ -177,7 +116,7 @@ impl WebSocketServer {
     /// message. The `callback` may return `false` when the connection
     /// should be closed.
     pub fn read_next_message(&mut self) -> Result<String, std::io::Error> {
-        eprintln!("Reading the next message.");
+        log::trace!("Reading the next message.");
         match self.0.read_message() {
             Ok(message) => message
                 .into_text()
@@ -234,11 +173,11 @@ extern "C" fn on_response(
     rust_callback: *mut ::std::os::raw::c_void,
 ) {
     let string = unsafe { std::ffi::CStr::from_ptr(string) }.to_string_lossy();
-    // log::warn!("CDT message: {string}");
-    // eprintln!("CDT message: {string}");
     let message = serde_json::from_str::<OutgoingMessage>(&string).unwrap();
-    eprintln!("Outgoing message: {message:#?}");
-    let rust_callback: &mut Box<OnResponseCallback> = unsafe { std::mem::transmute(rust_callback) };
+    log::trace!("Outgoing message: {message:#?}");
+    let rust_callback: &mut Box<OnResponseCallback> = unsafe {
+        &mut *(rust_callback as *mut std::boxed::Box<dyn std::ops::FnMut(std::string::String)>)
+    };
     rust_callback(string.to_string())
 }
 
@@ -246,10 +185,13 @@ extern "C" fn on_wait_frontend_message_on_pause(
     raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
     rust_callback: *mut ::std::os::raw::c_void,
 ) -> ::std::os::raw::c_int {
-    // log::warn!("on_wait_frontend_message_on_pause");
-    eprintln!("on_wait_frontend_message_on_pause");
-    let rust_callback: &mut Box<OnWaitFrontendMessageOnPauseCallback> =
-        unsafe { std::mem::transmute(rust_callback) };
+    log::trace!("on_wait_frontend_message_on_pause");
+    let rust_callback: &mut Box<OnWaitFrontendMessageOnPauseCallback> = unsafe {
+        &mut *(rust_callback
+            as *mut std::boxed::Box<
+                dyn std::ops::FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> i32,
+            >)
+    };
     rust_callback(raw)
 }
 
@@ -268,7 +210,7 @@ impl Inspector {
             Box::into_raw(on_wait_frontend_message_on_pause_callback);
 
         let raw = unsafe {
-            crate::v8_c_raw::bindings::create_inspector_wrapper(
+            crate::v8_c_raw::bindings::v8_InspectorCreate(
                 context.inner_ctx_ref,
                 Some(on_response),
                 on_response_callback as _,
@@ -301,7 +243,7 @@ impl Inspector {
     /// should actually take place.
     pub fn new_without_callbacks(context: &V8ContextScope<'_, '_>) -> Self {
         let raw = unsafe {
-            crate::v8_c_raw::bindings::create_inspector_wrapper(
+            crate::v8_c_raw::bindings::v8_InspectorCreate(
                 context.inner_ctx_ref,
                 None,
                 std::ptr::null_mut(),
@@ -319,7 +261,7 @@ impl Inspector {
     /// Sets a different (new) context.
     pub fn set_context(&self, context: &V8ContextScope<'_, '_>) {
         unsafe {
-            crate::v8_c_raw::bindings::inspector_set_context(self.raw, context.inner_ctx_ref);
+            crate::v8_c_raw::bindings::v8_InspectorSetContext(self.raw, context.inner_ctx_ref);
         }
     }
 
@@ -330,7 +272,7 @@ impl Inspector {
         let on_response_callback = Box::into_raw(on_response_callback);
 
         unsafe {
-            crate::v8_c_raw::bindings::inspector_set_on_response_callback(
+            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
                 self.raw,
                 Some(on_response),
                 on_response_callback as _,
@@ -344,7 +286,7 @@ impl Inspector {
     /// Resets the `onResponse` callback.
     pub fn reset_on_response_callback(&mut self) {
         unsafe {
-            crate::v8_c_raw::bindings::inspector_set_on_response_callback(
+            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
                 self.raw,
                 None,
                 std::ptr::null_mut(),
@@ -356,7 +298,7 @@ impl Inspector {
     /// Resets the `onWaitFrontendMessageOnPause` callback.
     pub fn reset_on_wait_frontend_message_on_pause_callback(&mut self) {
         unsafe {
-            crate::v8_c_raw::bindings::inspector_set_on_wait_frontend_message_on_pause_callback(
+            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
                 self.raw,
                 None,
                 std::ptr::null_mut(),
@@ -377,7 +319,7 @@ impl Inspector {
             Box::into_raw(on_wait_frontend_message_on_pause_callback);
 
         unsafe {
-            crate::v8_c_raw::bindings::inspector_set_on_wait_frontend_message_on_pause_callback(
+            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
                 self.raw,
                 Some(on_wait_frontend_message_on_pause),
                 on_wait_frontend_message_on_pause_callback as _,
@@ -397,7 +339,7 @@ impl Inspector {
             _ => return,
         };
         unsafe {
-            crate::v8_c_raw::bindings::inspector_dispatch_protocol_message(
+            crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
                 self.raw,
                 string.as_ptr(),
             )
@@ -412,7 +354,7 @@ impl Inspector {
             _ => return,
         };
         unsafe {
-            crate::v8_c_raw::bindings::inspector_schedule_pause_on_next_statement(
+            crate::v8_c_raw::bindings::v8_InspectorSchedulePauseOnNextStatement(
                 self.raw,
                 string.as_ptr(),
             )
@@ -421,19 +363,20 @@ impl Inspector {
 
     /// Enables the debugger main loop.
     pub fn wait_frontend_message_on_pause(&self) {
-        unsafe { crate::v8_c_raw::bindings::inspector_wait_frontend_message_on_pause(self.raw) }
+        unsafe { crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(self.raw) }
     }
 }
 
 impl Drop for Inspector {
     fn drop(&mut self) {
         unsafe {
-            crate::v8_c_raw::bindings::delete_inspector_wrapper(self.raw as *mut _);
+            crate::v8_c_raw::bindings::v8_FreeInspector(self.raw as *mut _);
         }
     }
 }
 
 /// A method invocation abstraction.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct MethodInvocation {
     /// The name of the method.
@@ -445,6 +388,7 @@ struct MethodInvocation {
 
 /// A message from the debugger front-end (from the client to the
 /// server).
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct IncomingMessage {
     /// The ID of the message.
@@ -454,6 +398,7 @@ struct IncomingMessage {
 }
 
 /// An error message.
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct ErrorMessage {
     /// The error code.
@@ -464,6 +409,7 @@ struct ErrorMessage {
 
 /// A message from the server to the client (from the back-end to the
 /// front-end).
+#[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 enum OutgoingMessage {
@@ -485,55 +431,54 @@ pub struct DebuggerSession<'a> {
 }
 impl<'a> DebuggerSession<'a> {
     /// Creates a new debugger for this [V8ContextScope].
-    /// Starts a web socket debugging session (see [TcpServer::new])
-    /// and [WebSocketServer].
+    /// Starts a web socket debugging session through [WebSocketServer].
     ///
     /// Once the connection is accepted and the inspector starts, the
     /// function returns.
+    ///
+    /// After the function returns, to start the debugging main loop,
+    /// one needs to call the [DebuggerSession::process_messages].
+    /// method.
     pub fn new<T: std::net::ToSocketAddrs>(
         inspector: &'a mut Inspector,
         address: T,
     ) -> Result<Self, std::io::Error> {
         let server = TcpServer::new(address)?;
-        // log::info!(
-        //     "The V8 remote debugging server is waiting for a connection on: {:#?}",
-        //     server.get_listening_address()
-        // );
         let address = server.get_listening_address()?;
-        eprintln!(
-            "The V8 remote debugging server is waiting for a connection on: {address}. You may browse this link: <devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={address}>",
+        log::info!(
+            "The V8 remote debugging server is waiting for a connection via WebSocket on: {address}. You may browse this link: <devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={address}>",
         );
 
         let web_socket = Rc::new(Mutex::new(server.accept_next_websocket_connection()?));
-        eprintln!("Accepted the next websocket.");
+        log::trace!("Accepted the next websocket.");
 
         {
             let websocket = web_socket.clone();
 
             let on_response = move |s: String| {
-                eprintln!("Responding with string {s}.");
+                log::trace!("Responding with string {s}.");
                 if let Ok(mut websocket) = websocket.lock() {
                     if let Err(e) = websocket.0.write_message(tungstenite::Message::Text(s)) {
-                        // log::error!("Couldn't send a websocket message to the client: {e}");
-                        // eprintln!("Couldn't send a websocket message to the client: {e}");
+                        log::error!("Couldn't send a websocket message to the client: {e}");
                     } else {
-                        // eprintln!("Responded with string successfully.");
+                        log::trace!("Responded with string successfully.");
                     }
                 } else {
-                    // eprintln!("Couldn't respond!");
+                    log::error!("Couldn't lock the socket!");
                 }
             };
 
             let websocket = web_socket.clone();
 
             let on_wait_frontend_message_on_pause = move |raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper| -> std::os::raw::c_int {
-                let mut string = std::ffi::CString::default();
-                let mut got_message = false;
+                let string;
+                let got_message;
+
                 loop {
                     if let Ok(mut websocket) = websocket.lock() {
                         if let Ok(message_string) = websocket.read_next_message() {
                             if let Ok(message) = serde_json::from_str::<IncomingMessage>(&message_string) {
-                                eprintln!("[OnWait] Parsed out the message: {message:?}");
+                                log::trace!("[OnWait] Parsed out the message: {message:?}");
 
                                 string = match std::ffi::CString::new(message_string) {
                                     Ok(string) => string,
@@ -550,7 +495,7 @@ impl<'a> DebuggerSession<'a> {
 
                 if got_message {
                     unsafe {
-                        crate::v8_c_raw::bindings::inspector_dispatch_protocol_message(
+                        crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
                             raw,
                             string.as_ptr(),
                         )
@@ -576,7 +521,7 @@ impl<'a> DebuggerSession<'a> {
         loop {
             let message_string: String = session.read_next_message()?;
             let message: IncomingMessage = serde_json::from_str(&message_string).unwrap();
-            eprintln!("Parsed out the message: {message:?}");
+            log::trace!("Parsed out the message: {message:?}");
             session.inspector.dispatch_protocol_message(&message_string);
 
             if message.method.name == DEBUGGER_SHOULD_START_METHOD_NAME {
@@ -584,14 +529,13 @@ impl<'a> DebuggerSession<'a> {
                     .inspector
                     .schedule_pause_on_next_statement("Debugger started.");
                 session.inspector.wait_frontend_message_on_pause();
-                // let _ = session.read_and_process_next_message()?;
 
                 return Ok(session);
             }
         }
     }
 
-    /// Reads the next message.
+    /// Reads the next message without parsing it.
     pub fn read_next_message(&self) -> Result<String, std::io::Error> {
         loop {
             if let Ok(mut websocket) = self.web_socket.lock() {
@@ -615,7 +559,7 @@ impl<'a> DebuggerSession<'a> {
                                 .get_ref()
                                 .set_read_timeout(None)
                                 .expect("Failed to temporarily reset the read timeout");
-                            eprintln!("Reset the timeout due to WouldBlock.");
+                            log::trace!("Reset the timeout due to WouldBlock.");
                             continue;
                         } else {
                             return Err(e);
@@ -631,12 +575,11 @@ impl<'a> DebuggerSession<'a> {
         }
     }
 
-    /// Reads, proccesses and then returns the next message from the
-    /// client.
+    /// Reads (without parsing), proccesses and then returns the next
+    /// message from the client.
     pub fn read_and_process_next_message(&self) -> Result<String, std::io::Error> {
         let message = self.read_next_message()?;
-        // log::warn!("Got incoming websocket message: {message}");
-        eprintln!("Got incoming websocket message: {message}");
+        log::trace!("Got incoming websocket message: {message}");
         self.inspector.dispatch_protocol_message(&message);
         Ok(message)
     }
@@ -645,11 +588,11 @@ impl<'a> DebuggerSession<'a> {
     /// the connection is dropped by the client or until an error state
     /// is reached.
     pub fn process_messages(&self) -> Result<(), std::io::Error> {
-        eprintln!("MAIN LOOP Starting processing messages!");
+        log::trace!("Inspector main loop started.");
         loop {
             if let Err(e) = self.read_and_process_next_message() {
                 if e.kind() == std::io::ErrorKind::ConnectionAborted {
-                    eprintln!("MAIN LOOP Stopped successfully!");
+                    log::trace!("Inspector main loop successfully stopped.");
                     return Ok(());
                 } else {
                     return Err(e);

@@ -143,18 +143,6 @@ impl V8PersistedScript {
         &mut self,
         ctx: &V8ContextScope<'isolate_scope, 'isolate>,
     ) -> bool {
-        // let code = self.get_script_code(ctx.isolate_scope);
-        // if let Some(new_script) = code.compile(ctx) {
-        //     let persisted_script = new_script.persist();
-        //     unsafe {
-        //         v8_FreePersistedScript(self.inner_persisted_script);
-        //     }
-        //     self.inner_persisted_script = persisted_script.inner_persisted_script;
-        //     true
-        // } else {
-        //     false
-        // }
-
         let code = self.get_script_code(ctx.isolate_scope);
         let ret = if let Some(new_script) = code.compile(ctx) {
             let persisted_script = new_script.persist();

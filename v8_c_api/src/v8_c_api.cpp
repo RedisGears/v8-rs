@@ -133,7 +133,6 @@ public:
   v8::Local<v8::Context> ensureDefaultContextInGroup(const int contextGroupId) override;
 
 private:
-
   static const int kContextGroupId = 1;
   v8::Platform* platform_;
   std::unique_ptr<v8_inspector::V8Inspector> inspector_;
@@ -167,7 +166,6 @@ v8_inspector_client_wrapper::v8_inspector_client_wrapper(
 	terminated_ = true;
 	run_nested_loop_ = false;
 }
-
 
 void v8_inspector_client_wrapper::setContext(const v8::Local<v8::Context> &context) {
 	context_ = context;
@@ -255,10 +253,6 @@ struct v8_local_string {
 struct v8_local_script {
 	v8::Local<v8::Script> script;
 	v8_local_script(v8::Local<v8::Context> v8_local_ctx, v8_local_string *code) {
-	    // const char *resource_name = "redisgears-user-library.js";
-		// auto v8_str = v8::String::NewFromUtf8(v8_local_ctx->GetIsolate(), resource_name).ToLocalChecked();
-		// v8::ScriptOrigin origin(v8_local_ctx->GetIsolate(), v8_str, 0, 0);
-		// v8::MaybeLocal<v8::Script> compilation_res = v8::Script::Compile(v8_local_ctx, code->str, &origin);
 		v8::MaybeLocal<v8::Script> compilation_res = v8::Script::Compile(v8_local_ctx, code->str);
 		if (!compilation_res.IsEmpty()) {
 			script = compilation_res.ToLocalChecked();
@@ -348,7 +342,7 @@ struct v8_local_array_buff {
 	v8_local_array_buff(v8::Local<v8::ArrayBuffer> a): arr_buff(a) {}
 };
 
-v8_inspector_c_wrapper* create_inspector_wrapper(
+v8_inspector_c_wrapper* v8_InspectorCreate(
 	v8_context_ref *context,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData,
@@ -372,27 +366,27 @@ v8_inspector_c_wrapper* create_inspector_wrapper(
 	);
 }
 
-void delete_inspector_wrapper(v8_inspector_c_wrapper *wrapper) {
+void v8_FreeInspector(v8_inspector_c_wrapper *wrapper) {
 	delete reinterpret_cast<v8_inspector_client_wrapper *>(wrapper);
 }
 
-void inspector_dispatch_protocol_message(v8_inspector_c_wrapper *wrapper, const char *message) {
+void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *wrapper, const char *message) {
 	const std::string string = message;
 	const auto view = convertToStringView(string);
 	reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->dispatchProtocolMessage(view);
 }
 
-void inspector_schedule_pause_on_next_statement(v8_inspector_c_wrapper *wrapper, const char *reason) {
+void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *wrapper, const char *reason) {
 	const std::string string = reason;
 	const auto view = convertToStringView(string);
 	reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->schedulePauseOnNextStatement(view);
 }
 
-void inspector_wait_frontend_message_on_pause(v8_inspector_c_wrapper *wrapper) {
+void v8_InspectorWaitFrontendMessageOnPause(v8_inspector_c_wrapper *wrapper) {
 	reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->waitFrontendMessageOnPause();
 }
 
-void inspector_set_on_response_callback(
+void v8_InspectorSetOnResponseCallback(
 	v8_inspector_c_wrapper *inspector,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData
@@ -409,7 +403,7 @@ void inspector_set_on_response_callback(
 }
 
 /* Sets the "onWaitFrontendMessageOnPause" callback. */
-void inspector_set_on_wait_frontend_message_on_pause_callback(
+void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 	v8_inspector_c_wrapper *inspector,
 	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
 	void *onWaitUserData
@@ -425,7 +419,7 @@ void inspector_set_on_wait_frontend_message_on_pause_callback(
 	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnWaitFrontendMessageOnPauseCallback(onWaitFrontendMessageOnPauseWrapper);
 }
 
-void inspector_set_context(
+void v8_InspectorSetContext(
 	v8_inspector_c_wrapper *inspector,
 	v8_context_ref *context
 ) {
