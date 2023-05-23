@@ -120,10 +120,12 @@ impl WebSocketServer {
                 .into_text()
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
             Err(tungstenite::Error::Io(e)) => Err(e),
-            Err(tungstenite::Error::ConnectionClosed) => Err(std::io::Error::new(
-                std::io::ErrorKind::ConnectionAborted,
-                "The WebSocket connection has been closed.",
-            )),
+            Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::ConnectionAborted,
+                    "The WebSocket connection has been closed.",
+                ))
+            }
             Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
         }
     }
@@ -140,7 +142,17 @@ impl From<tungstenite::WebSocket<std::net::TcpStream>> for WebSocketServer {
     }
 }
 
+/// The callback which is invoked when the V8 Inspector needs to reply
+/// to the client.
 type OnResponseCallback = dyn FnMut(String);
+/// The callback which is invoked when the V8 Inspector requires more
+/// data from the front-end (the client) and, therefore, this callback
+/// must attempt to read more data and dispatch it to the inspector.
+///
+/// The callback should return `1` when it is possible to operate (read,
+/// write, send, receive messages) and `0` when not, to indicate the
+/// impossibility of the further action, in which case, the inspector
+/// will stop.
 type OnWaitFrontendMessageOnPauseCallback =
     dyn FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> std::os::raw::c_int;
 
@@ -160,7 +172,24 @@ pub struct Inspector {
 
 impl std::fmt::Debug for Inspector {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Inspector").field("raw", &self.raw).finish()
+        let on_response_str = if let Some(ref callback) = self._on_response_callback {
+            format!("Some({callback:p})")
+        } else {
+            "None".to_owned()
+        };
+
+        let on_wait_str =
+            if let Some(ref callback) = self._on_wait_frontend_message_on_pause_callback {
+                format!("Some({callback:p})")
+            } else {
+                "None".to_owned()
+            };
+
+        f.debug_struct("Inspector")
+            .field("raw", &self.raw)
+            .field("_on_response_callback", &on_response_str)
+            .field("_on_wait_frontend_message_on_pause_callback", &on_wait_str)
+            .finish()
     }
 }
 
@@ -372,7 +401,7 @@ impl Drop for Inspector {
     }
 }
 
-/// A method invocation abstraction.
+/// A method invocation message.
 #[allow(dead_code)]
 #[derive(Debug, Clone, Deserialize)]
 struct MethodInvocation {
@@ -390,6 +419,7 @@ struct MethodInvocation {
 struct IncomingMessage {
     /// The ID of the message.
     id: u64,
+    /// The method information.
     #[serde(flatten)]
     method: MethodInvocation,
 }
@@ -420,13 +450,76 @@ enum OutgoingMessage {
     },
 }
 
+struct InspectorCallbacks {
+    on_response: Box<OnResponseCallback>,
+    on_wait_frontend_message_on_pause: Box<OnWaitFrontendMessageOnPauseCallback>,
+}
+
 /// A single debugger session.
 #[derive(Debug)]
 pub struct DebuggerSession<'a> {
     web_socket: Rc<Mutex<WebSocketServer>>,
     inspector: &'a mut Inspector,
 }
+
 impl<'a> DebuggerSession<'a> {
+    fn create_inspector_callbacks(web_socket: Rc<Mutex<WebSocketServer>>) -> InspectorCallbacks {
+        let websocket = web_socket.clone();
+
+        let on_response = move |s: String| {
+            log::trace!("Responding with string {s}.");
+            match websocket.lock() {
+                Ok(mut websocket) => match websocket.0.write_message(tungstenite::Message::Text(s))
+                {
+                    Ok(_) => log::trace!("Responded with string successfully."),
+                    Err(e) => log::error!("Couldn't send a websocket message to the client: {e}"),
+                },
+                Err(e) => log::error!("Couldn't lock the socket: {e}"),
+            }
+        };
+
+        let on_wait_frontend_message_on_pause = move |raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper| -> std::os::raw::c_int {
+            let string;
+
+            loop {
+                match web_socket.lock() {
+                    Ok(mut websocket) => match websocket.read_next_message() {
+                        Ok(message) => {
+                            log::trace!("[OnWait] Read the message: {message:?}");
+
+                            string = match std::ffi::CString::new(message) {
+                                Ok(string) => string,
+                                _ => continue,
+                            };
+                            break;
+                        }
+                        Err(e) => if e.kind() == std::io::ErrorKind::ConnectionAborted {
+                            return 0;
+                        }
+                    },
+                    Err(e) => {
+                        log::error!("The WebSocketServer mutex is poisoned: {e:?}");
+                        return 0;
+                    },
+                }
+            }
+
+            unsafe {
+                crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
+                    raw,
+                    string.as_ptr(),
+                )
+            }
+
+            1
+        };
+
+        InspectorCallbacks {
+            on_response: Box::new(on_response),
+            on_wait_frontend_message_on_pause: Box::new(on_wait_frontend_message_on_pause),
+        }
+    }
+
     /// Creates a new debugger to be used with the provided [Inspector].
     /// Starts a web socket debugging session using [WebSocketServer].
     ///
@@ -442,67 +535,35 @@ impl<'a> DebuggerSession<'a> {
     ) -> Result<Self, std::io::Error> {
         let server = TcpServer::new(address)?;
         let address = server.get_listening_address()?;
+        let vscode_configuration = format!(
+            r#"
+        {{
+            "version": "0.2.0",
+            "configurations": [
+                {{
+                    "name": "Attach to RedisGears V8 through WebSocket at {address}",
+                    "type": "node",
+                    "request": "attach",
+                    "cwd": "${{workspaceFolder}}",
+                    "websocketAddress": "ws://{address}",
+                }}
+            ]
+        }}
+        "#
+        );
         log::info!(
-            "The V8 remote debugging server is waiting for a connection via WebSocket on: {address}. You may browse this link: <devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={address}>",
+            "The V8 remote debugging server is waiting for a connection via WebSocket on: {address}.\nHint: you may browse this link: <devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={address}> or use this launch configuration for Visual Studio Code (<https://code.visualstudio.com/>):{vscode_configuration}",
         );
 
         let web_socket = Rc::new(Mutex::new(server.accept_next_websocket_connection()?));
         log::trace!("Accepted the next websocket.");
 
-        {
-            let websocket = web_socket.clone();
+        let callbacks = Self::create_inspector_callbacks(web_socket.clone());
 
-            let on_response = move |s: String| {
-                log::trace!("Responding with string {s}.");
-                if let Ok(mut websocket) = websocket.lock() {
-                    if let Err(e) = websocket.0.write_message(tungstenite::Message::Text(s)) {
-                        log::error!("Couldn't send a websocket message to the client: {e}");
-                    } else {
-                        log::trace!("Responded with string successfully.");
-                    }
-                } else {
-                    log::error!("Couldn't lock the socket!");
-                }
-            };
-
-            let websocket = web_socket.clone();
-
-            let on_wait_frontend_message_on_pause = move |raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper| -> std::os::raw::c_int {
-                let string;
-                let got_message;
-
-                loop {
-                    if let Ok(mut websocket) = websocket.lock() {
-                        if let Ok(message) = websocket.read_next_message() {
-                            log::trace!("[OnWait] Parsed out the message: {message:?}");
-
-                            string = match std::ffi::CString::new(message) {
-                                Ok(string) => string,
-                                _ => continue,
-                            };
-                            got_message = true;
-                            break;
-                        }
-                    }
-                }
-
-                if got_message {
-                    unsafe {
-                        crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
-                            raw,
-                            string.as_ptr(),
-                        )
-                    }
-                }
-
-                1
-            };
-
-            inspector.set_on_response_callback(Box::new(on_response));
-            inspector.set_on_wait_frontend_message_on_pause_callback(Box::new(
-                on_wait_frontend_message_on_pause,
-            ));
-        };
+        inspector.set_on_response_callback(callbacks.on_response);
+        inspector.set_on_wait_frontend_message_on_pause_callback(
+            callbacks.on_wait_frontend_message_on_pause,
+        );
 
         let session = Self {
             web_socket,
