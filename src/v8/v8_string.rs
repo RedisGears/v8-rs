@@ -75,16 +75,7 @@ extern "C" fn convert_c_string_to_rust(
 
 impl<'isolate_scope, 'isolate> From<V8LocalString<'isolate_scope, 'isolate>> for String {
     fn from(value: V8LocalString<'isolate_scope, 'isolate>) -> Self {
-        let mut string = String::default();
-        let string_ptr = &mut string as *mut String as _;
-        unsafe {
-            crate::v8_c_raw::bindings::get_v8_string_value_with_callback(
-                value.inner_string,
-                Some(convert_c_string_to_rust),
-                string_ptr,
-            )
-        };
-        string
+        String::from(&value)
     }
 }
 

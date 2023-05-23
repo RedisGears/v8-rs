@@ -96,7 +96,6 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         &self,
         code: &V8LocalString<'isolate_scope, 'isolate>,
     ) -> Option<V8LocalScript<'isolate_scope, 'isolate>> {
-        eprintln!("Code: {:#?}", code);
         let inner_script = unsafe { v8_Compile(self.inner_ctx_ref, code.inner_string) };
         if inner_script.is_null() {
             None

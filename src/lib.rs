@@ -90,6 +90,8 @@ impl From<UserIndex> for RawIndex {
 
 #[cfg(test)]
 mod json_path_tests {
+    use std::sync::Mutex;
+
     use crate::v8::v8_array::V8LocalArray;
     use crate::v8::v8_object::V8LocalObject;
     use crate::v8::v8_utf8::V8LocalUtf8;
@@ -103,13 +105,14 @@ mod json_path_tests {
 
     use v8_derive::{new_native_function, NativeFunctionArgument};
 
-    static mut IS_INITIALIZED: bool = false;
+    static mut IS_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
     fn initialize() {
         unsafe {
-            if !IS_INITIALIZED {
+            let mut is_initialised = IS_INITIALIZED.lock().unwrap();
+            if !*is_initialised {
                 v8_init(1);
-                IS_INITIALIZED = true;
+                *is_initialised = true;
             }
         }
     }
