@@ -615,15 +615,6 @@ void v8_Initialize(v8_allocator *alloc, const int thread_pool_size) {
 	}
 }
 
-void v8_InitializeWithInitializedPlatform(v8_allocator *alloc, v8_platform *platform) {
-	v8::V8::Initialize();
-	if (alloc) {
-		allocator = alloc;
-	} else {
-		allocator = &DefaultAllocator;
-	}
-}
-
 v8_platform* v8_NewPlatform(const int thread_pool_size) {
 	return reinterpret_cast<v8_platform *>(v8::platform::NewDefaultPlatform(thread_pool_size).release());
 }

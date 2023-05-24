@@ -119,8 +119,6 @@ typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 /** Initialize v8, must be called before any v8 API.
  * if allocator is NULL, use default memory functions. */
 void v8_Initialize(v8_allocator *allocator, int thread_pool_size);
-/** Initialises the engine with the provided allocator and platform. */
-void v8_InitializeWithInitializedPlatform(v8_allocator *alloc, v8_platform *platform);
 /** Creates a new platform with the thread pool size provided. */
 v8_platform* v8_NewPlatform(const int thread_pool_size);
 /** Initialises a created platform. */
