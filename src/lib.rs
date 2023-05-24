@@ -410,7 +410,7 @@ mod tests {
         }
 
         #[test]
-        fn value_is_promise() {
+        fn is_promise() {
             define_function_and_call(
                 "foo(async function(){}())",
                 "foo",
