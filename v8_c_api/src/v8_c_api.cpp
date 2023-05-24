@@ -9,8 +9,6 @@
 
 #include <cassert>
 
-std::unique_ptr<v8::Platform> platform;
-
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
@@ -272,8 +270,8 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 void v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 	v8::V8::SetFlagsFromString("--stack-size=50");
-	platform = v8::platform::NewDefaultPlatform(thread_pool_size);
-	v8::V8::InitializePlatform(platform.get());
+	std::unique_ptr<v8::Platform> platform = v8::platform::NewDefaultPlatform(thread_pool_size);
+	v8::V8::InitializePlatform(platform.release());
 	v8::V8::Initialize();
 	if (alloc) {
 		allocator = alloc;
