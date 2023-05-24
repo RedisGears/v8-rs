@@ -89,7 +89,7 @@ impl From<UserIndex> for RawIndex {
 }
 
 #[cfg(test)]
-mod json_path_tests {
+mod tests {
     use std::sync::Mutex;
 
     use crate::v8::v8_array::V8LocalArray;
@@ -135,6 +135,17 @@ mod json_path_tests {
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
         let _s = isolate_scope.new_string("test");
+    }
+
+    #[test]
+    fn string_is_properly_cloneable() {
+        initialize();
+
+        let isolate = crate::v8::isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let source = isolate_scope.new_string("test");
+        let copy = source.clone();
+        assert_ne!(source.inner_string, copy.inner_string);
     }
 
     #[test]
