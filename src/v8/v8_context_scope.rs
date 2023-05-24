@@ -4,6 +4,7 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
+use crate::inspector::Inspector;
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
     v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
@@ -82,7 +83,7 @@ impl<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data> Drop
 /// parent isolate lifetime", it is possible to convert those to some
 /// abstract and serialised persisted values, such as
 /// [crate::v8::v8_value::V8PersistValue].
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug)]
 pub struct V8ContextScope<'isolate_scope, 'isolate> {
     pub(crate) inner_ctx_ref: *mut v8_context_ref,
     pub(crate) exit_on_drop: bool,
@@ -210,6 +211,13 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     pub fn reset_private_data<I: Into<UserIndex>>(&self, index: I) {
         let index = index.into();
         self.reset_private_data_raw(index)
+    }
+
+    /// Creates a new inspector for this context scope.
+    pub fn new_inspector<'context_scope>(
+        &'context_scope self,
+    ) -> Inspector<'context_scope, 'isolate_scope, 'isolate> {
+        Inspector::new_without_callbacks(self)
     }
 
     /// Create a new resolver object
