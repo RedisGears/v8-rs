@@ -39,6 +39,21 @@ impl<'isolate_scope, 'isolate> std::fmt::Debug for V8LocalString<'isolate_scope,
 }
 
 impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
+    /// Creates a new string within the provided isolate.
+    pub fn new(isolate_scope: &'isolate_scope V8IsolateScope<'isolate>, s: &str) -> Self {
+        let inner_string = unsafe {
+            crate::v8_c_raw::bindings::v8_NewString(
+                isolate_scope.isolate.inner_isolate,
+                s.as_ptr().cast(),
+                s.len(),
+            )
+        };
+        Self {
+            inner_string,
+            isolate_scope,
+        }
+    }
+
     /// Convert the string object into a generic JS object.
     #[must_use]
     pub fn to_value(&self) -> V8LocalValue<'isolate_scope, 'isolate> {
@@ -96,7 +111,7 @@ impl<'isolate_scope, 'isolate> From<&V8LocalString<'isolate_scope, 'isolate>> fo
 
 impl<'isolate_scope, 'isolate> Clone for V8LocalString<'isolate_scope, 'isolate> {
     fn clone(&self) -> Self {
-        self.to_string_object().to_value().as_string()
+        Self::new(self.isolate_scope, &String::from(self))
     }
 }
 

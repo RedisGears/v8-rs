@@ -96,17 +96,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         &'isolate_scope self,
         s: &str,
     ) -> V8LocalString<'isolate_scope, 'isolate> {
-        let inner_string = unsafe {
-            v8_NewString(
-                self.isolate.inner_isolate,
-                s.as_ptr().cast::<c_char>(),
-                s.len(),
-            )
-        };
-        V8LocalString {
-            inner_string,
-            isolate_scope: self,
-        }
+        V8LocalString::new(self, s)
     }
 
     /// Create a new string object.
