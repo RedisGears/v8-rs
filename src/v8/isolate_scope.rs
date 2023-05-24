@@ -31,7 +31,7 @@ use crate::v8::v8_value::V8LocalValue;
 
 use std::os::raw::{c_char, c_void};
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug)]
 pub struct V8IsolateScope<'isolate> {
     pub(crate) isolate: &'isolate V8Isolate,
     inner_handlers_scope: *mut v8_handlers_scope,

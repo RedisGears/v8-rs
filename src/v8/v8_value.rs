@@ -47,7 +47,7 @@ pub struct V8CtxValue<'isolate_scope, 'isolate, 'value, 'ctx_scope> {
 }
 
 /// JS generic persisted value
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct V8PersistValue {
     pub(crate) inner_val: *mut v8_persisted_value,
     forget: bool,

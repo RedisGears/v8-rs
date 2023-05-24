@@ -54,6 +54,7 @@
 //!     }
 //!     ```
 //!
+use std::marker::PhantomData;
 use std::net::TcpListener;
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -61,6 +62,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
+use crate::v8::v8_context::V8Context;
 use crate::v8::v8_context_scope::V8ContextScope;
 
 /// The remote debugging server port for the [WebSocketServer].
@@ -159,7 +161,7 @@ type OnWaitFrontendMessageOnPauseCallback =
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
 /// API.
-pub struct Inspector {
+pub struct Inspector<'context_scope, 'isolate_scope, 'isolate> {
     raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
     /// This callback is stored to preserve the lifetime, it is never
     /// called by this object, but by the C++ side.
@@ -168,9 +170,13 @@ pub struct Inspector {
     /// called by this object, but by the C++ side.
     _on_wait_frontend_message_on_pause_callback:
         Option<Box<Box<OnWaitFrontendMessageOnPauseCallback>>>,
+    /// The lifetime holder.
+    _phantom_data: PhantomData<&'context_scope V8ContextScope<'isolate_scope, 'isolate>>,
 }
 
-impl std::fmt::Debug for Inspector {
+impl<'context_scope, 'isolate_scope, 'isolate> std::fmt::Debug
+    for Inspector<'context_scope, 'isolate_scope, 'isolate>
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let on_response_str = if let Some(ref callback) = self._on_response_callback {
             format!("Some({callback:p})")
@@ -221,10 +227,10 @@ extern "C" fn on_wait_frontend_message_on_pause(
     rust_callback(raw)
 }
 
-impl Inspector {
+impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolate_scope, 'isolate> {
     /// Creates a new [Inspector].
     pub fn new(
-        context: &V8ContextScope<'_, '_>,
+        context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
         on_response_callback: Box<OnResponseCallback>,
         on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
     ) -> Self {
@@ -255,6 +261,7 @@ impl Inspector {
             _on_wait_frontend_message_on_pause_callback: Some(
                 on_wait_frontend_message_on_pause_callback,
             ),
+            _phantom_data: PhantomData,
         }
     }
 
@@ -266,7 +273,9 @@ impl Inspector {
     /// the inspector attaches to the `V8Platform` and the `V8Context`,
     /// while the proper hooks (callbacks) can be set later when the
     /// debugging process should actually take place.
-    pub fn new_without_callbacks(context: &V8ContextScope<'_, '_>) -> Self {
+    pub fn new_without_callbacks(
+        context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+    ) -> Self {
         let raw = unsafe {
             crate::v8_c_raw::bindings::v8_InspectorCreate(
                 context.inner_ctx_ref,
@@ -280,13 +289,7 @@ impl Inspector {
             raw,
             _on_response_callback: None,
             _on_wait_frontend_message_on_pause_callback: None,
-        }
-    }
-
-    /// Sets a different (new) context.
-    pub fn set_context(&self, context: &V8ContextScope<'_, '_>) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetContext(self.raw, context.inner_ctx_ref);
+            _phantom_data: PhantomData,
         }
     }
 
@@ -393,7 +396,9 @@ impl Inspector {
     }
 }
 
-impl Drop for Inspector {
+impl<'context_scope, 'isolate_scope, 'isolate> Drop
+    for Inspector<'context_scope, 'isolate_scope, 'isolate>
+{
     fn drop(&mut self) {
         unsafe {
             crate::v8_c_raw::bindings::v8_FreeInspector(self.raw as *mut _);
@@ -457,12 +462,14 @@ struct InspectorCallbacks {
 
 /// A single debugger session.
 #[derive(Debug)]
-pub struct DebuggerSession<'a> {
+pub struct DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate> {
     web_socket: Rc<Mutex<WebSocketServer>>,
-    inspector: &'a mut Inspector,
+    inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
 }
 
-impl<'a> DebuggerSession<'a> {
+impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
+    DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate>
+{
     fn create_inspector_callbacks(web_socket: Rc<Mutex<WebSocketServer>>) -> InspectorCallbacks {
         let websocket = web_socket.clone();
 
@@ -530,7 +537,7 @@ impl<'a> DebuggerSession<'a> {
     /// one needs to call the [Self::process_messages].
     /// method.
     pub fn new<T: std::net::ToSocketAddrs>(
-        inspector: &'a mut Inspector,
+        inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
         address: T,
     ) -> Result<Self, std::io::Error> {
         let server = TcpServer::new(address)?;
@@ -666,7 +673,9 @@ impl<'a> DebuggerSession<'a> {
     }
 }
 
-impl<'inspector> Drop for DebuggerSession<'inspector> {
+impl<'inspector, 'context_scope, 'isolate_scope, 'isolate> Drop
+    for DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate>
+{
     fn drop(&mut self) {
         self.inspector.reset_on_response_callback();
         self.inspector
