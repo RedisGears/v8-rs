@@ -12,23 +12,7 @@
 #include <memory>
 
 namespace {
-static v8::Platform* GLOBAL_PLATFORM = NULL;
-
-static inline v8_inspector::StringView convertToStringView(const std::string &str) {
-  auto* stringView = reinterpret_cast<const uint8_t*>(str.c_str());
-  return { stringView, str.length() };
-}
-
-static inline std::string convertToString(v8::Isolate* isolate, const v8_inspector::StringView stringView) {
-  int length = static_cast<int>(stringView.length());
-  v8::Local<v8::String> message = (
-        stringView.is8Bit()
-          ? v8::String::NewFromOneByte(isolate, reinterpret_cast<const uint8_t*>(stringView.characters8()), v8::NewStringType::kNormal, length)
-          : v8::String::NewFromTwoByte(isolate, reinterpret_cast<const uint16_t*>(stringView.characters16()), v8::NewStringType::kNormal, length)
-      ).ToLocalChecked();
-  v8::String::Utf8Value result(isolate, message);
-  return *result;
-}
+v8::Platform* GLOBAL_PLATFORM = NULL;
 } // anonymous namespace
 
 /// Returns the corrected index. The index passed is expected to be an
@@ -88,6 +72,22 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+
+static inline v8_inspector::StringView convertToStringView(const std::string &str) {
+  auto* stringView = reinterpret_cast<const uint8_t*>(str.c_str());
+  return { stringView, str.length() };
+}
+
+static inline std::string convertToString(v8::Isolate* isolate, const v8_inspector::StringView stringView) {
+  int length = static_cast<int>(stringView.length());
+  v8::Local<v8::String> message = (
+        stringView.is8Bit()
+          ? v8::String::NewFromOneByte(isolate, reinterpret_cast<const uint8_t*>(stringView.characters8()), v8::NewStringType::kNormal, length)
+          : v8::String::NewFromTwoByte(isolate, reinterpret_cast<const uint16_t*>(stringView.characters16()), v8::NewStringType::kNormal, length)
+      ).ToLocalChecked();
+  v8::String::Utf8Value result(isolate, message);
+  return *result;
+}
 
 class v8_inspector_channel_wrapper final: public v8_inspector::V8Inspector::Channel {
 public:
