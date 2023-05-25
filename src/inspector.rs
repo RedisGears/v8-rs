@@ -108,12 +108,11 @@
 //!
 //! let fake_client = {
 //!     use std::net::TcpStream;
-//!     use std::io::Write;
 //!     use tungstenite::protocol::{WebSocket, Message};
 //!     use tungstenite::stream::MaybeTlsStream;
-//!     let address = address.clone();
 //!
-//!     let (stage_1, stage_2) = (stage_1.clone(), stage_2.clone());
+//!     let address = address.clone();
+//!     let stage_1 = stage_1.clone();
 //!
 //!     #[derive(Copy, Clone, Default, Debug)]
 //!     struct Client {
@@ -126,7 +125,7 @@
 //!         ) {
 //!             let message = v8_rs::inspector::ClientMessage::new_client_ready(self.last_message_id);
 //!             let message = Message::Text(serde_json::to_string(&message).unwrap());
-//!             let _ = ws.write_message(message).expect("Couldn't send the message");
+//!             ws.write_message(message).expect("Couldn't send the message");
 //!         }
 //!     }
 //!
@@ -141,8 +140,8 @@
 //!         let mut client = Client::default();
 //!         client.send_ready(&mut ws);
 //!         let _ = ws.read_message();
-//!         stage_1.lock();
-//!         ws.close(None);
+//!         drop(stage_1.lock().expect("Couldn't lock the stage 1"));
+//!         ws.close(None).expect("Couldn't close the WebSocket");
 //!     })
 //! };
 //!
@@ -471,9 +470,24 @@ impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolat
         self._on_wait_frontend_message_on_pause_callback = None;
     }
 
+    // /// Filters the client messages. Not all the client messages are
+    // /// supposed to be received by the [Inspector] implementation: some
+    // /// messages can cause a crash due to bugs in the V8 engine. For
+    // /// example, setting a break-point on a file which isn't known for
+    // /// the V8 Inspector causes a crash.
+    // fn filter_protocol_message<T: AsRef<str>>(message: T) -> bool {
+    //     // age { id: 1015, method: MethodInvocation { name: "Debugger.setBreakpointByUrl", arguments: {"columnNumber": Number(0), "lineNumber": Number(0), "urlRegex": String("file:\\/\\/\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)|\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)")} } }
+    // }
+
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
-        let string = match std::ffi::CString::new(message.as_ref()) {
+        let message = message.as_ref();
+
+        // if Self::filter_protocol_message(message) {
+        //     return;
+        // }
+
+        let string = match std::ffi::CString::new(message) {
             Ok(string) => string,
             _ => return,
         };
@@ -552,6 +566,26 @@ impl ClientMessage {
             method: MethodInvocation {
                 name: Self::DEBUGGER_SHOULD_START_METHOD_NAME.to_owned(),
                 ..Default::default()
+            },
+        }
+    }
+
+    /// Creates a new client message which instruct the [Inspector] to
+    /// set a breakpoint.
+    pub fn new_breakpoint(id: u64, column: u64, line: u64, url: &str) -> Self {
+        // Example: { id: 1015, method: MethodInvocation { name: "",
+        // arguments: {"columnNumber": Number(0), "lineNumber": Number(0),
+        // "urlRegex": String("file:\\/\\/\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)|\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)")} } }
+
+        let mut arguments = serde_json::Map::new();
+        arguments.insert("columnNumber".to_owned(), serde_json::json!(column));
+        arguments.insert("lineNumber".to_owned(), serde_json::json!(line));
+        arguments.insert("urlRegex".to_owned(), serde_json::json!(url));
+        Self {
+            id,
+            method: MethodInvocation {
+                name: "Debugger.setBreakpointByUrl".to_owned(),
+                arguments,
             },
         }
     }
@@ -825,5 +859,136 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate> Drop
         self.inspector.reset_on_response_callback();
         self.inspector
             .reset_on_wait_frontend_message_on_pause_callback();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::v8::isolate::V8Isolate;
+
+    use super::{ClientMessage, DebuggerSession};
+    use std::sync::{Arc, Mutex};
+
+    #[test]
+    fn can_set_breakpoint() {
+        // Initialise the V8 engine:
+        crate::test_utils::initialize();
+
+        // Create a new isolate:
+        let isolate = V8Isolate::new();
+
+        // Enter the isolate created:
+        let i_scope = isolate.enter();
+
+        // Create the code string object:
+        let code_str = i_scope.new_string("1+1");
+
+        // Create a JS execution context for code invocation:""
+        let ctx = i_scope.new_context(None);
+
+        // Enter the created execution context:
+        let ctx_scope = ctx.enter(&i_scope);
+
+        // Create an inspector.
+        let mut inspector = ctx_scope.new_inspector();
+
+        let stage_1 = Arc::new(Mutex::new(()));
+
+        let lock_1 = stage_1.lock().unwrap();
+
+        // The remote debugging server port for the [WebSocketServer].
+        const PORT_V4: u16 = 9005;
+        // The remote debugging server ip address for the [WebSocketServer].
+        const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
+        // The full remote debugging server host name for the [WebSocketServer].
+        const LOCAL_HOST: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, PORT_V4);
+
+        let address = LOCAL_HOST.to_string();
+        let address = &address;
+
+        let fake_client = {
+            use std::net::TcpStream;
+            use tungstenite::protocol::{Message, WebSocket};
+            use tungstenite::stream::MaybeTlsStream;
+            let address = address.clone();
+
+            let stage_1 = stage_1.clone();
+            #[derive(Copy, Clone, Default, Debug)]
+            struct Client {
+                last_message_id: u64,
+            }
+
+            impl Client {
+                fn send_message(
+                    &mut self,
+                    ws: &mut WebSocket<MaybeTlsStream<TcpStream>>,
+                    message: ClientMessage,
+                ) {
+                    let message = Message::Text(serde_json::to_string(&message).unwrap());
+                    ws.write_message(message)
+                        .expect("Couldn't send the message");
+                    self.last_message_id += 1;
+                }
+
+                fn send_ready(&mut self, ws: &mut WebSocket<MaybeTlsStream<TcpStream>>) {
+                    let message = ClientMessage::new_client_ready(self.last_message_id);
+                    self.send_message(ws, message)
+                }
+
+                fn send_breakpoint(
+                    &mut self,
+                    ws: &mut WebSocket<MaybeTlsStream<TcpStream>>,
+                    column: u64,
+                    line: u64,
+                    url: &str,
+                ) {
+                    let message =
+                        ClientMessage::new_breakpoint(self.last_message_id, column, line, url);
+                    self.send_message(ws, message)
+                }
+            }
+
+            std::thread::spawn(move || {
+                let mut ws: WebSocket<MaybeTlsStream<TcpStream>>;
+                loop {
+                    match tungstenite::connect(format!("ws://{address}")) {
+                        Ok(s) => {
+                            ws = s.0;
+                            break;
+                        }
+                        _ => continue,
+                    }
+                }
+                let mut client = Client::default();
+                client.send_ready(&mut ws);
+                let _ = ws.read_message();
+                client.send_breakpoint(&mut ws, 0, 0, "file:///abc/def/hij/klm/nop");
+                drop(stage_1.lock().expect("Couldn't lock the stage 1"));
+                ws.close(None).expect("Couldn't close the WebSocket");
+            })
+        };
+        // Create the debugging server on the default host.
+        let debugger_session = DebuggerSession::new(&mut inspector, address).unwrap();
+        // At this point, the server is running and has accepted a remote
+        // client. Once the client connects, the debugger pauses on the very
+        // first (next) instruction, so we can safely attempt to run the
+        // script, as it won't actually run but will wait for remote client
+        // to act.
+        // Compile the code:
+        let script = ctx_scope.compile(&code_str).unwrap();
+        // Allow the fake client to stop (for this test not to hang).
+        drop(lock_1);
+        // Run the compiled code:
+        let res = script.run(&ctx_scope).unwrap();
+        // To let the remote debugger operate, we need to be able to send
+        // and receive data to and from it. This is achieved by starting the
+        // main loop of the debugger session:
+        debugger_session.process_messages().expect("Debugger error");
+        fake_client
+            .join()
+            .expect("Couldn't join the fake client thread.");
+        // Get the result:
+        let res_utf8 = res.to_utf8().unwrap();
+        assert_eq!(res_utf8.as_str(), "2");
     }
 }

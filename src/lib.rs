@@ -89,17 +89,14 @@ impl From<UserIndex> for RawIndex {
 }
 
 #[cfg(test)]
-mod tests {
+mod test_utils {
+    use crate::v8::v8_init;
     use std::sync::Mutex;
-
-    use crate::v8::v8_array::V8LocalArray;
-    use crate::v8::{
-        isolate, isolate_scope, v8_context_scope, v8_init, v8_native_function_template, v8_value,
-    };
 
     static mut IS_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
-    fn initialize() {
+    /// Initialises the V8 and is safe to use concurrently.
+    pub fn initialize() {
         unsafe {
             let mut is_initialised = IS_INITIALIZED.lock().unwrap();
             if !*is_initialised {
@@ -108,6 +105,15 @@ mod tests {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::initialize;
+    use crate::v8::v8_array::V8LocalArray;
+    use crate::v8::{
+        isolate, isolate_scope, v8_context_scope, v8_native_function_template, v8_value,
+    };
 
     #[test]
     fn simple_init_destroy() {
