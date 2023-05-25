@@ -95,13 +95,23 @@
 //! let lock_1 = stage_1.lock().unwrap();
 //! let lock_2 = stage_2.lock().unwrap();
 //!
-//! let address: &'static str = "127.0.0.1:9005";
+//! // The remote debugging server port for the [WebSocketServer].
+//! const PORT_V4: u16 = 9005;
+//! // The remote debugging server ip address for the [WebSocketServer].
+//! const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
+//! // The full remote debugging server host name for the [WebSocketServer].
+//! const LOCAL_HOST: std::net::SocketAddrV4 =
+//!     std::net::SocketAddrV4::new(IP_V4, PORT_V4);
+//!
+//! let address = LOCAL_HOST.to_string();
+//! let address = &address;
 //!
 //! let fake_client = {
 //!     use std::net::TcpStream;
 //!     use std::io::Write;
 //!     use tungstenite::protocol::{WebSocket, Message};
 //!     use tungstenite::stream::MaybeTlsStream;
+//!     let address = address.clone();
 //!
 //!     let (stage_1, stage_2) = (stage_1.clone(), stage_2.clone());
 //!
@@ -121,7 +131,6 @@
 //!     }
 //!
 //!     std::thread::spawn(move || {
-//!
 //!         let mut ws: WebSocket<MaybeTlsStream<TcpStream>>;
 //!         loop {
 //!             match tungstenite::connect(format!("ws://{address}")) {
@@ -176,15 +185,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::v8::v8_context_scope::V8ContextScope;
 
-/// The remote debugging server port for the [WebSocketServer].
-const PORT_V4: u16 = 9005;
-/// The remote debugging server ip address for the [WebSocketServer].
-const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
-/// The full remote debugging server host name for the [WebSocketServer].
-pub const LOCAL_HOST: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, PORT_V4);
-/// The default read timeout duration.
-const DEFAULT_READ_TIMEOUT_DURATION: Duration = Duration::from_millis(100);
-
 /// The debugging server which waits for a connection of a remote
 /// debugger, receives messages from there and sends the replies back.
 #[derive(Debug)]
@@ -194,7 +194,7 @@ struct TcpServer {
 }
 
 impl TcpServer {
-    /// Creates a new [Server] object with a tcp listener to the specified
+    /// Creates a new [TcpServer] object with a tcp listener to the specified
     /// address.
     pub fn new<T: std::net::ToSocketAddrs>(address: T) -> Result<Self, std::io::Error> {
         let server = TcpListener::bind(address)?;
@@ -220,6 +220,9 @@ impl TcpServer {
 #[derive(Debug)]
 pub struct WebSocketServer(tungstenite::WebSocket<std::net::TcpStream>);
 impl WebSocketServer {
+    /// The default read timeout duration.
+    const DEFAULT_READ_TIMEOUT_DURATION: Duration = Duration::from_millis(100);
+
     /// Waits for a message available to read, and once there is one,
     /// reads it and returns as a text.
     pub fn read_next_message(&mut self) -> Result<String, std::io::Error> {
@@ -244,7 +247,7 @@ impl From<tungstenite::WebSocket<std::net::TcpStream>> for WebSocketServer {
     fn from(value: tungstenite::WebSocket<std::net::TcpStream>) -> Self {
         value
             .get_ref()
-            .set_read_timeout(Some(DEFAULT_READ_TIMEOUT_DURATION))
+            .set_read_timeout(Some(Self::DEFAULT_READ_TIMEOUT_DURATION))
             .expect("Couldn't set the read timeout.");
 
         Self(value)
@@ -749,7 +752,9 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
                             websocket
                                 .0
                                 .get_ref()
-                                .set_read_timeout(Some(DEFAULT_READ_TIMEOUT_DURATION))
+                                .set_read_timeout(Some(
+                                    WebSocketServer::DEFAULT_READ_TIMEOUT_DURATION,
+                                ))
                                 .expect("Failed to temporarily reset the read timeout");
                         }
                         return Ok(s);
