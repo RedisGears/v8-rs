@@ -54,15 +54,126 @@
 //!     }
 //!     ```
 //!
+//! # Example
+//!
+//! To debug, we must properly initialise the V8 and have a context
+//! scope ([V8ContextScope]), on which we can create an inspector.
+//!
+//! An inspector is just a hook into the `V8Platform` spying on the
+//! actions inside the [crate::v8::v8_context::V8Context] and which
+//! can pause, inspect and continue the execution.
+//!
+//! ```rust
+//! use v8_rs::v8::*;
+//! use v8_rs::inspector::{ClientMessage, DebuggerSession};
+//! use std::sync::{Arc, Mutex};
+//!
+//! // Initialise the V8 engine:
+//! v8_init(1);
+//!
+//! // Create a new isolate:
+//! let isolate = isolate::V8Isolate::new();
+//!
+//! // Enter the isolate created:
+//! let i_scope = isolate.enter();
+//!
+//! // Create the code string object:
+//! let code_str = i_scope.new_string("1+1");
+//!
+//! // Create a JS execution context for code invocation:""
+//! let ctx = i_scope.new_context(None);
+//!
+//! // Enter the created execution context:
+//! let ctx_scope = ctx.enter(&i_scope);
+//!
+//! // Create an inspector.
+//! let mut inspector = ctx_scope.new_inspector();
+//!
+//! let mut stage_1 = Arc::new(Mutex::new(()));
+//! let mut stage_2 = Arc::new(Mutex::new(()));
+//!
+//! let lock_1 = stage_1.lock().unwrap();
+//! let lock_2 = stage_2.lock().unwrap();
+//!
+//! let address: &'static str = "127.0.0.1:9005";
+//!
+//! let fake_client = {
+//!     use std::net::TcpStream;
+//!     use std::io::Write;
+//!     use tungstenite::protocol::{WebSocket, Message};
+//!     use tungstenite::stream::MaybeTlsStream;
+//!
+//!     let (stage_1, stage_2) = (stage_1.clone(), stage_2.clone());
+//!
+//!     #[derive(Copy, Clone, Default, Debug)]
+//!     struct Client {
+//!         last_message_id: u64,
+//!     }
+//!     impl Client {
+//!         fn send_ready(
+//!             &mut self,
+//!             ws: &mut WebSocket<MaybeTlsStream<TcpStream>>
+//!         ) {
+//!             let message = v8_rs::inspector::ClientMessage::new_client_ready(self.last_message_id);
+//!             let message = Message::Text(serde_json::to_string(&message).unwrap());
+//!             let _ = ws.write_message(message).expect("Couldn't send the message");
+//!         }
+//!     }
+//!
+//!     std::thread::spawn(move || {
+//!
+//!         let mut ws: WebSocket<MaybeTlsStream<TcpStream>>;
+//!         loop {
+//!             match tungstenite::connect(format!("ws://{address}")) {
+//!                 Ok(s) => { ws = s.0; break; },
+//!                 _ => continue,
+//!             }
+//!         };
+//!         let mut client = Client::default();
+//!         client.send_ready(&mut ws);
+//!         let _ = ws.read_message();
+//!         stage_1.lock();
+//!         ws.close(None);
+//!     })
+//! };
+//!
+//! // Create the debugging server on the default host.
+//! let debugger_session = DebuggerSession::new(&mut inspector, address).unwrap();
+//!
+//! // At this point, the server is running and has accepted a remote
+//! // client. Once the client connects, the debugger pauses on the very
+//! // first (next) instruction, so we can safely attempt to run the
+//! // script, as it won't actually run but will wait for remote client
+//! // to act.
+//!
+//! // Compile the code:
+//! let script = ctx_scope.compile(&code_str).unwrap();
+//!
+//! // Allow the fake client to stop (for this test not to hang).
+//! drop(lock_1);
+//!
+//! // Run the compiled code:
+//! let res = script.run(&ctx_scope).unwrap();
+//!
+//! // To let the remote debugger operate, we need to be able to send
+//! // and receive data to and from it. This is achieved by starting the
+//! // main loop of the debugger session:
+//! assert!(debugger_session.process_messages().is_ok());
+//!
+//! fake_client.join();
+//!
+//! // Get the result:
+//! let res_utf8 = res.to_utf8().unwrap();
+//! assert_eq!(res_utf8.as_str(), "2");
+//! ```
 use std::marker::PhantomData;
 use std::net::TcpListener;
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::v8::v8_context::V8Context;
 use crate::v8::v8_context_scope::V8ContextScope;
 
 /// The remote debugging server port for the [WebSocketServer].
@@ -71,10 +182,6 @@ const PORT_V4: u16 = 9005;
 const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
 /// The full remote debugging server host name for the [WebSocketServer].
 pub const LOCAL_HOST: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, PORT_V4);
-/// The V8 method which is invoked when a client has successfully
-/// connected to the [Inspector] server and waits for the debugging
-/// session to start.
-const DEBUGGER_SHOULD_START_METHOD_NAME: &str = "Runtime.runIfWaitingForDebugger";
 /// The default read timeout duration.
 const DEFAULT_READ_TIMEOUT_DURATION: Duration = Duration::from_millis(100);
 
@@ -407,50 +514,83 @@ impl<'context_scope, 'isolate_scope, 'isolate> Drop
 }
 
 /// A method invocation message.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize)]
-struct MethodInvocation {
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct MethodInvocation {
     /// The name of the method.
     #[serde(rename = "method")]
-    name: String,
+    pub name: String,
     /// The parameters to pass to the method.
-    params: serde_json::Map<String, serde_json::Value>,
+    #[serde(rename = "params")]
+    pub arguments: serde_json::Map<String, serde_json::Value>,
 }
 
 /// A message from the debugger front-end (from the client to the
 /// server).
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize)]
-struct IncomingMessage {
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+pub struct ClientMessage {
     /// The ID of the message.
-    id: u64,
+    pub id: u64,
     /// The method information.
     #[serde(flatten)]
-    method: MethodInvocation,
+    pub method: MethodInvocation,
+}
+
+impl ClientMessage {
+    /// The V8 method which is invoked when a client has successfully
+    /// connected to the [Inspector] server and waits for the debugging
+    /// session to start.
+    const DEBUGGER_SHOULD_START_METHOD_NAME: &str = "Runtime.runIfWaitingForDebugger";
+
+    /// Creates a new client message which says that the remote debugger
+    /// (the client) is ready to proceed.
+    pub fn new_client_ready(id: u64) -> Self {
+        Self {
+            id,
+            method: MethodInvocation {
+                name: Self::DEBUGGER_SHOULD_START_METHOD_NAME.to_owned(),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Returns `true` if the message says that the remote debugger
+    /// (the client) is ready to proceed.
+    pub fn is_client_ready(&self) -> bool {
+        self.method.name == Self::DEBUGGER_SHOULD_START_METHOD_NAME
+    }
 }
 
 /// An error message.
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize)]
-struct ErrorMessage {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ErrorMessage {
     /// The error code.
-    code: i32,
+    pub code: i32,
     /// The error message.
-    message: String,
+    pub message: String,
 }
 
 /// A message from the server to the client (from the back-end to the
 /// front-end).
-#[allow(dead_code)]
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
-enum OutgoingMessage {
+pub enum ServerMessage {
+    /// In case the error occurs on the [Inspector] side, a message of
+    /// this variant is sent to the client.
     Error {
+        /// The object containing the [Inspector] error message.
         error: ErrorMessage,
     },
+    /// The [Inspector] sends such sort of messages when it wants to
+    /// execute a remote method.
     Invoke(MethodInvocation),
+    /// Such kind of messages are sent from the [Inspector] to the
+    /// remote client as a result of previous message, identifiable by
+    /// the `id` member.
     Result {
+        /// The ID of the previous message in chain to which this is
+        /// the answer.
         id: u64,
+        /// The result of the message processing.
         result: serde_json::Map<String, serde_json::Value>,
     },
 }
@@ -581,14 +721,14 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
         // is ready to start.
         loop {
             let message_string: String = session.read_next_message()?;
-            let message: IncomingMessage = match serde_json::from_str(&message_string) {
+            let message: ClientMessage = match serde_json::from_str(&message_string) {
                 Ok(message) => message,
                 Err(_) => continue,
             };
             log::trace!("Parsed out the incoming message: {message:?}");
             session.inspector.dispatch_protocol_message(&message_string);
 
-            if message.method.name == DEBUGGER_SHOULD_START_METHOD_NAME {
+            if message.is_client_ready() {
                 session
                     .inspector
                     .schedule_pause_on_next_statement("Debugger started.");
