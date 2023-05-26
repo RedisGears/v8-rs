@@ -3,29 +3,17 @@
  * Licensed under your choice of the Redis Source Available License 2.0 (RSALv2) or
  * the Server Side Public License v1 (SSPLv1).
  */
-//! The [Inspector] is a helpful facility for remote debugging of the
-//! JavaScript code provided by the V8 engine.
-//!
-//! To be able to debug, an inspector must be created and supplied with
-//! the remote debugger's requests. To answer back, the `on_response`
-//! callback must be properly set.
-//!
-//! # Sessions
-//!
-//! To be able to debug remotely, a server is required. Here one may
-//! find the [WebSocketServer] useful. The [WebSocketServer] is a very
-//! simple WebSocket server, which can be used with an [Inspector].
-//!
-//! To start a debugging server session, it is required to have a
-//! [V8ContextScope], a [WebSocketServer] and an [Inspector]. All of
-//! those are gently packed within an easy-to-use [DebuggerSession]
-//! struct which abstracts all the work. It is a scoped object, meaning
-//! that once an object of [DebuggerSession] leaves its scope, the
-//! debugger server and the debugging session are stopped.
+//! This module provides with the debug server structures. With these
+//! structures it is possibly to easily start a debug server and start
+//! processing remote debuggers' messages over the network. The module
+//! implements messaging via the `WebSocket` protocol, as it is mainly
+//! used together with Chrome V8 engine for debugging, however, the
+//! implementation is platform-agnostic and one can use any sort of
+//! transport for the messages.
 //!
 //! # Clients
 //!
-//! To connect to a remote debugging WebSocker server, one can use:
+//! To connect to a remote debugging WebSocket server, one can use:
 //!
 //! 1. A custom web-socket client, and some implementation of the
 //! V8 Inspector protocol.
@@ -57,7 +45,8 @@
 //! # Example
 //!
 //! To debug, we must properly initialise the V8 and have a context
-//! scope ([V8ContextScope]), on which we can create an inspector.
+//! scope ([super::V8ContextScope]), on which we can create an
+//! inspector.
 //!
 //! An inspector is just a hook into the `V8Platform` spying on the
 //! actions inside the [crate::v8::v8_context::V8Context] and which
@@ -65,7 +54,8 @@
 //!
 //! ```rust
 //! use v8_rs::v8::*;
-//! use v8_rs::inspector::{ClientMessage, DebuggerSession};
+//! use inspector::messages::ClientMessage;
+//! use inspector::server::DebuggerSession;
 //! use std::sync::{Arc, Mutex};
 //!
 //! // Initialise the V8 engine:
@@ -123,7 +113,7 @@
 //!             &mut self,
 //!             ws: &mut WebSocket<MaybeTlsStream<TcpStream>>
 //!         ) {
-//!             let message = v8_rs::inspector::ClientMessage::new_client_ready(self.last_message_id);
+//!             let message = ClientMessage::new_client_ready(self.last_message_id);
 //!             let message = Message::Text(serde_json::to_string(&message).unwrap());
 //!             ws.write_message(message).expect("Couldn't send the message");
 //!         }
@@ -174,15 +164,14 @@
 //! let res_utf8 = res.to_utf8().unwrap();
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
-use std::marker::PhantomData;
 use std::net::TcpListener;
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::time::Duration;
 
-use serde::{Deserialize, Serialize};
+use crate::v8::inspector::messages::ClientMessage;
 
-use crate::v8::v8_context_scope::V8ContextScope;
+use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback};
 
 /// The debugging server which waits for a connection of a remote
 /// debugger, receives messages from there and sends the replies back.
@@ -251,385 +240,6 @@ impl From<tungstenite::WebSocket<std::net::TcpStream>> for WebSocketServer {
 
         Self(value)
     }
-}
-
-/// The callback which is invoked when the V8 Inspector needs to reply
-/// to the client.
-type OnResponseCallback = dyn FnMut(String);
-/// The callback which is invoked when the V8 Inspector requires more
-/// data from the front-end (the client) and, therefore, this callback
-/// must attempt to read more data and dispatch it to the inspector.
-///
-/// The callback should return `1` when it is possible to operate (read,
-/// write, send, receive messages) and `0` when not, to indicate the
-/// impossibility of the further action, in which case, the inspector
-/// will stop.
-type OnWaitFrontendMessageOnPauseCallback =
-    dyn FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> std::os::raw::c_int;
-
-/// The debugging inspector, carefully wrapping the
-/// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
-/// API.
-pub struct Inspector<'context_scope, 'isolate_scope, 'isolate> {
-    raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
-    /// This callback is stored to preserve the lifetime, it is never
-    /// called by this object, but by the C++ side.
-    _on_response_callback: Option<Box<Box<OnResponseCallback>>>,
-    /// This callback is stored to preserve the lifetime, it is never
-    /// called by this object, but by the C++ side.
-    _on_wait_frontend_message_on_pause_callback:
-        Option<Box<Box<OnWaitFrontendMessageOnPauseCallback>>>,
-    /// The lifetime holder.
-    _phantom_data: PhantomData<&'context_scope V8ContextScope<'isolate_scope, 'isolate>>,
-}
-
-impl<'context_scope, 'isolate_scope, 'isolate> std::fmt::Debug
-    for Inspector<'context_scope, 'isolate_scope, 'isolate>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let on_response_str = if let Some(ref callback) = self._on_response_callback {
-            format!("Some({callback:p})")
-        } else {
-            "None".to_owned()
-        };
-
-        let on_wait_str =
-            if let Some(ref callback) = self._on_wait_frontend_message_on_pause_callback {
-                format!("Some({callback:p})")
-            } else {
-                "None".to_owned()
-            };
-
-        f.debug_struct("Inspector")
-            .field("raw", &self.raw)
-            .field("_on_response_callback", &on_response_str)
-            .field("_on_wait_frontend_message_on_pause_callback", &on_wait_str)
-            .finish()
-    }
-}
-
-/// The callback function used to send the messages back to the client
-/// of the inspector (to the one who is debugging).
-extern "C" fn on_response(
-    string: *const ::std::os::raw::c_char,
-    rust_callback: *mut ::std::os::raw::c_void,
-) {
-    let string = unsafe { std::ffi::CStr::from_ptr(string) }.to_string_lossy();
-    log::trace!("Outgoing message: {string}");
-    let rust_callback: &mut Box<OnResponseCallback> = unsafe {
-        &mut *(rust_callback as *mut std::boxed::Box<dyn std::ops::FnMut(std::string::String)>)
-    };
-    rust_callback(string.to_string())
-}
-
-extern "C" fn on_wait_frontend_message_on_pause(
-    raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
-    rust_callback: *mut ::std::os::raw::c_void,
-) -> ::std::os::raw::c_int {
-    log::trace!("on_wait_frontend_message_on_pause");
-    let rust_callback: &mut Box<OnWaitFrontendMessageOnPauseCallback> = unsafe {
-        &mut *(rust_callback
-            as *mut std::boxed::Box<
-                dyn std::ops::FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> i32,
-            >)
-    };
-    rust_callback(raw)
-}
-
-impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolate_scope, 'isolate> {
-    /// Creates a new [Inspector].
-    pub fn new(
-        context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
-        on_response_callback: Box<OnResponseCallback>,
-        on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
-    ) -> Self {
-        let on_response_callback = Box::new(on_response_callback);
-        let on_response_callback = Box::into_raw(on_response_callback);
-        let on_wait_frontend_message_on_pause_callback =
-            Box::new(on_wait_frontend_message_on_pause_callback);
-        let on_wait_frontend_message_on_pause_callback =
-            Box::into_raw(on_wait_frontend_message_on_pause_callback);
-
-        let raw = unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorCreate(
-                context.inner_ctx_ref,
-                Some(on_response),
-                on_response_callback as _,
-                Some(on_wait_frontend_message_on_pause),
-                on_wait_frontend_message_on_pause_callback as _,
-            )
-        };
-
-        let on_response_callback: Box<Box<dyn FnMut(String)>> =
-            unsafe { Box::from_raw(on_response_callback as *mut _) };
-        let on_wait_frontend_message_on_pause_callback =
-            unsafe { Box::from_raw(on_wait_frontend_message_on_pause_callback as *mut _) };
-        Self {
-            raw,
-            _on_response_callback: Some(on_response_callback),
-            _on_wait_frontend_message_on_pause_callback: Some(
-                on_wait_frontend_message_on_pause_callback,
-            ),
-            _phantom_data: PhantomData,
-        }
-    }
-
-    /// Creates a new [Inspector] without any callbacks set. Such an
-    /// inspector can't be used for debugging purposes, but the
-    /// callbacks can be set later via
-    /// [Inspector::set_on_wait_frontend_message_on_pause_callback] and
-    /// [Inspector::set_on_response_callback]. Without the callbacks,
-    /// the inspector attaches to the `V8Platform` and the `V8Context`,
-    /// while the proper hooks (callbacks) can be set later when the
-    /// debugging process should actually take place.
-    pub fn new_without_callbacks(
-        context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
-    ) -> Self {
-        let raw = unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorCreate(
-                context.inner_ctx_ref,
-                None,
-                std::ptr::null_mut(),
-                None,
-                std::ptr::null_mut(),
-            )
-        };
-        Self {
-            raw,
-            _on_response_callback: None,
-            _on_wait_frontend_message_on_pause_callback: None,
-            _phantom_data: PhantomData,
-        }
-    }
-
-    /// Sets the callback which is used by the debugger to send messages
-    /// to the remote client.
-    pub fn set_on_response_callback(&mut self, on_response_callback: Box<OnResponseCallback>) {
-        let on_response_callback = Box::new(on_response_callback);
-        let on_response_callback = Box::into_raw(on_response_callback);
-
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
-                self.raw,
-                Some(on_response),
-                on_response_callback as _,
-            );
-        }
-
-        let on_response_callback = unsafe { Box::from_raw(on_response_callback as *mut _) };
-        self._on_response_callback = Some(on_response_callback);
-    }
-
-    /// Sets the callback when the debugger needs to wait for the
-    /// remote client's message.
-    pub fn set_on_wait_frontend_message_on_pause_callback(
-        &mut self,
-        on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
-    ) {
-        let on_wait_frontend_message_on_pause_callback =
-            Box::new(on_wait_frontend_message_on_pause_callback);
-        let on_wait_frontend_message_on_pause_callback =
-            Box::into_raw(on_wait_frontend_message_on_pause_callback);
-
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
-                self.raw,
-                Some(on_wait_frontend_message_on_pause),
-                on_wait_frontend_message_on_pause_callback as _,
-            );
-        }
-
-        let on_wait_frontend_message_on_pause_callback =
-            unsafe { Box::from_raw(on_wait_frontend_message_on_pause_callback as *mut _) };
-        self._on_wait_frontend_message_on_pause_callback =
-            Some(on_wait_frontend_message_on_pause_callback);
-    }
-
-    /// Resets the `onResponse` callback. See [Self::set_on_response_callback].
-    pub fn reset_on_response_callback(&mut self) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
-                self.raw,
-                None,
-                std::ptr::null_mut(),
-            );
-        }
-        self._on_response_callback = None;
-    }
-
-    /// Resets the `onWaitFrontendMessageOnPause` callback. See
-    /// [Self::set_on_wait_frontend_message_on_pause_callback].
-    pub fn reset_on_wait_frontend_message_on_pause_callback(&mut self) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
-                self.raw,
-                None,
-                std::ptr::null_mut(),
-            );
-        }
-        self._on_wait_frontend_message_on_pause_callback = None;
-    }
-
-    // /// Filters the client messages. Not all the client messages are
-    // /// supposed to be received by the [Inspector] implementation: some
-    // /// messages can cause a crash due to bugs in the V8 engine. For
-    // /// example, setting a break-point on a file which isn't known for
-    // /// the V8 Inspector causes a crash.
-    // fn filter_protocol_message<T: AsRef<str>>(message: T) -> bool {
-    //     // age { id: 1015, method: MethodInvocation { name: "Debugger.setBreakpointByUrl", arguments: {"columnNumber": Number(0), "lineNumber": Number(0), "urlRegex": String("file:\\/\\/\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)|\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)")} } }
-    // }
-
-    /// Dispatches the Chrome Developer Tools (CDT) protocol message.
-    pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
-        let message = message.as_ref();
-
-        // if Self::filter_protocol_message(message) {
-        //     return;
-        // }
-
-        let string = match std::ffi::CString::new(message) {
-            Ok(string) => string,
-            _ => return,
-        };
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
-                self.raw,
-                string.as_ptr(),
-            )
-        }
-    }
-
-    /// Schedules a debugger pause (sets a breakpoint) for the next
-    /// statement.
-    pub fn schedule_pause_on_next_statement<T: AsRef<str>>(&self, reason: T) {
-        let string = match std::ffi::CString::new(reason.as_ref()) {
-            Ok(string) => string,
-            _ => return,
-        };
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSchedulePauseOnNextStatement(
-                self.raw,
-                string.as_ptr(),
-            )
-        }
-    }
-
-    /// Enables the debugger main loop.
-    pub fn wait_frontend_message_on_pause(&self) {
-        unsafe { crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(self.raw) }
-    }
-}
-
-impl<'context_scope, 'isolate_scope, 'isolate> Drop
-    for Inspector<'context_scope, 'isolate_scope, 'isolate>
-{
-    fn drop(&mut self) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_FreeInspector(self.raw as *mut _);
-        }
-    }
-}
-
-/// A method invocation message.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct MethodInvocation {
-    /// The name of the method.
-    #[serde(rename = "method")]
-    pub name: String,
-    /// The parameters to pass to the method.
-    #[serde(rename = "params")]
-    pub arguments: serde_json::Map<String, serde_json::Value>,
-}
-
-/// A message from the debugger front-end (from the client to the
-/// server).
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ClientMessage {
-    /// The ID of the message.
-    pub id: u64,
-    /// The method information.
-    #[serde(flatten)]
-    pub method: MethodInvocation,
-}
-
-impl ClientMessage {
-    /// The V8 method which is invoked when a client has successfully
-    /// connected to the [Inspector] server and waits for the debugging
-    /// session to start.
-    const DEBUGGER_SHOULD_START_METHOD_NAME: &str = "Runtime.runIfWaitingForDebugger";
-
-    /// Creates a new client message which says that the remote debugger
-    /// (the client) is ready to proceed.
-    pub fn new_client_ready(id: u64) -> Self {
-        Self {
-            id,
-            method: MethodInvocation {
-                name: Self::DEBUGGER_SHOULD_START_METHOD_NAME.to_owned(),
-                ..Default::default()
-            },
-        }
-    }
-
-    /// Creates a new client message which instruct the [Inspector] to
-    /// set a breakpoint.
-    pub fn new_breakpoint(id: u64, column: u64, line: u64, url: &str) -> Self {
-        // Example: { id: 1015, method: MethodInvocation { name: "",
-        // arguments: {"columnNumber": Number(0), "lineNumber": Number(0),
-        // "urlRegex": String("file:\\/\\/\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)|\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)")} } }
-
-        let mut arguments = serde_json::Map::new();
-        arguments.insert("columnNumber".to_owned(), serde_json::json!(column));
-        arguments.insert("lineNumber".to_owned(), serde_json::json!(line));
-        arguments.insert("urlRegex".to_owned(), serde_json::json!(url));
-        Self {
-            id,
-            method: MethodInvocation {
-                name: "Debugger.setBreakpointByUrl".to_owned(),
-                arguments,
-            },
-        }
-    }
-
-    /// Returns `true` if the message says that the remote debugger
-    /// (the client) is ready to proceed.
-    pub fn is_client_ready(&self) -> bool {
-        self.method.name == Self::DEBUGGER_SHOULD_START_METHOD_NAME
-    }
-}
-
-/// An error message.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorMessage {
-    /// The error code.
-    pub code: i32,
-    /// The error message.
-    pub message: String,
-}
-
-/// A message from the server to the client (from the back-end to the
-/// front-end).
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum ServerMessage {
-    /// In case the error occurs on the [Inspector] side, a message of
-    /// this variant is sent to the client.
-    Error {
-        /// The object containing the [Inspector] error message.
-        error: ErrorMessage,
-    },
-    /// The [Inspector] sends such sort of messages when it wants to
-    /// execute a remote method.
-    Invoke(MethodInvocation),
-    /// Such kind of messages are sent from the [Inspector] to the
-    /// remote client as a result of previous message, identifiable by
-    /// the `id` member.
-    Result {
-        /// The ID of the previous message in chain to which this is
-        /// the answer.
-        id: u64,
-        /// The result of the message processing.
-        result: serde_json::Map<String, serde_json::Value>,
-    },
 }
 
 struct InspectorCallbacks {
@@ -845,7 +455,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     }
 
     /// Schedules a pause (sets a breakpoint) for the next statement.
-    /// See [Inspector::schedule_pause_on_next_statement].
+    /// See [super::Inspector::schedule_pause_on_next_statement].
     pub fn schedule_pause_on_next_statement(&self) {
         self.inspector
             .schedule_pause_on_next_statement("User breakpoint.");
@@ -962,7 +572,8 @@ mod tests {
                 let mut client = Client::default();
                 client.send_ready(&mut ws);
                 let _ = ws.read_message();
-                client.send_breakpoint(&mut ws, 0, 0, "file:///abc/def/hij/klm/nop");
+                client.send_breakpoint(&mut ws, 0, 0, "
+                file:///home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)|/home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)");
                 drop(stage_1.lock().expect("Couldn't lock the stage 1"));
                 ws.close(None).expect("Couldn't close the WebSocket");
             })
@@ -983,7 +594,10 @@ mod tests {
         // To let the remote debugger operate, we need to be able to send
         // and receive data to and from it. This is achieved by starting the
         // main loop of the debugger session:
-        debugger_session.process_messages().expect("Debugger error");
+        // debugger_session.process_messages().expect("Debugger error");
+        debugger_session
+            .read_and_process_next_message()
+            .expect("Debugger error");
         fake_client
             .join()
             .expect("Couldn't join the fake client thread.");

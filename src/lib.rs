@@ -41,7 +41,6 @@
 
 #![warn(missing_docs)]
 
-pub mod inspector;
 /// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
 mod v8_c_raw;

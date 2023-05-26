@@ -4,7 +4,6 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-use crate::inspector::Inspector;
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
     v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
@@ -28,6 +27,7 @@ use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 
+use super::inspector::Inspector;
 use super::isolate::V8Isolate;
 
 /// An RAII data guard which resets the private data slot after going
