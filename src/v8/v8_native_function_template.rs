@@ -66,7 +66,12 @@ pub(crate) extern "C" fn native_basic_function<
         no_release: true,
     };
 
-    let isolate_scope = V8IsolateScope::new(&isolate);
+    // We know that if we reach here we already entered the isolate and have a handlers scope, so
+    // we can and must create a dummy isolate scope. If we create a regular isolate scope
+    // all the local handlers will be free when this isolate scope will be release including the
+    // return value.
+    // Users can use this isolate scope as if it was a regular isolate scope.
+    let isolate_scope = V8IsolateScope::new_dummy(&isolate);
 
     let inner_ctx_ref = unsafe { v8_GetCurrentCtxRef(inner_isolate) };
     let ctx_scope = V8ContextScope {
