@@ -42,6 +42,9 @@ extern "C" fn free_external_data<T>(arg1: *mut ::std::os::raw::c_void) {
 }
 
 impl<'isolate> V8IsolateScope<'isolate> {
+    /// Create an isolate scope by performing the following:
+    /// 1. Enter the isolate
+    /// 2. Create a scope handler.
     pub(crate) fn new(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
         let inner_isolate_scope = unsafe { v8_IsolateEnter(isolate.inner_isolate) };
         let inner_handlers_scope = unsafe { v8_NewHandlersScope(isolate.inner_isolate) };
@@ -49,6 +52,18 @@ impl<'isolate> V8IsolateScope<'isolate> {
             isolate,
             inner_handlers_scope,
             inner_isolate_scope,
+        }
+    }
+
+    /// Create a dummy isolate scope. This should be used only in case we know that
+    /// the isolate is already entered and we already have a scope handler. For example,
+    /// when calling a native function we can create a dummy isolate scope because we
+    /// know we already entered the isolate and created a scope handler.
+    pub(crate) fn new_dummy(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
+        V8IsolateScope {
+            isolate,
+            inner_handlers_scope: std::ptr::null_mut(),
+            inner_isolate_scope: std::ptr::null_mut(),
         }
     }
 
@@ -282,8 +297,12 @@ impl<'isolate> V8IsolateScope<'isolate> {
 impl<'isolate> Drop for V8IsolateScope<'isolate> {
     fn drop(&mut self) {
         unsafe {
-            v8_FreeHandlersScope(self.inner_handlers_scope);
-            v8_IsolateExit(self.inner_isolate_scope);
+            if !self.inner_handlers_scope.is_null() {
+                v8_FreeHandlersScope(self.inner_handlers_scope);
+            }
+            if !self.inner_isolate_scope.is_null() {
+                v8_IsolateExit(self.inner_isolate_scope);
+            }
         }
     }
 }
