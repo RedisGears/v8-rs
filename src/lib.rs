@@ -99,7 +99,7 @@ mod test_utils {
         unsafe {
             let mut is_initialised = IS_INITIALIZED.lock().unwrap();
             if !*is_initialised {
-                v8_init(1);
+                v8_init(1).unwrap();
                 *is_initialised = true;
             }
         }

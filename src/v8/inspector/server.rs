@@ -164,10 +164,12 @@
 //! let res_utf8 = res.to_utf8().unwrap();
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::time::Duration;
+
+use tungstenite::{Error, Message, WebSocket};
 
 use crate::v8::inspector::messages::ClientMessage;
 
@@ -206,7 +208,7 @@ impl TcpServer {
 /// A WebSocket server.
 #[repr(transparent)]
 #[derive(Debug)]
-pub struct WebSocketServer(tungstenite::WebSocket<std::net::TcpStream>);
+pub struct WebSocketServer(WebSocket<TcpStream>);
 impl WebSocketServer {
     /// The default read timeout duration.
     const DEFAULT_READ_TIMEOUT_DURATION: Duration = Duration::from_millis(100);
@@ -219,20 +221,18 @@ impl WebSocketServer {
             Ok(message) => message
                 .into_text()
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
-            Err(tungstenite::Error::Io(e)) => Err(e),
-            Err(tungstenite::Error::ConnectionClosed | tungstenite::Error::AlreadyClosed) => {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::ConnectionAborted,
-                    "The WebSocket connection has been closed.",
-                ))
-            }
+            Err(Error::Io(e)) => Err(e),
+            Err(Error::ConnectionClosed | Error::AlreadyClosed) => Err(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "The WebSocket connection has been closed.",
+            )),
             Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
         }
     }
 }
 
-impl From<tungstenite::WebSocket<std::net::TcpStream>> for WebSocketServer {
-    fn from(value: tungstenite::WebSocket<std::net::TcpStream>) -> Self {
+impl From<WebSocket<TcpStream>> for WebSocketServer {
+    fn from(value: WebSocket<TcpStream>) -> Self {
         value
             .get_ref()
             .set_read_timeout(Some(Self::DEFAULT_READ_TIMEOUT_DURATION))
@@ -263,8 +263,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
         let on_response = move |s: String| {
             log::trace!("Responding with string {s}.");
             match websocket.lock() {
-                Ok(mut websocket) => match websocket.0.write_message(tungstenite::Message::Text(s))
-                {
+                Ok(mut websocket) => match websocket.0.write_message(Message::Text(s)) {
                     Ok(_) => log::trace!("Responded with string successfully."),
                     Err(e) => log::error!("Couldn't send a websocket message to the client: {e}"),
                 },
@@ -479,6 +478,15 @@ mod tests {
     use super::{ClientMessage, DebuggerSession};
     use std::sync::{Arc, Mutex};
 
+    /*
+    With vscode we crash, with chromium inspector we don't.
+
+    Chromium inspector:
+
+    32029:M 26 May 2023 10:56:37.928 . <redisgears_2> 'v8_rs::v8::inspector::server' /home/fx/workspace/v8-rs/src/v8/inspector/server.rs:281: [OnWait] Read the message: "{\"id\":20,\"method\":\"Debugger.setBreakpointByUrl\",\"params\":{\"lineNumber\":2,\"scriptHash\":\"e18847f3eb3ba96b6de3f10a3370067120fe0f5dc162f58b08e39df7e5f5308f\",\"columnNumber\":68,\"condition\":\"\"}}"
+
+    VSCODE:
+    */
     #[test]
     fn can_set_breakpoint() {
         // Initialise the V8 engine:

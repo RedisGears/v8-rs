@@ -21,8 +21,17 @@ v8::Platform* GLOBAL_PLATFORM = NULL;
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-#define INTERNAL_OFFSET 2
+#define INTERNAL_OFFSET 3
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
+/// Our slot is a slot where we store our own data. The 0th index of
+/// V8 is forbidden from being used, so we store our data at this index
+/// instead.
+#define OUR_SLOT 1
+
+#define STRINGIFY(s) _STRINGIFY(s)
+#define _STRINGIFY(s) #s
+/// The version of the header file used when building the project.
+#define HEADER_VERSION STRINGIFY(V8_MAJOR_VERSION) "." STRINGIFY(V8_MINOR_VERSION) "." STRINGIFY(V8_BUILD_NUMBER) "." STRINGIFY(V8_PATCH_LEVEL)
 
 extern "C" {
 
@@ -603,7 +612,11 @@ void v8_SetInitializationFlags() {
 	v8::V8::SetFlagsFromString("--stack-size=50");
 }
 
-void v8_Initialize(v8_allocator *alloc, const int thread_pool_size) {
+int v8_Initialize(v8_allocator *alloc, const int thread_pool_size) {
+	if (strcmp(v8_Version(), HEADER_VERSION)) {
+		fprintf(stderr, "The library (%s) and the header version (%s) mismatch.", v8_Version(), HEADER_VERSION);
+		return 0;
+	}
 	v8_SetInitializationFlags();
 	GLOBAL_PLATFORM = v8::platform::NewDefaultPlatform(thread_pool_size).release();
 	v8::V8::InitializePlatform(GLOBAL_PLATFORM);
@@ -613,6 +626,8 @@ void v8_Initialize(v8_allocator *alloc, const int thread_pool_size) {
 	} else {
 		allocator = &DefaultAllocator;
 	}
+
+	return 1;
 }
 
 v8_platform* v8_NewPlatform(const int thread_pool_size) {
@@ -643,7 +658,7 @@ v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap
 	v8::Isolate *isolate = v8::Isolate::New(create_params);
 
 	v8_pd_list *native_data = v8_PDListCreate(create_params.array_buffer_allocator);
-	isolate->SetData(0, native_data);
+	isolate->SetData(OUR_SLOT, native_data);
 
 	return (v8_isolate*)isolate;
 }
@@ -660,7 +675,7 @@ void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char*
 
 void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void* data, size_t current_heap_limit, size_t initial_heap_limit), void *pd, void(*free_pd)(void*)) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_PDListAdd(native_data, pd, free_pd);
 	isolate->AddNearHeapLimitCallback(near_oom_callback, pd);
 	isolate->AutomaticallyRestoreInitialHeapLimit();
@@ -708,7 +723,7 @@ void v8_CancelTerminateExecution(v8_isolate* i) {
 
 void v8_FreeIsolate(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8::ArrayBuffer::Allocator *allocator = native_data->allocator;
 	v8_PDListFree(native_data);
 	isolate->Dispose();
@@ -961,7 +976,7 @@ v8_local_native_function_template* v8_NewNativeFunctionTemplate(v8_isolate* i, n
 	nf_pd->pd = pd;
 	nf_pd->freePD = freePD;
 
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
 
 	v8::Local<v8::External> data = v8::External::New(isolate, (void*)nf_pd);
@@ -988,7 +1003,7 @@ v8_local_native_function* v8_NewNativeFunction(v8_context_ref *ctx_ref, native_f
 	nf_pd->pd = pd;
 	nf_pd->freePD = freePD;
 
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
 
 	v8::Local<v8::External> data = v8::External::New(ctx_ref->context->GetIsolate(), (void*)nf_pd);
@@ -1463,7 +1478,7 @@ v8_local_external_data* v8_NewExternalData(v8_isolate *i, void *data, void(*free
 	nf_pd->pd = data;
 	nf_pd->freePD = free;
 
-	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(0);
+	v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
 	v8_pd_node* node = v8_PDListAdd(native_data, (void*)nf_pd, (void(*)(void*))v8_FreeNaticeFunctionPD);
 
 	v8::Local<v8::External> d = v8::External::New(isolate, (void*)nf_pd);
