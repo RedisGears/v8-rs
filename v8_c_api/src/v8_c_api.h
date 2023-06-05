@@ -108,9 +108,12 @@ typedef struct v8_unlocker v8_unlocker;
 
 typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
 
-/* Initialize v8, must be called before any v8 API.
- * if allocator is NULL, use default memory functions. */
-void v8_Initialize(v8_alloctor *allocator, int thread_pool_size);
+/** Initialize v8, must be called before any v8 API.
+ * if allocator is NULL, use default memory functions.
+ * Returns and int of value 1 on successfull initialisation, 0
+ * otherwise.
+ */
+int v8_Initialize(v8_alloctor *allocator, int thread_pool_size);
 
 const char* v8_Version();
 

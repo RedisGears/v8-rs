@@ -20,6 +20,11 @@ static v8::Platform* platform = NULL;
 #define INTERNAL_OFFSET 2
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
 
+#define STRINGIFY(s) _STRINGIFY(s)
+#define _STRINGIFY(s) #s
+/// The version of the header file used when building the project.
+#define HEADER_VERSION STRINGIFY(V8_MAJOR_VERSION) "." STRINGIFY(V8_MINOR_VERSION) "." STRINGIFY(V8_BUILD_NUMBER) "." STRINGIFY(V8_PATCH_LEVEL)
+
 extern "C" {
 
 #include "v8_c_api.h"
@@ -269,17 +274,24 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 	return native_data;
 }
 
-void v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
+int v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 	v8::V8::SetFlagsFromString("--stack-size=50");
+	if (strcmp(v8_Version(), HEADER_VERSION)) {
+		fprintf(stderr, "The library (%s) and the header versions (%s) mismatch.", v8_Version(), HEADER_VERSION);
+		return 0;
+	}
 	platform = v8::platform::NewDefaultPlatform(thread_pool_size).release();
 	v8::V8::InitializePlatform(platform);
 	v8::V8::Initialize();
+
 	if (alloc) {
 		allocator = alloc;
 	} else {
 		allocator = &DefaultAllocator;
 	}
+
+    return 1;
 }
 
 const char* v8_Version() {

@@ -43,8 +43,12 @@ pub trait OptionalTryFrom<T>: Sized {
 }
 
 /// Initialize the v8, must be called before any other v8 API.
-pub fn v8_init(thread_pool_size: i32) {
-    unsafe { v8_Initialize(ptr::null_mut(), thread_pool_size) }
+pub fn v8_init(thread_pool_size: i32) -> Result<(), &'static str> {
+    let res = unsafe { v8_Initialize(ptr::null_mut(), thread_pool_size) };
+    match res {
+        1 => Ok(()),
+        _ => Err("The V8 Engine failed to initialise."),
+    }
 }
 
 /// Initialise the V8 engine with custom fatal error and OOM handlers
@@ -53,12 +57,15 @@ pub fn v8_init_with_error_handlers(
     fatal_error_handler: Box<FatalErrorCallback>,
     oom_error_handler: Box<OutOfMemoryErrorCallback>,
     thread_pool_size: i32,
-) {
-    v8_init(thread_pool_size);
+) -> Result<(), &'static str> {
+    v8_init(thread_pool_size)?;
+
     unsafe {
         FATAL_ERROR_CALLBACK = Some(fatal_error_handler);
         OOM_ERROR_CALLBACK = Some(oom_error_handler);
     }
+
+    Ok(())
 }
 
 /// Destroys v8, after calling it is not allowed to use any v8 API anymore.
