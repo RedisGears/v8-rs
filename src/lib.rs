@@ -17,6 +17,8 @@ pub const GIT_SHA: &str = env!("VERGEN_GIT_SHA");
 /// The [`vergen`]'s git semantic version based on the last checkout tag,
 /// the number of commits ahead of the tag and a hash.
 pub const GIT_SEMVER: &str = env!("VERGEN_GIT_DESCRIBE");
+/// The profile used to compile the crate, either release or debug.
+pub const PROFILE: &str = env!("PROFILE");
 
 /// A user-available data index. The users of the crate may use this
 /// index to store their data in V8.
