@@ -55,7 +55,7 @@
 //! ```rust
 //! use v8_rs::v8::*;
 //! use inspector::messages::ClientMessage;
-//! use inspector::server::DebuggerSession;
+//! use inspector::server::DebuggerSessionBuilder;
 //! use std::sync::{Arc, Mutex};
 //!
 //! // Initialise the V8 engine:
@@ -136,7 +136,10 @@
 //! };
 //!
 //! // Create the debugging server on the default host.
-//! let debugger_session = DebuggerSession::new(&mut inspector, address).unwrap();
+//! let debugger_session = DebuggerSessionBuilder::new(&mut inspector, address)
+//!     .unwrap()
+//!     .build()
+//!     .unwrap();
 //!
 //! // At this point, the server is running and has accepted a remote
 //! // client. Once the client connects, the debugger pauses on the very
@@ -164,6 +167,7 @@
 //! let res_utf8 = res.to_utf8().unwrap();
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
+use std::fmt::Write;
 use std::net::{TcpListener, TcpStream};
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -178,7 +182,7 @@ use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback}
 /// The debugging server which waits for a connection of a remote
 /// debugger, receives messages from there and sends the replies back.
 #[derive(Debug)]
-struct TcpServer {
+pub struct TcpServer {
     /// The server that accepts remote debugging connections.
     server: TcpListener,
 }
@@ -202,6 +206,36 @@ impl TcpServer {
         tungstenite::accept(self.server.accept()?.0)
             .map(WebSocketServer::from)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+    }
+
+    /// Returns the ways to connect to the server to establish a new
+    /// debugger session.
+    pub fn get_connection_hints(&self) -> Option<DebuggerSessionConnectionHints> {
+        let websocket_address = self.get_listening_address().ok()?;
+        let vscode_configuration = format!(
+            r#"
+        {{
+            "version": "0.2.0",
+            "configurations": [
+                {{
+                    "name": "Attach to RedisGears V8 through WebSocket at {websocket_address}",
+                    "type": "node",
+                    "request": "attach",
+                    "cwd": "${{workspaceFolder}}",
+                    "websocketAddress": "ws://{websocket_address}",
+                }}
+            ]
+        }}
+        "#
+        );
+        let chromium_link = format!(
+            "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={websocket_address}"
+        );
+        Some(DebuggerSessionConnectionHints {
+            websocket_address,
+            vscode_configuration,
+            chromium_link,
+        })
     }
 }
 
@@ -247,11 +281,81 @@ struct InspectorCallbacks {
     on_wait_frontend_message_on_pause: Box<OnWaitFrontendMessageOnPauseCallback>,
 }
 
+/// The means of connection to the V8 debugger.
+#[derive(Debug, Clone)]
+pub struct DebuggerSessionConnectionHints {
+    websocket_address: std::net::SocketAddr,
+    vscode_configuration: String,
+    chromium_link: String,
+}
+
+impl std::fmt::Display for DebuggerSessionConnectionHints {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let address = &self.websocket_address;
+        let vscode_configuration = &self.vscode_configuration;
+        let chromium_link = &self.chromium_link;
+        f.write_fmt(format_args!("The V8 remote debugging server is waiting for a connection via WebSocket on: {address}.\nHint: you may browse this link: {chromium_link} or use this launch configuration for Visual Studio Code (<https://code.visualstudio.com/>):{vscode_configuration}"))
+    }
+}
+
+/// The debugger session builder.
+#[derive(Debug, Default)]
+pub struct DebuggerSessionBuilder<'inspector, 'context_scope, 'isolate_scope, 'isolate> {
+    tcp_server: Option<TcpServer>,
+    inspector: Option<&'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>>,
+}
+impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
+    DebuggerSessionBuilder<'inspector, 'context_scope, 'isolate_scope, 'isolate>
+{
+    /// Creates a new debugger session builder.
+    pub fn new<T: std::net::ToSocketAddrs>(
+        inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
+        address: T,
+    ) -> Result<Self, std::io::Error> {
+        Ok(Self {
+            tcp_server: Some(TcpServer::new(address)?),
+            inspector: Some(inspector),
+        })
+    }
+
+    /// Sets a [TcpServer].
+    pub fn tcp_server(&mut self, tcp_server: TcpServer) -> &mut Self {
+        self.tcp_server = Some(tcp_server);
+        self
+    }
+
+    /// Sets an [Inspector].
+    pub fn inspector(
+        &mut self,
+        inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
+    ) -> &mut Self {
+        self.inspector = Some(inspector);
+        self
+    }
+
+    /// Returns the ways to connect to the server to establish a new
+    /// debugger session.
+    pub fn get_connection_hints(&self) -> Option<DebuggerSessionConnectionHints> {
+        self.tcp_server.as_ref()?.get_connection_hints()
+    }
+
+    /// Consumes [self] and attempts to build a [DebuggerSession].
+    pub fn build(
+        self,
+    ) -> Result<DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate>, std::io::Error>
+    {
+        let inspector = self.inspector.expect("The V8 Inspector wasn't set");
+        let server = self.tcp_server.expect("The TCP server wasn't set");
+        DebuggerSession::new(inspector, server)
+    }
+}
+
 /// A single debugger session.
 #[derive(Debug)]
 pub struct DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate> {
     web_socket: Rc<Mutex<WebSocketServer>>,
     inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
+    connection_hints: DebuggerSessionConnectionHints,
 }
 
 impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
@@ -313,6 +417,12 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
         }
     }
 
+    /// Creates a new builder.
+    pub fn builder() -> DebuggerSessionBuilder<'inspector, 'context_scope, 'isolate_scope, 'isolate>
+    {
+        DebuggerSessionBuilder::default()
+    }
+
     /// Creates a new debugger to be used with the provided [Inspector].
     /// Starts a web socket debugging session using [WebSocketServer].
     ///
@@ -322,31 +432,13 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     /// After the function returns, to start the debugging main loop,
     /// one needs to call the [Self::process_messages].
     /// method.
-    pub fn new<T: std::net::ToSocketAddrs>(
+    pub fn new(
         inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
-        address: T,
+        server: TcpServer,
     ) -> Result<Self, std::io::Error> {
-        let server = TcpServer::new(address)?;
-        let address = server.get_listening_address()?;
-        let vscode_configuration = format!(
-            r#"
-        {{
-            "version": "0.2.0",
-            "configurations": [
-                {{
-                    "name": "Attach to RedisGears V8 through WebSocket at {address}",
-                    "type": "node",
-                    "request": "attach",
-                    "cwd": "${{workspaceFolder}}",
-                    "websocketAddress": "ws://{address}",
-                }}
-            ]
-        }}
-        "#
-        );
-        log::info!(
-            "The V8 remote debugging server is waiting for a connection via WebSocket on: {address}.\nHint: you may browse this link: <devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={address}> or use this launch configuration for Visual Studio Code (<https://code.visualstudio.com/>):{vscode_configuration}",
-        );
+        let connection_hints = server
+            .get_connection_hints()
+            .expect("Couldn't get the connection hints");
 
         let web_socket = Rc::new(Mutex::new(server.accept_next_websocket_connection()?));
         log::trace!("Accepted the next websocket.");
@@ -361,6 +453,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
         let session = Self {
             web_socket,
             inspector,
+            connection_hints,
         };
 
         // The re-locking read loop to wait until the remote debugger
@@ -383,6 +476,12 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
                 return Ok(session);
             }
         }
+    }
+
+    /// Returns the ways to connect to the server to establish a new
+    /// debugger session.
+    pub fn get_connection_hints(&self) -> &DebuggerSessionConnectionHints {
+        &self.connection_hints
     }
 
     /// Reads the next message without parsing it.
@@ -475,17 +574,15 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate> Drop
 mod tests {
     use crate::v8::isolate::V8Isolate;
 
-    use super::{ClientMessage, DebuggerSession};
+    use super::{ClientMessage, DebuggerSessionBuilder};
     use std::sync::{Arc, Mutex};
 
     /*
-    With vscode we crash, with chromium inspector we don't.
+    This is to test the crash when setting a breakpoint.
 
     Chromium inspector:
 
     32029:M 26 May 2023 10:56:37.928 . <redisgears_2> 'v8_rs::v8::inspector::server' /home/fx/workspace/v8-rs/src/v8/inspector/server.rs:281: [OnWait] Read the message: "{\"id\":20,\"method\":\"Debugger.setBreakpointByUrl\",\"params\":{\"lineNumber\":2,\"scriptHash\":\"e18847f3eb3ba96b6de3f10a3370067120fe0f5dc162f58b08e39df7e5f5308f\",\"columnNumber\":68,\"condition\":\"\"}}"
-
-    VSCODE:
     */
     #[test]
     fn can_set_breakpoint() {
@@ -587,7 +684,10 @@ mod tests {
             })
         };
         // Create the debugging server on the default host.
-        let debugger_session = DebuggerSession::new(&mut inspector, address).unwrap();
+        let debugger_session = DebuggerSessionBuilder::new(&mut inspector, address)
+            .unwrap()
+            .build()
+            .unwrap();
         // At this point, the server is running and has accepted a remote
         // client. Once the client connects, the debugger pauses on the very
         // first (next) instruction, so we can safely attempt to run the

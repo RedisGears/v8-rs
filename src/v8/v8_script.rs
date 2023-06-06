@@ -21,6 +21,7 @@ use super::v8_value::V8PersistValue;
 /// JS script object
 pub struct V8LocalScript<'isolate_scope, 'isolate> {
     pub(crate) inner_script: *mut v8_local_script,
+    // TODO remove?
     pub(crate) code: ScriptCode<'isolate_scope, 'isolate>,
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }

@@ -478,6 +478,7 @@ void get_v8_string_value(
 	}
 }
 
+// TODO rename
 void get_v8_string_value_with_callback(
 	v8_local_string *v8_string,
 	v8_StringToUtf8StringCallback callback,
