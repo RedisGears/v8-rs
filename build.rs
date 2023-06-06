@@ -22,12 +22,14 @@ lazy_static::lazy_static! {
         _ => panic!("Os '{}' are not supported", std::env::consts::OS),
     };
 
-    static ref V8_DEFAULT_VERSION: &'static str = "11.3.244.12";
+    static ref PROFILE: String = env::var("PROFILE").expect("PROFILE env var was not given");
+
+    static ref V8_DEFAULT_VERSION: &'static str = "11.4.183.19";
     static ref V8_VERSION: String = env::var("V8_VERSION").map(|v| if v == "default" {V8_DEFAULT_VERSION.to_string()} else {v}).unwrap_or(V8_DEFAULT_VERSION.to_string());
     static ref V8_HEADERS_PATH: String = env::var("V8_HEADERS_PATH").unwrap_or("v8_c_api/libv8.include.zip".into());
     static ref V8_HEADERS_URL: String = env::var("V8_HEADERS_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8.{}.include.zip", *V8_VERSION));
-    static ref V8_MONOLITH_PATH: String = env::var("V8_MONOLITH_PATH").unwrap_or("v8_c_api/libv8_monolith.a".into());
-    static ref V8_MONOLITH_URL: String = env::var("V8_MONOLITH_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.{}.{}.{}.a", *V8_VERSION, *ARCH, *OS));
+    static ref V8_MONOLITH_PATH: String = env::var("V8_MONOLITH_PATH").unwrap_or(format!("v8_c_api/libv8_monolith_{}.a", *PROFILE));
+    static ref V8_MONOLITH_URL: String = env::var("V8_MONOLITH_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8_monolith.{}.{}.{}.{}.a", *V8_VERSION, *ARCH, *PROFILE, *OS));
 
     static ref V8_HEADERS_DIRECTORY: &'static str = "v8_c_api/src/v8include/";
     static ref LIBV8_PATH: &'static str = "v8_c_api/src/libv8.a";
@@ -102,8 +104,8 @@ fn main() {
         "linux" => {
             /* On linux we will statically link to libstdc++ to be able to run on systems that do not have libstdc++ installed. */
             println!(
-                "cargo:rustc-flags=-L{} -lv8 -lv8_monolith -ldl -lc",
-                output_dir
+                "cargo:rustc-flags=-L{} -lv8 -lv8_monolith_{} -ldl -lc",
+                output_dir, *PROFILE
             );
             println!("cargo:rustc-cdylib-link-arg=-Wl,-Bstatic");
             println!("cargo:rustc-cdylib-link-arg=-lstdc++");
@@ -111,8 +113,8 @@ fn main() {
         }
         "macos" => {
             println!(
-                "cargo:rustc-flags=-L{} -lv8 -lv8_monolith -lc++ -ldl -lc",
-                output_dir
+                "cargo:rustc-flags=-L{} -lv8 -lv8_monolith_{} -lc++ -ldl -lc",
+                output_dir, *PROFILE
             );
         }
         _ => panic!("Os '{}' are not supported", std::env::consts::OS),
@@ -122,4 +124,6 @@ fn main() {
         .all_git()
         .emit()
         .expect("vergen failed.");
+
+    println!("cargo:rustc-env=PROFILE={}", *PROFILE);
 }
