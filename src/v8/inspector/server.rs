@@ -300,16 +300,14 @@ impl std::fmt::Display for DebuggerSessionConnectionHints {
 
 /// The debugger session builder.
 #[derive(Debug, Default)]
-pub struct DebuggerSessionBuilder<'inspector, 'context_scope, 'isolate_scope, 'isolate> {
+pub struct DebuggerSessionBuilder<'inspector, 'isolate> {
     tcp_server: Option<TcpServer>,
-    inspector: Option<&'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>>,
+    inspector: Option<&'inspector mut Inspector<'isolate>>,
 }
-impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
-    DebuggerSessionBuilder<'inspector, 'context_scope, 'isolate_scope, 'isolate>
-{
+impl<'inspector, 'isolate> DebuggerSessionBuilder<'inspector, 'isolate> {
     /// Creates a new debugger session builder.
     pub fn new<T: std::net::ToSocketAddrs>(
-        inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
+        inspector: &'inspector mut Inspector<'isolate>,
         address: T,
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
@@ -325,10 +323,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     }
 
     /// Sets an [Inspector].
-    pub fn inspector(
-        &mut self,
-        inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
-    ) -> &mut Self {
+    pub fn inspector(&mut self, inspector: &'inspector mut Inspector<'isolate>) -> &mut Self {
         self.inspector = Some(inspector);
         self
     }
@@ -340,10 +335,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     }
 
     /// Consumes [self] and attempts to build a [DebuggerSession].
-    pub fn build(
-        self,
-    ) -> Result<DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate>, std::io::Error>
-    {
+    pub fn build(self) -> Result<DebuggerSession<'inspector, 'isolate>, std::io::Error> {
         let inspector = self.inspector.expect("The V8 Inspector wasn't set");
         let server = self.tcp_server.expect("The TCP server wasn't set");
         DebuggerSession::new(inspector, server)
@@ -352,15 +344,13 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
 
 /// A single debugger session.
 #[derive(Debug)]
-pub struct DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate> {
+pub struct DebuggerSession<'inspector, 'isolate> {
     web_socket: Rc<Mutex<WebSocketServer>>,
-    inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
+    inspector: &'inspector mut Inspector<'isolate>,
     connection_hints: DebuggerSessionConnectionHints,
 }
 
-impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
-    DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate>
-{
+impl<'inspector, 'isolate> DebuggerSession<'inspector, 'isolate> {
     fn create_inspector_callbacks(web_socket: Rc<Mutex<WebSocketServer>>) -> InspectorCallbacks {
         let websocket = web_socket.clone();
 
@@ -418,8 +408,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     }
 
     /// Creates a new builder.
-    pub fn builder() -> DebuggerSessionBuilder<'inspector, 'context_scope, 'isolate_scope, 'isolate>
-    {
+    pub fn builder() -> DebuggerSessionBuilder<'inspector, 'isolate> {
         DebuggerSessionBuilder::default()
     }
 
@@ -433,7 +422,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     /// one needs to call the [Self::process_messages].
     /// method.
     pub fn new(
-        inspector: &'inspector mut Inspector<'context_scope, 'isolate_scope, 'isolate>,
+        inspector: &'inspector mut Inspector<'isolate>,
         server: TcpServer,
     ) -> Result<Self, std::io::Error> {
         let connection_hints = server
@@ -560,9 +549,7 @@ impl<'inspector, 'context_scope, 'isolate_scope, 'isolate>
     }
 }
 
-impl<'inspector, 'context_scope, 'isolate_scope, 'isolate> Drop
-    for DebuggerSession<'inspector, 'context_scope, 'isolate_scope, 'isolate>
-{
+impl<'inspector, 'isolate> Drop for DebuggerSession<'inspector, 'isolate> {
     fn drop(&mut self) {
         self.inspector.reset_on_response_callback();
         self.inspector

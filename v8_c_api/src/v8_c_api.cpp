@@ -147,12 +147,12 @@ class v8_inspector_client_wrapper final: public v8_inspector::V8InspectorClient 
 public:
   explicit v8_inspector_client_wrapper(
 	v8::Platform *platform,
-    const v8::Local<v8::Context> &context,
+    v8::Isolate *isolate,
 	const InspectorOnResponseCallback &onResponse = {},
 	const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause = {}
   );
 
-  void setContext(const v8::Local<v8::Context> &context);
+  void setIsolate(v8::Isolate *isolate);
   void setOnResponseCallback(const InspectorOnResponseCallback &callback);
   void setOnWaitFrontendMessageOnPauseCallback(const InspectorOnWaitFrontendMessageOnPauseCallback &callback);
 
@@ -163,6 +163,7 @@ public:
   void schedulePauseOnNextStatement(const v8_inspector::StringView &reason);
   void waitFrontendMessageOnPause();
 
+  // Can we return `v8::Local<v8::Context>` from `v8::Context *` ?
   v8::Local<v8::Context> ensureDefaultContextInGroup(const int contextGroupId) override;
 
 private:
@@ -172,7 +173,6 @@ private:
   std::unique_ptr<v8_inspector::V8InspectorSession> session_;
   std::unique_ptr<v8_inspector_channel_wrapper> channel_;
   v8::Isolate* isolate_;
-  v8::Handle<v8::Context> context_;
   InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
   bool terminated_;
   bool run_nested_loop_;
@@ -180,29 +180,30 @@ private:
 
 v8_inspector_client_wrapper::v8_inspector_client_wrapper(
 	v8::Platform *platform,
-	const v8::Local<v8::Context> &context,
+	v8::Isolate *isolate,
 	const InspectorOnResponseCallback &onResponse,
 	const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause
 ) :
     platform_(platform),
-	context_(context),
+	isolate_(isolate),
 	onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause)
 {
-	isolate_ = context_->GetIsolate();
+	auto context = isolate_->GetCurrentContext();
 	inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
     channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse));
     session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
-    context_->SetAlignedPointerInEmbedderData(1, this);
+    context->SetAlignedPointerInEmbedderData(1, this);
 
     v8_inspector::StringView contextName = convertToStringView("inspector");
-    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context->GetIsolate()->GetCurrentContext(), kContextGroupId, contextName));
 	terminated_ = true;
 	run_nested_loop_ = false;
 }
 
-void v8_inspector_client_wrapper::setContext(const v8::Local<v8::Context> &context) {
-	context_ = context;
-    context_->SetAlignedPointerInEmbedderData(1, this);
+void v8_inspector_client_wrapper::setIsolate(v8::Isolate *isolate) {
+	isolate_ = isolate;
+	auto context = isolate_->GetCurrentContext();
+    context->SetAlignedPointerInEmbedderData(1, this);
     v8_inspector::StringView contextName = convertToStringView("inspector");
     inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
 }
@@ -236,8 +237,9 @@ void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
     terminated_ = true;
 }
 
+// override
 v8::Local<v8::Context> v8_inspector_client_wrapper::ensureDefaultContextInGroup(int contextGroupId) {
-    return context_;
+    return isolate_->GetCurrentContext();
 }
 
 void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
@@ -248,7 +250,6 @@ void v8_inspector_client_wrapper::waitFrontendMessageOnPause() {
     terminated_ = false;
 }
 } // anonymous namespace
-
 
 
 struct v8_isolate_scope {
@@ -378,7 +379,7 @@ struct v8_local_array_buff {
 };
 
 v8_inspector_c_wrapper* v8_InspectorCreate(
-	v8_context_ref *context,
+	v8_isolate *isolate,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData,
 	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
@@ -391,10 +392,11 @@ v8_inspector_c_wrapper* v8_InspectorCreate(
 		return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
 	};
 	auto platform = GLOBAL_PLATFORM;
+	auto v8_isolate = reinterpret_cast<v8::Isolate *>(isolate);
 	return reinterpret_cast<v8_inspector_c_wrapper *>(
 		new v8_inspector_client_wrapper(
 			platform,
-			context->context,
+			v8_isolate,
 			onResponseWrapper,
 			onWaitFrontendMessageOnPauseWrapper
 		)
@@ -456,9 +458,10 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 
 void v8_InspectorSetContext(
 	v8_inspector_c_wrapper *inspector,
-	v8_context_ref *context
+	v8_isolate *isolate
 ) {
-	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setContext(context->context);
+	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)
+		->setIsolate(reinterpret_cast<v8::Isolate *>(isolate));
 }
 
 void get_v8_string_value(
@@ -478,8 +481,7 @@ void get_v8_string_value(
 	}
 }
 
-// TODO rename
-void get_v8_string_value_with_callback(
+void v8_GetStringValueWithCallback(
 	v8_local_string *v8_string,
 	v8_StringToUtf8StringCallback callback,
 	void *userdata

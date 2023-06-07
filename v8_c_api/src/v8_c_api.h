@@ -132,9 +132,9 @@ typedef void (*v8_InspectorOnResponseCallback)(const char *string, void *userdat
 typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *inspector,  void *userdata);
 
 /** Creates a debugging inspector for the global platform and the given
-context. The callbacks are optional. */
+isolate. The callbacks are optional. */
 v8_inspector_c_wrapper* v8_InspectorCreate(
-	v8_context_ref *context,
+	v8_isolate *isolate,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData,
 	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
@@ -175,10 +175,10 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 	void *onWaitUserData
 );
 
-/** Sets the V8Context for the inspector. */
-void v8_InspectorSetContext(
+/** Sets the V8Isolate for the inspector. */
+void v8_InspectorSetIsolate(
 	v8_inspector_c_wrapper *inspector,
-	v8_context_ref *context
+	v8_isolate *isolate
 );
 
 typedef void (*v8_StringToUtf8StringCallback)(
@@ -191,7 +191,7 @@ typedef void (*v8_StringToUtf8StringCallback)(
 invoke the callback function with userdata and with the string bytes
 and string length
 */
-void get_v8_string_value_with_callback(
+void v8_GetStringValueWithCallback(
 	v8_local_string *v8_string,
 	v8_StringToUtf8StringCallback callback,
 	void *userdata

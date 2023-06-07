@@ -214,10 +214,8 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     }
 
     /// Creates a new inspector for this context scope.
-    pub fn new_inspector<'context_scope>(
-        &'context_scope self,
-    ) -> Inspector<'context_scope, 'isolate_scope, 'isolate> {
-        Inspector::new_without_callbacks(self)
+    pub fn new_inspector(&self) -> Inspector {
+        Inspector::new_without_callbacks(self.isolate_scope.isolate)
     }
 
     /// Create a new resolver object

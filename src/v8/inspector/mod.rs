@@ -36,6 +36,8 @@ pub mod server;
 
 use crate::v8::v8_context_scope::V8ContextScope;
 
+use super::isolate::V8Isolate;
+
 /// The callback which is invoked when the V8 Inspector needs to reply
 /// to the client.
 type OnResponseCallback = dyn FnMut(String);
@@ -54,7 +56,7 @@ type OnWaitFrontendMessageOnPauseCallback =
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
 /// API.
-pub struct Inspector<'context_scope, 'isolate_scope, 'isolate> {
+pub struct Inspector<'isolate> {
     raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
     /// This callback is stored to preserve the lifetime, it is never
     /// called by this object, but by the C++ side.
@@ -64,12 +66,10 @@ pub struct Inspector<'context_scope, 'isolate_scope, 'isolate> {
     _on_wait_frontend_message_on_pause_callback:
         Option<Box<Box<OnWaitFrontendMessageOnPauseCallback>>>,
     /// The lifetime holder.
-    _phantom_data: PhantomData<&'context_scope V8ContextScope<'isolate_scope, 'isolate>>,
+    _phantom_data: PhantomData<&'isolate V8Isolate>,
 }
 
-impl<'context_scope, 'isolate_scope, 'isolate> std::fmt::Debug
-    for Inspector<'context_scope, 'isolate_scope, 'isolate>
-{
+impl<'isolate> std::fmt::Debug for Inspector<'isolate> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let on_response_str = if let Some(ref callback) = self._on_response_callback {
             format!("Some({callback:p})")
@@ -120,10 +120,10 @@ extern "C" fn on_wait_frontend_message_on_pause(
     rust_callback(raw)
 }
 
-impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolate_scope, 'isolate> {
+impl<'isolate> Inspector<'isolate> {
     /// Creates a new [Inspector].
     pub fn new(
-        context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
+        isolate: &'isolate V8Isolate,
         on_response_callback: Box<OnResponseCallback>,
         on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
     ) -> Self {
@@ -136,7 +136,7 @@ impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolat
 
         let raw = unsafe {
             crate::v8_c_raw::bindings::v8_InspectorCreate(
-                context.inner_ctx_ref,
+                isolate.inner_isolate,
                 Some(on_response),
                 on_response_callback as _,
                 Some(on_wait_frontend_message_on_pause),
@@ -166,12 +166,10 @@ impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolat
     /// the inspector attaches to the `V8Platform` and the `V8Context`,
     /// while the proper hooks (callbacks) can be set later when the
     /// debugging process should actually take place.
-    pub fn new_without_callbacks(
-        context: &'context_scope V8ContextScope<'isolate_scope, 'isolate>,
-    ) -> Self {
+    pub fn new_without_callbacks(isolate: &V8Isolate) -> Self {
         let raw = unsafe {
             crate::v8_c_raw::bindings::v8_InspectorCreate(
-                context.inner_ctx_ref,
+                isolate.inner_isolate,
                 None,
                 std::ptr::null_mut(),
                 None,
@@ -292,9 +290,7 @@ impl<'context_scope, 'isolate_scope, 'isolate> Inspector<'context_scope, 'isolat
     }
 }
 
-impl<'context_scope, 'isolate_scope, 'isolate> Drop
-    for Inspector<'context_scope, 'isolate_scope, 'isolate>
-{
+impl<'isolate> Drop for Inspector<'isolate> {
     fn drop(&mut self) {
         unsafe {
             crate::v8_c_raw::bindings::v8_FreeInspector(self.raw as *mut _);
