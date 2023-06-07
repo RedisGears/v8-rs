@@ -5,6 +5,7 @@
  */
 
 #include "v8.h"
+#include "v8-version-string.h"
 #include "libplatform/libplatform.h"
 
 #include <cassert>
@@ -19,11 +20,6 @@ static v8::Platform* platform = NULL;
 /// real data location.
 #define INTERNAL_OFFSET 2
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
-
-#define STRINGIFY(s) _STRINGIFY(s)
-#define _STRINGIFY(s) #s
-/// The version of the header file used when building the project.
-#define HEADER_VERSION STRINGIFY(V8_MAJOR_VERSION) "." STRINGIFY(V8_MINOR_VERSION) "." STRINGIFY(V8_BUILD_NUMBER) "." STRINGIFY(V8_PATCH_LEVEL)
 
 extern "C" {
 
@@ -277,8 +273,8 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 int v8_Initialize(v8_alloctor *alloc, int thread_pool_size) {
 //	v8::V8::SetFlagsFromString("--expose_gc");
 	v8::V8::SetFlagsFromString("--stack-size=50");
-	if (strcmp(v8_Version(), HEADER_VERSION)) {
-		fprintf(stderr, "The library (%s) and the header versions (%s) mismatch.", v8_Version(), HEADER_VERSION);
+	if (strcmp(v8_Version(), V8_VERSION_STRING)) {
+		fprintf(stderr, "The library (%s) and the header versions (%s) mismatch.", v8_Version(), V8_VERSION_STRING);
 		return 0;
 	}
 	platform = v8::platform::NewDefaultPlatform(thread_pool_size).release();
