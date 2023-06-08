@@ -113,7 +113,7 @@ typedef void (*v8_InterruptCallback)(v8_isolate *isolate, void* data);
  * Returns and int of value 1 on successfull initialisation, 0
  * otherwise.
  */
-int v8_Initialize(v8_alloctor *allocator, int thread_pool_size);
+int v8_Initialize(v8_alloctor *allocator, int thread_pool_size, const char *flags);
 
 const char* v8_Version();
 

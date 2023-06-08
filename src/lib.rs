@@ -75,7 +75,7 @@ mod json_path_tests {
     fn initialize() {
         unsafe {
             if !IS_INITIALIZED {
-                v8_init(1).unwrap();
+                v8_init(1, None).unwrap();
                 IS_INITIALIZED = true;
             }
         }
