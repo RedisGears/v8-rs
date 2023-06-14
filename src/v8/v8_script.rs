@@ -69,7 +69,7 @@ impl<'isolate_scope, 'isolate> From<V8LocalString<'isolate_scope, 'isolate>>
 impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
     /// Run the script.
     pub fn run(&self, ctx: &V8ContextScope) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let inner_val = unsafe { v8_Run(ctx.inner_ctx_ref, self.inner_script) };
+        let inner_val = unsafe { v8_Run(ctx.get_inner(), self.inner_script) };
         if inner_val.is_null() {
             None
         } else {
@@ -144,7 +144,7 @@ impl V8PersistedScript {
         &mut self,
         ctx: &V8ContextScope<'isolate_scope, 'isolate>,
     ) -> bool {
-        let code = self.get_script_code(ctx.isolate_scope);
+        let code = self.get_script_code(ctx.get_isolate_scope());
         let ret = if let Some(new_script) = code.compile(ctx) {
             let persisted_script = new_script.persist();
             unsafe {

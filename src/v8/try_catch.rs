@@ -38,8 +38,7 @@ impl<'isolate_scope, 'isolate> V8TryCatch<'isolate_scope, 'isolate> {
         &self,
         ctx_scope: &V8ContextScope,
     ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let inner_val =
-            unsafe { v8_TryCatchGetTrace(self.inner_trycatch, ctx_scope.inner_ctx_ref) };
+        let inner_val = unsafe { v8_TryCatchGetTrace(self.inner_trycatch, ctx_scope.get_inner()) };
         if inner_val.is_null() {
             return None;
         }

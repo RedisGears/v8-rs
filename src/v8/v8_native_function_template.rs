@@ -20,6 +20,8 @@ use crate::v8::v8_native_function::V8LocalNativeFunction;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_value::V8LocalValue;
 
+use super::v8_context::V8Context;
+
 /// Native function template object
 pub struct V8LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
     pub(crate) inner_func: *mut v8_local_native_function_template,
@@ -73,12 +75,11 @@ pub(crate) extern "C" fn native_basic_function<
     // Users can use this isolate scope as if it was a regular isolate scope.
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
 
-    let inner_ctx_ref = unsafe { v8_GetCurrentCtxRef(inner_isolate) };
-    let ctx_scope = V8ContextScope {
-        inner_ctx_ref,
-        exit_on_drop: false,
-        isolate_scope: &isolate_scope,
-    };
+    // let inner_ctx_ref = unsafe { v8_GetCurrentCtxRef(inner_isolate) };
+    let inner_ctx_ref = V8Context::get_current_raw_ref_for_isolate(&isolate)
+        .expect("Couldn't get the current context")
+        .as_ptr();
+    let ctx_scope = V8ContextScope::new_for_ref(inner_ctx_ref, false, &isolate_scope, false);
 
     let args = V8LocalNativeFunctionArgs {
         inner_arr: args,
@@ -103,9 +104,8 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionTemplate<'isolate_scope, 'is
         &self,
         ctx_scope: &V8ContextScope,
     ) -> V8LocalNativeFunction<'isolate_scope, 'isolate> {
-        let inner_func = unsafe {
-            v8_NativeFunctionTemplateToFunction(ctx_scope.inner_ctx_ref, self.inner_func)
-        };
+        let inner_func =
+            unsafe { v8_NativeFunctionTemplateToFunction(ctx_scope.get_inner(), self.inner_func) };
         V8LocalNativeFunction {
             inner_func,
             isolate_scope: self.isolate_scope,

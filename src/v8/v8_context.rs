@@ -5,14 +5,14 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
-    v8_SetPrivateData, v8_context,
+    v8_ContextEnter, v8_FreeContext, v8_GetCurrentCtxRef, v8_GetPrivateData, v8_NewContext,
+    v8_ResetPrivateData, v8_SetPrivateData, v8_context, v8_context_ref,
 };
 use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 use crate::v8::isolate::V8Isolate;
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -62,6 +62,12 @@ impl V8Context {
         Self { inner_ctx }
     }
 
+    pub(crate) fn get_current_raw_ref_for_isolate(
+        isolate: &V8Isolate,
+    ) -> Option<NonNull<v8_context_ref>> {
+        NonNull::new(unsafe { v8_GetCurrentCtxRef(isolate.inner_isolate) })
+    }
+
     /// Enter the context for JS code invocation.
     /// Returns a `V8ContextScope` object. The context will
     /// be automatically exit when the returned `V8ContextScope`
@@ -71,12 +77,15 @@ impl V8Context {
         &self,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
     ) -> V8ContextScope<'isolate_scope, 'isolate> {
-        let inner_ctx_ref = unsafe { v8_ContextEnter(self.inner_ctx) };
-        V8ContextScope {
-            inner_ctx_ref,
-            exit_on_drop: true,
-            isolate_scope,
-        }
+        V8ContextScope::new(self.inner_ctx, true, isolate_scope, false)
+    }
+
+    /// Enter the context for debugging the JS code.
+    pub fn debug<'isolate_scope, 'isolate>(
+        &self,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> V8ContextScope<'isolate_scope, 'isolate> {
+        V8ContextScope::new(self.inner_ctx, true, isolate_scope, true)
     }
 
     /// Sets a private data on the context considering the index as

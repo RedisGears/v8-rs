@@ -318,9 +318,9 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
                     .map(|v| v.inner_val)
                     .collect::<Vec<*mut v8_local_value>>();
                 let ptr = args.as_ptr();
-                unsafe { v8_FunctionCall(ctx.inner_ctx_ref, self.inner_val, args.len(), ptr) }
+                unsafe { v8_FunctionCall(ctx.get_inner(), self.inner_val, args.len(), ptr) }
             }
-            None => unsafe { v8_FunctionCall(ctx.inner_ctx_ref, self.inner_val, 0, ptr::null()) },
+            None => unsafe { v8_FunctionCall(ctx.get_inner(), self.inner_val, 0, ptr::null()) },
         };
 
         if res.is_null() {

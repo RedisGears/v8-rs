@@ -73,11 +73,12 @@
 //! // Create a JS execution context for code invocation:""
 //! let ctx = i_scope.new_context(None);
 //!
-//! // Enter the created execution context:
-//! let ctx_scope = ctx.enter(&i_scope);
+//! // Enter the created execution context for debugging:
+//! let ctx_scope = ctx.debug(&i_scope);
 //!
 //! // Obtain an inspector.
-//! let inspector = ctx_scope.get_inspector();
+//! let inspector = ctx_scope.get_inspector()
+//!     .expect("An inspector should have been created");
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
 //! let mut stage_2 = Arc::new(Mutex::new(()));
@@ -577,8 +578,8 @@ mod tests {
         // Create a JS execution context for code invocation:""
         let ctx = i_scope.new_context(None);
 
-        // Enter the created execution context:
-        let ctx_scope = ctx.enter(&i_scope);
+        // Enter the created execution context for debugging:
+        let ctx_scope = ctx.debug(&i_scope);
 
         // Create an inspector.
         let inspector = ctx_scope

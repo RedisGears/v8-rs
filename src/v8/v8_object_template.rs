@@ -87,7 +87,7 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
         ctx_scope: &V8ContextScope,
     ) -> V8LocalObject<'isolate_scope, 'isolate> {
         let inner_obj =
-            unsafe { v8_ObjectTemplateNewInstance(ctx_scope.inner_ctx_ref, self.inner_obj) };
+            unsafe { v8_ObjectTemplateNewInstance(ctx_scope.get_inner(), self.inner_obj) };
         V8LocalObject {
             inner_obj,
             isolate_scope: self.isolate_scope,

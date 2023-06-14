@@ -5,9 +5,10 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
-    v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
-    v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context_ref,
+    v8_Compile, v8_CompileAsModule, v8_ContextEnter, v8_ContextRefGetGlobals, v8_ExitContextRef,
+    v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
+    v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context,
+    v8_context_ref,
 };
 use crate::v8_c_raw::bindings::{v8_SetPrivateDataOnCtxRef, v8_isolate};
 use crate::{RawIndex, UserIndex};
@@ -86,12 +87,60 @@ impl<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data> Drop
 /// [crate::v8::v8_value::V8PersistValue].
 #[derive(Debug)]
 pub struct V8ContextScope<'isolate_scope, 'isolate> {
-    pub(crate) inner_ctx_ref: *mut v8_context_ref,
-    pub(crate) exit_on_drop: bool,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    inner_ctx_ref: *mut v8_context_ref,
+    exit_on_drop: bool,
+    isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    inspector: Option<Rc<RawInspector>>,
 }
 
 impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
+    pub(crate) fn get_isolate_scope(&self) -> &'isolate_scope V8IsolateScope<'isolate> {
+        self.isolate_scope
+    }
+
+    pub(crate) fn is_exit_on_drop(&self) -> bool {
+        self.exit_on_drop
+    }
+
+    pub(crate) fn get_inner(&self) -> *mut v8_context_ref {
+        self.inner_ctx_ref
+    }
+
+    pub(crate) fn new(
+        context: *mut v8_context,
+        exit_on_drop: bool,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+        with_inspector: bool,
+    ) -> Self {
+        Self::new_for_ref(
+            unsafe { v8_ContextEnter(context) },
+            exit_on_drop,
+            isolate_scope,
+            with_inspector,
+        )
+    }
+
+    pub(crate) fn new_for_ref(
+        context_ref: *mut v8_context_ref,
+        exit_on_drop: bool,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+        with_inspector: bool,
+    ) -> Self {
+        let inspector = if with_inspector {
+            Some(Rc::new(RawInspector::new(
+                isolate_scope.isolate.inner_isolate,
+            )))
+        } else {
+            None
+        };
+        Self {
+            inner_ctx_ref: context_ref,
+            exit_on_drop,
+            isolate_scope,
+            inspector,
+        }
+    }
+
     /// Compile the given code into a script object.
     #[must_use]
     pub fn compile(
@@ -214,10 +263,9 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         self.reset_private_data_raw(index)
     }
 
-    /// Creates a new inspector for this context scope.
+    /// Obtains an inspector for this context scope.
     pub fn get_inspector(&self) -> Option<Rc<RawInspector>> {
-        unimplemented!()
-        // Inspector::new_without_callbacks(self.isolate_scope.isolate)
+        self.inspector.clone()
     }
 
     /// Create a new resolver object
