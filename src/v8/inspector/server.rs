@@ -76,8 +76,8 @@
 //! // Enter the created execution context:
 //! let ctx_scope = ctx.enter(&i_scope);
 //!
-//! // Create an inspector.
-//! let mut inspector = ctx_scope.new_inspector();
+//! // Obtain an inspector.
+//! let inspector = ctx_scope.get_inspector();
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
 //! let mut stage_2 = Arc::new(Mutex::new(()));
@@ -136,7 +136,7 @@
 //! };
 //!
 //! // Create the debugging server on the default host.
-//! let debugger_session = DebuggerSessionBuilder::new(&mut inspector, address)
+//! let debugger_session = DebuggerSessionBuilder::new(inspector, address)
 //!     .unwrap()
 //!     .build()
 //!     .unwrap();
@@ -167,7 +167,6 @@
 //! let res_utf8 = res.to_utf8().unwrap();
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
-use std::fmt::Write;
 use std::net::{TcpListener, TcpStream};
 use std::rc::Rc;
 use std::sync::Mutex;
@@ -177,7 +176,7 @@ use tungstenite::{Error, Message, WebSocket};
 
 use crate::v8::inspector::messages::ClientMessage;
 
-use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback};
+use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
 
 /// The debugging server which waits for a connection of a remote
 /// debugger, receives messages from there and sends the replies back.
@@ -300,14 +299,14 @@ impl std::fmt::Display for DebuggerSessionConnectionHints {
 
 /// The debugger session builder.
 #[derive(Debug, Default)]
-pub struct DebuggerSessionBuilder<'inspector, 'isolate> {
+pub struct DebuggerSessionBuilder {
     tcp_server: Option<TcpServer>,
-    inspector: Option<&'inspector mut Inspector<'isolate>>,
+    inspector: Option<Rc<RawInspector>>,
 }
-impl<'inspector, 'isolate> DebuggerSessionBuilder<'inspector, 'isolate> {
+impl DebuggerSessionBuilder {
     /// Creates a new debugger session builder.
     pub fn new<T: std::net::ToSocketAddrs>(
-        inspector: &'inspector mut Inspector<'isolate>,
+        inspector: Rc<RawInspector>,
         address: T,
     ) -> Result<Self, std::io::Error> {
         Ok(Self {
@@ -323,7 +322,7 @@ impl<'inspector, 'isolate> DebuggerSessionBuilder<'inspector, 'isolate> {
     }
 
     /// Sets an [Inspector].
-    pub fn inspector(&mut self, inspector: &'inspector mut Inspector<'isolate>) -> &mut Self {
+    pub fn inspector(&mut self, inspector: Rc<RawInspector>) -> &mut Self {
         self.inspector = Some(inspector);
         self
     }
@@ -335,7 +334,7 @@ impl<'inspector, 'isolate> DebuggerSessionBuilder<'inspector, 'isolate> {
     }
 
     /// Consumes [self] and attempts to build a [DebuggerSession].
-    pub fn build(self) -> Result<DebuggerSession<'inspector, 'isolate>, std::io::Error> {
+    pub fn build(self) -> Result<DebuggerSession, std::io::Error> {
         let inspector = self.inspector.expect("The V8 Inspector wasn't set");
         let server = self.tcp_server.expect("The TCP server wasn't set");
         DebuggerSession::new(inspector, server)
@@ -344,13 +343,13 @@ impl<'inspector, 'isolate> DebuggerSessionBuilder<'inspector, 'isolate> {
 
 /// A single debugger session.
 #[derive(Debug)]
-pub struct DebuggerSession<'inspector, 'isolate> {
+pub struct DebuggerSession {
     web_socket: Rc<Mutex<WebSocketServer>>,
-    inspector: &'inspector mut Inspector<'isolate>,
+    inspector: Inspector,
     connection_hints: DebuggerSessionConnectionHints,
 }
 
-impl<'inspector, 'isolate> DebuggerSession<'inspector, 'isolate> {
+impl DebuggerSession {
     fn create_inspector_callbacks(web_socket: Rc<Mutex<WebSocketServer>>) -> InspectorCallbacks {
         let websocket = web_socket.clone();
 
@@ -408,7 +407,7 @@ impl<'inspector, 'isolate> DebuggerSession<'inspector, 'isolate> {
     }
 
     /// Creates a new builder.
-    pub fn builder() -> DebuggerSessionBuilder<'inspector, 'isolate> {
+    pub fn builder() -> DebuggerSessionBuilder {
         DebuggerSessionBuilder::default()
     }
 
@@ -421,10 +420,7 @@ impl<'inspector, 'isolate> DebuggerSession<'inspector, 'isolate> {
     /// After the function returns, to start the debugging main loop,
     /// one needs to call the [Self::process_messages].
     /// method.
-    pub fn new(
-        inspector: &'inspector mut Inspector<'isolate>,
-        server: TcpServer,
-    ) -> Result<Self, std::io::Error> {
+    pub fn new(inspector: Rc<RawInspector>, server: TcpServer) -> Result<Self, std::io::Error> {
         let connection_hints = server
             .get_connection_hints()
             .expect("Couldn't get the connection hints");
@@ -434,8 +430,9 @@ impl<'inspector, 'isolate> DebuggerSession<'inspector, 'isolate> {
 
         let callbacks = Self::create_inspector_callbacks(web_socket.clone());
 
-        inspector.set_on_response_callback(callbacks.on_response);
-        inspector.set_on_wait_frontend_message_on_pause_callback(
+        let inspector = Inspector::new(
+            inspector,
+            callbacks.on_response,
             callbacks.on_wait_frontend_message_on_pause,
         );
 
@@ -549,14 +546,6 @@ impl<'inspector, 'isolate> DebuggerSession<'inspector, 'isolate> {
     }
 }
 
-impl<'inspector, 'isolate> Drop for DebuggerSession<'inspector, 'isolate> {
-    fn drop(&mut self) {
-        self.inspector.reset_on_response_callback();
-        self.inspector
-            .reset_on_wait_frontend_message_on_pause_callback();
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::v8::isolate::V8Isolate;
@@ -592,7 +581,9 @@ mod tests {
         let ctx_scope = ctx.enter(&i_scope);
 
         // Create an inspector.
-        let mut inspector = ctx_scope.new_inspector();
+        let inspector = ctx_scope
+            .get_inspector()
+            .expect("The isolate was expected to have created an inspector");
 
         let stage_1 = Arc::new(Mutex::new(()));
 
@@ -671,7 +662,7 @@ mod tests {
             })
         };
         // Create the debugging server on the default host.
-        let debugger_session = DebuggerSessionBuilder::new(&mut inspector, address)
+        let debugger_session = DebuggerSessionBuilder::new(inspector, address)
             .unwrap()
             .build()
             .unwrap();

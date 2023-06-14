@@ -14,6 +14,7 @@ use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+use std::rc::Rc;
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_module::V8LocalModule;
@@ -27,7 +28,7 @@ use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 
-use super::inspector::Inspector;
+use super::inspector::RawInspector;
 use super::isolate::V8Isolate;
 
 /// An RAII data guard which resets the private data slot after going
@@ -214,8 +215,9 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     }
 
     /// Creates a new inspector for this context scope.
-    pub fn new_inspector(&self) -> Inspector {
-        Inspector::new_without_callbacks(self.isolate_scope.isolate)
+    pub fn get_inspector(&self) -> Option<Rc<RawInspector>> {
+        unimplemented!()
+        // Inspector::new_without_callbacks(self.isolate_scope.isolate)
     }
 
     /// Create a new resolver object
