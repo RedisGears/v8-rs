@@ -19,6 +19,7 @@ use super::v8_string::V8LocalString;
 use super::v8_value::V8PersistValue;
 
 /// JS script object
+#[derive(Debug)]
 pub struct V8LocalScript<'isolate_scope, 'isolate> {
     pub(crate) inner_script: *mut v8_local_script,
     // TODO remove?

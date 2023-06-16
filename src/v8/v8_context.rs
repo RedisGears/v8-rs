@@ -46,6 +46,7 @@ impl<'context, 'data, T: 'data> Drop for V8ContextDataGuard<'context, 'data, T> 
     }
 }
 
+#[derive(Debug)]
 pub struct V8Context {
     pub(crate) inner_ctx: *mut v8_context,
 }

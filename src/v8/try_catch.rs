@@ -15,6 +15,7 @@ use crate::v8::v8_value::V8LocalValue;
 
 /// An object that responsible to catch any exception which raised
 /// during the JS code invocation.
+#[derive(Debug)]
 pub struct V8TryCatch<'isolate_scope, 'isolate> {
     pub(crate) inner_trycatch: *mut v8_trycatch,
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,

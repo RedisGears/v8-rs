@@ -110,6 +110,7 @@ impl<'isolate_scope, 'isolate> Drop for V8LocalObjectTemplate<'isolate_scope, 'i
     }
 }
 
+#[derive(Debug)]
 pub struct V8PersistedObjectTemplate {
     pub(crate) inner_persisted_obj_template: *mut v8_persisted_object_template,
 }

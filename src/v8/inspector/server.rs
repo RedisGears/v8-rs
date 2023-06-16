@@ -55,7 +55,7 @@
 //! ```rust
 //! use v8_rs::v8::*;
 //! use inspector::messages::ClientMessage;
-//! use inspector::server::DebuggerSessionBuilder;
+//! use inspector::server::{DebuggerSession, TcpServer};
 //! use std::sync::{Arc, Mutex};
 //!
 //! // Initialise the V8 engine:
@@ -136,11 +136,20 @@
 //!     })
 //! };
 //!
-//! // Create the debugging server on the default host.
-//! let debugger_session = DebuggerSessionBuilder::new(inspector, address)
-//!     .unwrap()
-//!     .build()
-//!     .unwrap();
+//!
+//! // Let's create a server and start listening for the connections
+//! // on the address provided, but not accepting those yet.
+//! let server = TcpServer::new(address).expect("Couldn't create a tcp server");
+//!
+//! // Now let's wait for the user to connect.
+//! let web_socket = server
+//!     .accept_next_websocket_connection()
+//!     .expect("Couldn't accept the next web socket connection");
+//!
+//! // Now that we have accepted a connection, we can start our
+//! // debugging session.
+//! let debugger_session = DebuggerSession::new(web_socket, inspector)
+//!     .expect("Couldn't start a debugging session");
 //!
 //! // At this point, the server is running and has accepted a remote
 //! // client. Once the client connects, the debugger pauses on the very
@@ -211,41 +220,27 @@ impl TcpServer {
     /// Returns the ways to connect to the server to establish a new
     /// debugger session.
     pub fn get_connection_hints(&self) -> Option<DebuggerSessionConnectionHints> {
-        let websocket_address = self.get_listening_address().ok()?;
-        let vscode_configuration = format!(
-            r#"
-        {{
-            "version": "0.2.0",
-            "configurations": [
-                {{
-                    "name": "Attach to RedisGears V8 through WebSocket at {websocket_address}",
-                    "type": "node",
-                    "request": "attach",
-                    "cwd": "${{workspaceFolder}}",
-                    "websocketAddress": "ws://{websocket_address}",
-                }}
-            ]
-        }}
-        "#
-        );
-        let chromium_link = format!(
-            "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={websocket_address}"
-        );
-        Some(DebuggerSessionConnectionHints {
-            websocket_address,
-            vscode_configuration,
-            chromium_link,
-        })
+        self.get_listening_address().ok().map(|a| a.into())
     }
 }
 
 /// A WebSocket server.
-#[repr(transparent)]
 #[derive(Debug)]
 pub struct WebSocketServer(WebSocket<TcpStream>);
 impl WebSocketServer {
     /// The default read timeout duration.
     const DEFAULT_READ_TIMEOUT_DURATION: Duration = Duration::from_millis(100);
+
+    /// Returns the ways to connect to the server to establish a new
+    /// debugger session.
+    pub fn get_connection_hints(&self) -> DebuggerSessionConnectionHints {
+        DebuggerSessionConnectionHints::from(
+            self.0
+                .get_ref()
+                .peer_addr()
+                .expect("Couldn't get the peer address"),
+        )
+    }
 
     /// Waits for a message available to read, and once there is one,
     /// reads it and returns as a text.
@@ -284,61 +279,47 @@ struct InspectorCallbacks {
 /// The means of connection to the V8 debugger.
 #[derive(Debug, Clone)]
 pub struct DebuggerSessionConnectionHints {
-    websocket_address: std::net::SocketAddr,
+    address: std::net::SocketAddr,
     vscode_configuration: String,
     chromium_link: String,
 }
 
 impl std::fmt::Display for DebuggerSessionConnectionHints {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let address = &self.websocket_address;
+        let address = &self.address;
         let vscode_configuration = &self.vscode_configuration;
         let chromium_link = &self.chromium_link;
         f.write_fmt(format_args!("The V8 remote debugging server is waiting for a connection via WebSocket on: {address}.\nHint: you may browse this link: {chromium_link} or use this launch configuration for Visual Studio Code (<https://code.visualstudio.com/>):{vscode_configuration}"))
     }
 }
 
-/// The debugger session builder.
-#[derive(Debug, Default)]
-pub struct DebuggerSessionBuilder {
-    tcp_server: Option<TcpServer>,
-    inspector: Option<Rc<RawInspector>>,
-}
-impl DebuggerSessionBuilder {
-    /// Creates a new debugger session builder.
-    pub fn new<T: std::net::ToSocketAddrs>(
-        inspector: Rc<RawInspector>,
-        address: T,
-    ) -> Result<Self, std::io::Error> {
-        Ok(Self {
-            tcp_server: Some(TcpServer::new(address)?),
-            inspector: Some(inspector),
-        })
-    }
-
-    /// Sets a [TcpServer].
-    pub fn tcp_server(&mut self, tcp_server: TcpServer) -> &mut Self {
-        self.tcp_server = Some(tcp_server);
-        self
-    }
-
-    /// Sets an [Inspector].
-    pub fn inspector(&mut self, inspector: Rc<RawInspector>) -> &mut Self {
-        self.inspector = Some(inspector);
-        self
-    }
-
-    /// Returns the ways to connect to the server to establish a new
-    /// debugger session.
-    pub fn get_connection_hints(&self) -> Option<DebuggerSessionConnectionHints> {
-        self.tcp_server.as_ref()?.get_connection_hints()
-    }
-
-    /// Consumes [self] and attempts to build a [DebuggerSession].
-    pub fn build(self) -> Result<DebuggerSession, std::io::Error> {
-        let inspector = self.inspector.expect("The V8 Inspector wasn't set");
-        let server = self.tcp_server.expect("The TCP server wasn't set");
-        DebuggerSession::new(inspector, server)
+impl<T: Into<std::net::SocketAddr>> From<T> for DebuggerSessionConnectionHints {
+    fn from(address: T) -> Self {
+        let address = address.into();
+        let vscode_configuration = format!(
+            r#"
+        {{
+            "version": "0.2.0",
+            "configurations": [
+                {{
+                    "name": "Attach to RedisGears V8 through WebSocket at {address}",
+                    "type": "node",
+                    "request": "attach",
+                    "cwd": "${{workspaceFolder}}",
+                    "websocketAddress": "ws://{address}",
+                }}
+            ]
+        }}
+        "#
+        );
+        let chromium_link = format!(
+            "devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws={address}"
+        );
+        DebuggerSessionConnectionHints {
+            address,
+            vscode_configuration,
+            chromium_link,
+        }
     }
 }
 
@@ -407,11 +388,6 @@ impl DebuggerSession {
         }
     }
 
-    /// Creates a new builder.
-    pub fn builder() -> DebuggerSessionBuilder {
-        DebuggerSessionBuilder::default()
-    }
-
     /// Creates a new debugger to be used with the provided [Inspector].
     /// Starts a web socket debugging session using [WebSocketServer].
     ///
@@ -421,13 +397,13 @@ impl DebuggerSession {
     /// After the function returns, to start the debugging main loop,
     /// one needs to call the [Self::process_messages].
     /// method.
-    pub fn new(inspector: Rc<RawInspector>, server: TcpServer) -> Result<Self, std::io::Error> {
-        let connection_hints = server
-            .get_connection_hints()
-            .expect("Couldn't get the connection hints");
+    pub fn new(
+        web_socket: WebSocketServer,
+        inspector: Rc<RawInspector>,
+    ) -> Result<Self, std::io::Error> {
+        let connection_hints = web_socket.get_connection_hints();
 
-        let web_socket = Rc::new(Mutex::new(server.accept_next_websocket_connection()?));
-        log::trace!("Accepted the next websocket.");
+        let web_socket = Rc::new(Mutex::new(web_socket));
 
         let callbacks = Self::create_inspector_callbacks(web_socket.clone());
 
@@ -549,9 +525,12 @@ impl DebuggerSession {
 
 #[cfg(test)]
 mod tests {
-    use crate::v8::isolate::V8Isolate;
+    use crate::v8::{
+        inspector::server::{DebuggerSession, TcpServer},
+        isolate::V8Isolate,
+    };
 
-    use super::{ClientMessage, DebuggerSessionBuilder};
+    use super::ClientMessage;
     use std::sync::{Arc, Mutex};
 
     /*
@@ -662,11 +641,21 @@ mod tests {
                 ws.close(None).expect("Couldn't close the WebSocket");
             })
         };
-        // Create the debugging server on the default host.
-        let debugger_session = DebuggerSessionBuilder::new(inspector, address)
-            .unwrap()
-            .build()
-            .unwrap();
+
+        // Let's create a server and start listening for the connections
+        // on the address provided, but not accepting those yet.
+        let server = TcpServer::new(address).expect("Couldn't create a tcp server");
+
+        // Now let's wait for the user to connect.
+        let web_socket = server
+            .accept_next_websocket_connection()
+            .expect("Couldn't accept the next web socket connection");
+
+        // Now that we have accepted a connection, we can start our
+        // debugging session.
+        let debugger_session = DebuggerSession::new(web_socket, inspector)
+            .expect("Couldn't start a debugging session");
+
         // At this point, the server is running and has accepted a remote
         // client. Once the client connects, the debugger pauses on the very
         // first (next) instruction, so we can safely attempt to run the
