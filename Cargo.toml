@@ -15,6 +15,7 @@ lazy_static = "1"
 
 [dev-dependencies]
 v8_rs_derive = { path = "./v8-rs-derive/"}
+lazy_static = "1"
 
 [lib]
 name = "v8_rs"
