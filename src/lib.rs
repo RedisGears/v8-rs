@@ -59,6 +59,7 @@ impl From<UserIndex> for RawIndex {
 mod json_path_tests {
     use std::sync::Mutex;
 
+    use crate::v8::isolate_scope::GCType;
     use crate::v8::v8_array::V8LocalArray;
     use crate::v8::v8_object::V8LocalObject;
     use crate::v8::v8_utf8::V8LocalUtf8;
@@ -79,7 +80,7 @@ mod json_path_tests {
     fn initialize() {
         let mut is_initialized = IS_INITIALIZED.lock().unwrap();
         if !*is_initialized {
-            v8_init(1, None).unwrap();
+            v8_init(1, Some("--expose-gc")).unwrap();
             *is_initialized = true;
         }
     }
@@ -1067,5 +1068,24 @@ mod json_path_tests {
             }),
         )
         .expect("Got error on function run");
+    }
+
+    #[test]
+    fn test_value_gc_callback() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let mut dropped_called = false;
+        let ctx = {
+            let isolate_scope = isolate.enter();
+            let ctx = isolate_scope.new_context(None);
+            let _ctx_scope = ctx.enter(&isolate_scope);
+            let val = isolate_scope.new_string("test").to_value();
+            val.on_dropped(|| dropped_called = true);
+            ctx
+        };
+        let isolate_scope = isolate.enter();
+        let _ctx_scope = ctx.enter(&isolate_scope);
+        isolate_scope.request_gc_for_testing(GCType::Full);
+        assert!(dropped_called);
     }
 }

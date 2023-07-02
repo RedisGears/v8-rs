@@ -137,6 +137,9 @@ void v8_IsolateSetOOMErrorHandler(v8_isolate* i, void (*oom_hanlder)(const char*
 /* Set near OOM handler, the callback will be called when almost reaching OOM and allow to increase the max memory to avoid OOM error. */
 void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void* data, size_t current_heap_limit, size_t initial_heap_limit), void *pd, void(*free_pd)(void*));
 
+/* Request a GC run for testing */
+void v8_RequestGCFromTesting(v8_isolate* i, int full);
+
 /* Return the currently used heap size */
 size_t v8_IsolateUsedHeapSize(v8_isolate* i);
 
@@ -538,6 +541,9 @@ v8_local_value* v8_PromiseGetResult(v8_local_promise* promise);
 
 /* Set the promise fulfilled/rejected callbacks */
 void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local_native_function *resolve, v8_local_native_function *reject);
+
+/* Set a callback that will be called when the V8_Value will be GC */
+void v8_ValueOnFreed(v8_local_value* value, v8_isolate *i, void(*on_freed)(void*), void *pd);
 
 /* Convert the given promise object into a generic JS value. */
 v8_local_value* v8_PromiseToValue(v8_local_promise *promise);

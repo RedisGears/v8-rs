@@ -339,6 +339,11 @@ v8_isolate* v8_IsolateGetCurrent() {
 	return (v8_isolate*)v8::Isolate::GetCurrent();
 }
 
+void v8_RequestGCFromTesting(v8_isolate* i, int full) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	isolate->RequestGarbageCollectionForTesting(full? v8::Isolate::GarbageCollectionType::kFullGarbageCollection : v8::Isolate::GarbageCollectionType::kMinorGarbageCollection);
+}
+
 size_t v8_IsolateUsedHeapSize(v8_isolate* i) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::HeapStatistics heap;
@@ -1027,6 +1032,30 @@ v8_local_value* v8_PromiseGetResult(v8_local_promise* promise) {
 
 void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local_native_function *resolve, v8_local_native_function *reject) {
 	v8::MaybeLocal<v8::Promise> _may_local = promise->promise->Then(ctx_ref->context, resolve->func, reject->func);
+}
+
+typedef struct ValueFreedCtx {
+	void(*on_freed)(void*);
+	void *pd;
+	v8::Persistent<v8::Value> *weak;
+} ValueFreedCtx ;
+
+static void v8_ValueOnFreedCallback(const v8::WeakCallbackInfo<ValueFreedCtx> &data) {
+	ValueFreedCtx* free_ctx = data.GetParameter();
+	free_ctx->on_freed(free_ctx->pd);
+	free_ctx->weak->Reset();
+	delete free_ctx->weak;
+	V8_FREE(free_ctx);
+}
+
+void v8_ValueOnFreed(v8_local_value* value, v8_isolate *i, void(*on_freed)(void*), void *pd) {
+	v8::Isolate *isolate = (v8::Isolate*)i;
+	v8::Persistent<v8::Value> *persist = new v8::Persistent<v8::Value>(isolate, value->val);
+	ValueFreedCtx *free_ctx = (ValueFreedCtx*)V8_ALLOC(sizeof(*free_ctx));
+	free_ctx->on_freed = on_freed;
+	free_ctx->pd = pd;
+	free_ctx->weak = persist;
+	persist->SetWeak(free_ctx, v8_ValueOnFreedCallback, v8::WeakCallbackType::kParameter);
 }
 
 v8_local_value* v8_PromiseToValue(v8_local_promise *promise) {
