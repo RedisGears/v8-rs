@@ -59,7 +59,7 @@ impl From<UserIndex> for RawIndex {
 mod json_path_tests {
     use std::sync::Mutex;
 
-    use crate::v8::isolate_scope::GCType;
+    use crate::v8::isolate_scope::GarbageCollectionJobType;
     use crate::v8::v8_array::V8LocalArray;
     use crate::v8::v8_object::V8LocalObject;
     use crate::v8::v8_utf8::V8LocalUtf8;
@@ -1085,7 +1085,7 @@ mod json_path_tests {
         };
         let isolate_scope = isolate.enter();
         let _ctx_scope = ctx.enter(&isolate_scope);
-        isolate_scope.request_gc_for_testing(GCType::Full);
+        isolate_scope.request_gc_for_testing(GarbageCollectionJobType::Full);
         assert!(dropped_called);
     }
 }

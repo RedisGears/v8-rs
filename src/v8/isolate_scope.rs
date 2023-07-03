@@ -29,7 +29,7 @@ use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_unlocker::V8Unlocker;
 use crate::v8::v8_value::V8LocalValue;
 
-use std::os::raw::{c_char, c_int, c_void};
+use std::os::raw::{c_char, c_void};
 
 pub struct V8IsolateScope<'isolate> {
     pub(crate) isolate: &'isolate V8Isolate,
@@ -41,9 +41,12 @@ extern "C" fn free_external_data<T>(arg1: *mut ::std::os::raw::c_void) {
     unsafe { Box::from_raw(arg1 as *mut T) };
 }
 
-pub enum GCType {
-    Full,
-    Minor,
+#[derive(Debug, Clone, Copy)]
+/// Types of garbage collections that can be requested via
+/// [`V8IsolateScope::request_gc_for_testing`].
+pub enum GarbageCollectionJobType {
+    Minor = 0,
+    Full = 1,
 }
 
 impl<'isolate> V8IsolateScope<'isolate> {
@@ -61,18 +64,15 @@ impl<'isolate> V8IsolateScope<'isolate> {
     }
 
     /// Request garbage collection. It is only valid to call this
-    /// function if --expose_gc was specified for the V8 flags.
+    /// function if --expose_gc was specified for the V8 flags, without it
+    /// the V8 will raise a fatal error and exit.
     ///
     /// This should only be used for testing purposes and not to enforce a garbage
     /// collection schedule. It has strong negative impact on the garbage
     /// collection performance. Use [`V8Isolate::memory_pressure_notification`] instead to
     /// influence the garbage collection schedule.
-    pub fn request_gc_for_testing(&self, gc_type: GCType) {
-        let full = match gc_type {
-            GCType::Full => true,
-            GCType::Minor => false,
-        };
-        unsafe { v8_RequestGCFromTesting(self.isolate.inner_isolate, full as c_int) };
+    pub fn request_gc_for_testing(&self, gc_type: GarbageCollectionJobType) {
+        unsafe { v8_RequestGCFromTesting(self.isolate.inner_isolate, gc_type as _) };
     }
 
     /// Create a dummy isolate scope. This should be used only in case we know that

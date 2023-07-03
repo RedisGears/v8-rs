@@ -1034,6 +1034,8 @@ void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local
 	v8::MaybeLocal<v8::Promise> _may_local = promise->promise->Then(ctx_ref->context, resolve->func, reject->func);
 }
 
+typedef void (*OnFreed)(void *);
+
 typedef struct ValueFreedCtx {
 	void(*on_freed)(void*);
 	void *pd;
@@ -1048,7 +1050,7 @@ static void v8_ValueOnFreedCallback(const v8::WeakCallbackInfo<ValueFreedCtx> &d
 	V8_FREE(free_ctx);
 }
 
-void v8_ValueOnFreed(v8_local_value* value, v8_isolate *i, void(*on_freed)(void*), void *pd) {
+void v8_ValueOnFreed(v8_local_value* value, v8_isolate *i, OnFreed on_freed, void *pd) {
 	v8::Isolate *isolate = (v8::Isolate*)i;
 	v8::Persistent<v8::Value> *persist = new v8::Persistent<v8::Value>(isolate, value->val);
 	ValueFreedCtx *free_ctx = (ValueFreedCtx*)V8_ALLOC(sizeof(*free_ctx));
