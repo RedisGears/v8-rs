@@ -11,10 +11,11 @@ use crate::v8_c_raw::bindings::{
     v8_ValueAsString, v8_ValueIsArray, v8_ValueIsArrayBuffer, v8_ValueIsAsyncFunction,
     v8_ValueIsBigInt, v8_ValueIsBool, v8_ValueIsExternalData, v8_ValueIsFunction, v8_ValueIsNull,
     v8_ValueIsNumber, v8_ValueIsObject, v8_ValueIsPromise, v8_ValueIsSet, v8_ValueIsString,
-    v8_ValueIsStringObject, v8_ValueIsUndefined, v8_ValueToValue, v8_local_value,
+    v8_ValueIsStringObject, v8_ValueIsUndefined, v8_ValueOnFreed, v8_ValueToValue, v8_local_value,
     v8_persisted_value,
 };
 
+use std::os::raw::c_void;
 use std::ptr;
 
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -71,6 +72,11 @@ impl<'isolate_scope, 'isolate, 'value, 'ctx_scope>
     }
 }
 
+pub(crate) extern "C" fn on_dropped<C: FnOnce()>(pd: *mut c_void) {
+    let callback = unsafe { Box::from_raw(pd as *mut C) };
+    callback();
+}
+
 impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
     /// Return string representation of the value or None on failure
     #[must_use]
@@ -85,6 +91,18 @@ impl<'isolate_scope, 'isolate> V8LocalValue<'isolate_scope, 'isolate> {
                 _isolate_scope: self.isolate_scope,
             })
         }
+    }
+
+    /// Set a callback that will be called when the value will be GC.
+    pub fn on_dropped<C: FnOnce()>(&self, callback: C) {
+        unsafe {
+            v8_ValueOnFreed(
+                self.inner_val,
+                self.isolate_scope.isolate.inner_isolate,
+                Some(on_dropped::<C>),
+                Box::into_raw(Box::new(callback)) as *mut c_void,
+            );
+        };
     }
 
     /// Return true if the value is string and false otherwise.

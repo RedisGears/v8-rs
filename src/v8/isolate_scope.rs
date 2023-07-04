@@ -8,8 +8,8 @@ use crate::v8_c_raw::bindings::{
     v8_FreeHandlersScope, v8_IsolateEnter, v8_IsolateExit, v8_IsolateRaiseException, v8_NewArray,
     v8_NewArrayBuffer, v8_NewBool, v8_NewExternalData, v8_NewHandlersScope,
     v8_NewNativeFunctionTemplate, v8_NewNull, v8_NewObject, v8_NewObjectTemplate, v8_NewSet,
-    v8_NewString, v8_NewTryCatch, v8_NewUnlocker, v8_StringToValue, v8_ValueFromDouble,
-    v8_ValueFromLong, v8_handlers_scope, v8_isolate_scope, v8_local_value,
+    v8_NewString, v8_NewTryCatch, v8_NewUnlocker, v8_RequestGCFromTesting, v8_StringToValue,
+    v8_ValueFromDouble, v8_ValueFromLong, v8_handlers_scope, v8_isolate_scope, v8_local_value,
 };
 
 use crate::v8::isolate::V8Isolate;
@@ -41,6 +41,14 @@ extern "C" fn free_external_data<T>(arg1: *mut ::std::os::raw::c_void) {
     unsafe { Box::from_raw(arg1 as *mut T) };
 }
 
+#[derive(Debug, Clone, Copy)]
+/// Types of garbage collections that can be requested via
+/// [`V8IsolateScope::request_gc_for_testing`].
+pub enum GarbageCollectionJobType {
+    Minor = 0,
+    Full = 1,
+}
+
 impl<'isolate> V8IsolateScope<'isolate> {
     /// Create an isolate scope by performing the following:
     /// 1. Enter the isolate
@@ -53,6 +61,18 @@ impl<'isolate> V8IsolateScope<'isolate> {
             inner_handlers_scope,
             inner_isolate_scope,
         }
+    }
+
+    /// Request garbage collection. It is only valid to call this
+    /// function if --expose_gc was specified for the V8 flags, without it
+    /// the V8 will raise a fatal error and exit.
+    ///
+    /// This should only be used for testing purposes and not to enforce a garbage
+    /// collection schedule. It has strong negative impact on the garbage
+    /// collection performance. Use [`V8Isolate::memory_pressure_notification`] instead to
+    /// influence the garbage collection schedule.
+    pub fn request_gc_for_testing(&self, gc_type: GarbageCollectionJobType) {
+        unsafe { v8_RequestGCFromTesting(self.isolate.inner_isolate, gc_type as _) };
     }
 
     /// Create a dummy isolate scope. This should be used only in case we know that
