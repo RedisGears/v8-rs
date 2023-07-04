@@ -1037,7 +1037,7 @@ void v8_PromiseThen(v8_local_promise* promise, v8_context_ref *ctx_ref, v8_local
 typedef void (*OnFreed)(void *);
 
 typedef struct ValueFreedCtx {
-	void(*on_freed)(void*);
+	OnFreed on_freed;
 	void *pd;
 	v8::Persistent<v8::Value> *weak;
 } ValueFreedCtx ;
