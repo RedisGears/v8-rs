@@ -38,11 +38,12 @@ impl<'isolate_scope, 'isolate> V8LocalObjectTemplate<'isolate_scope, 'isolate> {
 
     /// Same as `set_native_function` but gets the key as &str and the native function as closure.
     pub fn add_native_function<
-        T: for<'d, 'e> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d V8IsolateScope<'e>,
-            &V8ContextScope<'d, 'e>,
-        ) -> Option<V8LocalValue<'d, 'e>>,
+        T: 'static
+            + for<'d, 'e> Fn(
+                &V8LocalNativeFunctionArgs<'d, 'e>,
+                &'d V8IsolateScope<'e>,
+                &V8ContextScope<'d, 'e>,
+            ) -> Option<V8LocalValue<'d, 'e>>,
     >(
         &mut self,
         name: &str,
