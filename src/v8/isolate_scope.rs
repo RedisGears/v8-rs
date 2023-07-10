@@ -277,11 +277,12 @@ impl<'isolate> V8IsolateScope<'isolate> {
     /// Create a new native function template.
     pub fn new_native_function_template<
         'isolate_scope,
-        T: for<'d, 'e> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d V8IsolateScope<'e>,
-            &V8ContextScope<'d, 'e>,
-        ) -> Option<V8LocalValue<'d, 'e>>,
+        T: 'static
+            + for<'d, 'e> Fn(
+                &V8LocalNativeFunctionArgs<'d, 'e>,
+                &'d V8IsolateScope<'e>,
+                &V8ContextScope<'d, 'e>,
+            ) -> Option<V8LocalValue<'d, 'e>>,
     >(
         &'isolate_scope self,
         func: T,

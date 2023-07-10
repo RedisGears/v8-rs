@@ -452,11 +452,12 @@ mod json_path_tests {
     }
 
     fn define_function_and_call<
-        F: for<'d, 'e> Fn(
-            &v8_native_function_template::V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d isolate_scope::V8IsolateScope<'e>,
-            &v8_context_scope::V8ContextScope<'d, 'e>,
-        ) -> Option<v8_value::V8LocalValue<'d, 'e>>,
+        F: 'static
+            + for<'d, 'e> Fn(
+                &v8_native_function_template::V8LocalNativeFunctionArgs<'d, 'e>,
+                &'d isolate_scope::V8IsolateScope<'e>,
+                &v8_context_scope::V8ContextScope<'d, 'e>,
+            ) -> Option<v8_value::V8LocalValue<'d, 'e>>,
     >(
         code: &str,
         func_name: &str,

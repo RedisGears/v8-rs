@@ -227,11 +227,12 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
 
     #[must_use]
     pub fn new_native_function<
-        T: for<'d, 'c> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'c>,
-            &'d V8IsolateScope<'c>,
-            &V8ContextScope<'d, 'c>,
-        ) -> Option<V8LocalValue<'d, 'c>>,
+        T: 'static
+            + for<'d, 'c> Fn(
+                &V8LocalNativeFunctionArgs<'d, 'c>,
+                &'d V8IsolateScope<'c>,
+                &V8ContextScope<'d, 'c>,
+            ) -> Option<V8LocalValue<'d, 'c>>,
     >(
         &self,
         func: T,

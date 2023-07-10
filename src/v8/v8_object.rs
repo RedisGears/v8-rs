@@ -86,11 +86,12 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     }
 
     pub fn set_native_function<
-        T: for<'d, 'e> Fn(
-            &V8LocalNativeFunctionArgs<'d, 'e>,
-            &'d V8IsolateScope<'e>,
-            &V8ContextScope<'d, 'e>,
-        ) -> Option<V8LocalValue<'d, 'e>>,
+        T: 'static
+            + for<'d, 'e> Fn(
+                &V8LocalNativeFunctionArgs<'d, 'e>,
+                &'d V8IsolateScope<'e>,
+                &V8ContextScope<'d, 'e>,
+            ) -> Option<V8LocalValue<'d, 'e>>,
     >(
         &self,
         ctx_scope: &V8ContextScope,
