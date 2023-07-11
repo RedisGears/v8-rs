@@ -37,7 +37,7 @@ pub struct V8IsolateScope<'isolate> {
     inner_isolate_scope: *mut v8_isolate_scope,
 }
 
-extern "C" fn free_external_data<T>(arg1: *mut ::std::os::raw::c_void) {
+extern "C" fn free_external_data<T: 'static>(arg1: *mut ::std::os::raw::c_void) {
     unsafe { Box::from_raw(arg1 as *mut T) };
 }
 
@@ -191,7 +191,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     }
 
     #[must_use]
-    pub fn new_external_data<'isolate_scope, T>(
+    pub fn new_external_data<'isolate_scope, T: 'static>(
         &'isolate_scope self,
         data: T,
     ) -> V8LocalExternalData<'isolate_scope, 'isolate> {
