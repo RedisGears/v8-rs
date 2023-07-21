@@ -53,7 +53,7 @@ pub fn v8_init_platform(thread_pool_size: i32, flags: Option<&str>) -> Result<()
     };
     match res {
         1 => Ok(()),
-        _ => Err("The V8 Engine failed to initialise."),
+        _ => Err("The V8 default platform failed to initialise."),
     }
 }
 
