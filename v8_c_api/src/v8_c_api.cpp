@@ -270,8 +270,7 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
 	return native_data;
 }
 
-int v8_Initialize(v8_alloctor *alloc, int thread_pool_size, const char *flags) {
-//	v8::V8::SetFlagsFromString("--expose_gc");
+int v8_InitializePlatform(int thread_pool_size, const char *flags) {
 	if (flags) {
 		v8::V8::SetFlagsFromString(flags);
 	}
@@ -280,6 +279,10 @@ int v8_Initialize(v8_alloctor *alloc, int thread_pool_size, const char *flags) {
 		return 0;
 	}
 	platform = v8::platform::NewDefaultPlatform(thread_pool_size).release();
+	return 1;
+}
+
+int v8_Initialize(v8_alloctor *alloc) {
 	v8::V8::InitializePlatform(platform);
 	v8::V8::Initialize();
 

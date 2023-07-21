@@ -61,6 +61,7 @@ mod json_path_tests {
 
     use crate::v8::isolate_scope::GarbageCollectionJobType;
     use crate::v8::v8_array::V8LocalArray;
+    use crate::v8::v8_init_platform;
     use crate::v8::v8_object::V8LocalObject;
     use crate::v8::v8_utf8::V8LocalUtf8;
     use crate::v8::v8_value::V8LocalValue;
@@ -80,7 +81,8 @@ mod json_path_tests {
     fn initialize() {
         let mut is_initialized = IS_INITIALIZED.lock().unwrap();
         if !*is_initialized {
-            v8_init(1, Some("--expose-gc")).unwrap();
+            v8_init_platform(1, Some("--expose-gc")).unwrap();
+            v8_init().unwrap();
             *is_initialized = true;
         }
     }
