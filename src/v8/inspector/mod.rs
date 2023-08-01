@@ -28,15 +28,15 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::{marker::PhantomData, ops::Deref, rc::Rc};
+use std::{ops::Deref, ptr::NonNull, rc::Rc};
 
 pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
 
-use crate::v8_c_raw::bindings::v8_isolate;
+use crate::v8_c_raw::bindings::{v8_context_ref, v8_isolate};
 
-use super::isolate::V8Isolate;
+use super::{isolate::V8Isolate, isolate_scope::V8IsolateScope, v8_context_scope::V8ContextScope};
 
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
@@ -61,6 +61,35 @@ impl RawInspector {
         };
         Self { raw }
     }
+
+    /// Sets a new (possibly another) [crate::v8::isolate::V8Isolate].
+    pub fn set_isolate(&self, raw_isolate: NonNull<v8_isolate>) {
+        unsafe { crate::v8_c_raw::bindings::v8_InspectorSetIsolate(self.raw, raw_isolate.as_ptr()) }
+    }
+
+    /// Returns the isolate this inspector is bound to. The isolate
+    /// returned won't be released automatically.
+    pub fn get_isolate(&self) -> V8Isolate {
+        let isolate = unsafe { crate::v8_c_raw::bindings::v8_InspectorGetIsolate(self.raw) };
+        V8Isolate {
+            inner_isolate: isolate,
+            no_release: true,
+        }
+    }
+
+    /// Returns a [V8ContextScope] of this inspector.
+    pub fn get_context_scope_ptr(&self) -> *mut v8_context_ref {
+        unsafe { crate::v8_c_raw::bindings::v8_InspectorGetContext(self.raw) }
+    }
+
+    // pub fn get_scope<'a>(&'a self) -> (V8Isolate, V8IsolateScope<'a>, V8ContextScope<'a, 'a>) {
+    //     let isolate = self.get_isolate();
+    //     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
+    //     let context_scope = isolate_scope
+    //         .get_current_context_scope()
+    //         .expect("No context scope was created");
+    //     (isolate, isolate_scope, context_scope)
+    // }
 
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
@@ -106,6 +135,10 @@ impl Drop for RawInspector {
         }
     }
 }
+
+// TODO remove and rewrite so that we don't use it.
+unsafe impl Sync for RawInspector {}
+unsafe impl Send for RawInspector {}
 
 /// The callback which is invoked when the V8 Inspector needs to reply
 /// to the client.

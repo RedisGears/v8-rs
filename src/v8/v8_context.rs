@@ -82,7 +82,7 @@ impl V8Context {
     }
 
     /// Enter the context for debugging the JS code.
-    pub fn debug<'isolate_scope, 'isolate>(
+    pub fn debug_enter<'isolate_scope, 'isolate>(
         &self,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
     ) -> V8ContextScope<'isolate_scope, 'isolate> {

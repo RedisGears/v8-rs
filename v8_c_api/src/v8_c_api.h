@@ -181,6 +181,15 @@ void v8_InspectorSetIsolate(
 	v8_isolate *isolate
 );
 
+/** Returns the V8Isolate the passed inspector is bound to. */
+v8_isolate* v8_InspectorGetIsolate(
+	v8_inspector_c_wrapper *inspector
+);
+
+v8_context_ref* v8_InspectorGetContext(
+	v8_inspector_c_wrapper *inspector
+);
+
 typedef void (*v8_StringToUtf8StringCallback)(
 	void *userdata,
 	const char *data,

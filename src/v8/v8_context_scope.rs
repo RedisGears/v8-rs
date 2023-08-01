@@ -98,8 +98,12 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         self.isolate_scope
     }
 
-    pub(crate) fn is_exit_on_drop(&self) -> bool {
+    pub fn is_exit_on_drop(&self) -> bool {
         self.exit_on_drop
+    }
+
+    pub fn set_exit_on_drop(&mut self, exit_on_drop: bool) {
+        self.exit_on_drop = exit_on_drop;
     }
 
     pub(crate) fn get_inner(&self) -> *mut v8_context_ref {
@@ -120,7 +124,9 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         )
     }
 
-    pub(crate) fn new_for_ref(
+    /// Creates a new [V8ContextScope] with the reference provided.
+    /// Useful for custom creation with the bindings.
+    pub fn new_for_ref(
         context_ref: *mut v8_context_ref,
         exit_on_drop: bool,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,

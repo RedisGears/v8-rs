@@ -284,6 +284,26 @@ pub struct DebuggerSessionConnectionHints {
     chromium_link: String,
 }
 
+impl DebuggerSessionConnectionHints {
+    /// Returns a [std::net::SocketAddr] address on which the server is
+    /// going to be listening.
+    pub fn get_address(&self) -> std::net::SocketAddr {
+        self.address
+    }
+
+    /// Returns a hint on how to connect to the remote debugger server
+    /// for remote debugging using Visual Studio Code.
+    pub fn get_visual_studio_code_configuration(&self) -> &str {
+        &self.vscode_configuration
+    }
+
+    /// Returns a hint on how to connect to the remote debugger server
+    /// for remote debugging using Chromium-based browsers.
+    pub fn get_chromium_link(&self) -> &str {
+        &self.chromium_link
+    }
+}
+
 impl std::fmt::Display for DebuggerSessionConnectionHints {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let address = &self.address;
@@ -402,11 +422,8 @@ impl DebuggerSession {
         inspector: Rc<RawInspector>,
     ) -> Result<Self, std::io::Error> {
         let connection_hints = web_socket.get_connection_hints();
-
         let web_socket = Rc::new(Mutex::new(web_socket));
-
         let callbacks = Self::create_inspector_callbacks(web_socket.clone());
-
         let inspector = Inspector::new(
             inspector,
             callbacks.on_response,
@@ -558,7 +575,7 @@ mod tests {
         let ctx = i_scope.new_context(None);
 
         // Enter the created execution context for debugging:
-        let ctx_scope = ctx.debug(&i_scope);
+        let ctx_scope = ctx.debug_enter(&i_scope);
 
         // Create an inspector.
         let inspector = ctx_scope
