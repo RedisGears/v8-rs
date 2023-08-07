@@ -57,9 +57,11 @@
 //! use inspector::messages::ClientMessage;
 //! use inspector::server::{DebuggerSession, TcpServer};
 //! use std::sync::{Arc, Mutex};
+//! use v8_rs::v8::inspector::RawInspector;
 //!
 //! // Initialise the V8 engine:
-//! v8_init(1);
+//! v8_init_platform(1, Some("--expose-gc")).unwrap();
+//! v8_init();
 //!
 //! // Create a new isolate:
 //! let isolate = isolate::V8Isolate::new();
@@ -74,11 +76,10 @@
 //! let ctx = i_scope.new_context(None);
 //!
 //! // Enter the created execution context for debugging:
-//! let ctx_scope = ctx.debug(&i_scope);
+//! let ctx_scope = ctx.enter(&i_scope);
 //!
 //! // Obtain an inspector.
-//! let inspector = ctx_scope.get_inspector()
-//!     .expect("An inspector should have been created");
+//! let inspector = Arc::new(RawInspector::new(isolate.get_raw()));
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
 //! let mut stage_2 = Arc::new(Mutex::new(()));
@@ -116,7 +117,7 @@
 //!         ) {
 //!             let message = ClientMessage::new_client_ready(self.last_message_id);
 //!             let message = Message::Text(serde_json::to_string(&message).unwrap());
-//!             ws.write_message(message).expect("Couldn't send the message");
+//!             ws.send(message).expect("Couldn't send the message");
 //!         }
 //!     }
 //!
@@ -130,7 +131,7 @@
 //!         };
 //!         let mut client = Client::default();
 //!         client.send_ready(&mut ws);
-//!         let _ = ws.read_message();
+//!         let _ = ws.read();
 //!         drop(stage_1.lock().expect("Couldn't lock the stage 1"));
 //!         ws.close(None).expect("Couldn't close the WebSocket");
 //!     })
@@ -179,12 +180,12 @@
 //! ```
 use std::net::{TcpListener, TcpStream};
 use std::rc::Rc;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tungstenite::{Error, Message, WebSocket};
 
-use crate::v8::inspector::messages::ClientMessage;
+use crate::v8::inspector::messages::{ClientMessage, MethodCallInformation};
 
 use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
 
@@ -246,7 +247,7 @@ impl WebSocketServer {
     /// reads it and returns as a text.
     pub fn read_next_message(&mut self) -> Result<String, std::io::Error> {
         log::trace!("Reading the next message.");
-        match self.0.read_message() {
+        match self.0.read() {
             Ok(message) => message
                 .into_text()
                 .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
@@ -356,9 +357,14 @@ impl DebuggerSession {
         let websocket = web_socket.clone();
 
         let on_response = move |s: String| {
+            if let Ok(message) = serde_json::from_str::<ClientMessage>(&s) {
+                if let Some(parsed_script) = message.method.get_script_parsed() {
+                    log::info!("Parsed script: {parsed_script:?}");
+                }
+            }
             log::trace!("Responding with string {s}.");
             match websocket.lock() {
-                Ok(mut websocket) => match websocket.0.write_message(Message::Text(s)) {
+                Ok(mut websocket) => match websocket.0.send(Message::Text(s)) {
                     Ok(_) => log::trace!("Responded with string successfully."),
                     Err(e) => log::error!("Couldn't send a websocket message to the client: {e}"),
                 },
@@ -419,7 +425,7 @@ impl DebuggerSession {
     /// method.
     pub fn new(
         web_socket: WebSocketServer,
-        inspector: Rc<RawInspector>,
+        inspector: Arc<RawInspector>,
     ) -> Result<Self, std::io::Error> {
         let connection_hints = web_socket.get_connection_hints();
         let web_socket = Rc::new(Mutex::new(web_socket));
@@ -615,8 +621,7 @@ mod tests {
                     message: ClientMessage,
                 ) {
                     let message = Message::Text(serde_json::to_string(&message).unwrap());
-                    ws.write_message(message)
-                        .expect("Couldn't send the message");
+                    ws.send(message).expect("Couldn't send the message");
                     self.last_message_id += 1;
                 }
 
@@ -651,7 +656,7 @@ mod tests {
                 }
                 let mut client = Client::default();
                 client.send_ready(&mut ws);
-                let _ = ws.read_message();
+                let _ = ws.read();
                 client.send_breakpoint(&mut ws, 0, 0, "
                 file:///home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)|/home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)");
                 drop(stage_1.lock().expect("Couldn't lock the stage 1"));

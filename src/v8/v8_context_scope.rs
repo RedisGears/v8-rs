@@ -16,6 +16,7 @@ use crate::{RawIndex, UserIndex};
 use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_module::V8LocalModule;
@@ -90,7 +91,7 @@ pub struct V8ContextScope<'isolate_scope, 'isolate> {
     inner_ctx_ref: *mut v8_context_ref,
     exit_on_drop: bool,
     isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    inspector: Option<Rc<RawInspector>>,
+    inspector: Option<Arc<RawInspector>>,
 }
 
 impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
@@ -133,7 +134,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         with_inspector: bool,
     ) -> Self {
         let inspector = if with_inspector {
-            Some(Rc::new(RawInspector::new(
+            Some(Arc::new(RawInspector::new(
                 isolate_scope.isolate.inner_isolate,
             )))
         } else {
@@ -270,7 +271,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     }
 
     /// Obtains an inspector for this context scope.
-    pub fn get_inspector(&self) -> Option<Rc<RawInspector>> {
+    pub fn get_inspector(&self) -> Option<Arc<RawInspector>> {
         self.inspector.clone()
     }
 

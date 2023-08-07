@@ -11,7 +11,8 @@
 //! use v8_rs::v8::*;
 //!
 //! // Initialise the V8 engine:
-//! v8_init(1);
+//! v8_init_platform(1, Some("--expose-gc")).unwrap();
+//! v8_init();
 //!
 //! // Create a new isolate:
 //! let isolate = isolate::V8Isolate::new();
@@ -108,6 +109,7 @@ impl From<UserIndex> for RawIndex {
 #[cfg(test)]
 mod test_utils {
     use crate::v8::v8_init;
+    use crate::v8::v8_init_platform;
     use std::sync::Mutex;
 
     static mut IS_INITIALIZED: Mutex<bool> = Mutex::new(false);
@@ -126,6 +128,7 @@ mod test_utils {
 #[cfg(test)]
 mod tests {
     use crate::test_utils::initialize;
+    use crate::tests::isolate_scope::GarbageCollectionJobType;
     use crate::v8::v8_array::V8LocalArray;
     use crate::v8::{
         isolate, isolate_scope, v8_context_scope, v8_native_function_template, v8_value,

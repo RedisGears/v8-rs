@@ -28,13 +28,16 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::{ops::Deref, ptr::NonNull, rc::Rc};
+use std::{ops::Deref, ptr::NonNull, rc::Rc, sync::Arc};
 
 pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
 
-use crate::v8_c_raw::bindings::{v8_context_ref, v8_isolate};
+use crate::{
+    v8::inspector::messages::MethodCallInformation,
+    v8_c_raw::bindings::{v8_context_ref, v8_isolate},
+};
 
 use super::{isolate::V8Isolate, isolate_scope::V8IsolateScope, v8_context_scope::V8ContextScope};
 
@@ -94,6 +97,7 @@ impl RawInspector {
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
         let message = message.as_ref();
+        log::trace!("Dispatching incoming message: {message}");
 
         let string = match std::ffi::CString::new(message) {
             Ok(string) => string,
@@ -137,6 +141,8 @@ impl Drop for RawInspector {
 }
 
 // TODO remove and rewrite so that we don't use it.
+/// Currently, we rely on the thread-safety guarantees of V8, until it
+/// shoots us in the leg.
 unsafe impl Sync for RawInspector {}
 unsafe impl Send for RawInspector {}
 
@@ -159,7 +165,7 @@ type OnWaitFrontendMessageOnPauseCallback =
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
 /// API. An inspector is tied to the [V8Isolate] it was created for.
 pub struct Inspector {
-    raw: Rc<RawInspector>,
+    raw: Arc<RawInspector>,
     /// This callback is stored to preserve the lifetime, it is never
     /// called by this object, but by the C++ side.
     _on_response_callback: Box<Box<OnResponseCallback>>,
@@ -219,7 +225,7 @@ extern "C" fn on_wait_frontend_message_on_pause(
 impl Inspector {
     /// Creates a new [Inspector].
     pub fn new(
-        raw: Rc<RawInspector>,
+        raw: Arc<RawInspector>,
         on_response_callback: Box<OnResponseCallback>,
         on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
     ) -> Self {
@@ -306,6 +312,6 @@ impl Deref for Inspector {
     type Target = RawInspector;
 
     fn deref(&self) -> &Self::Target {
-        self.raw.deref()
+        &self.raw
     }
 }
