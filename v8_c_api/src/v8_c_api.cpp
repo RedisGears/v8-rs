@@ -20,6 +20,7 @@ v8::Platform* GLOBAL_PLATFORM = NULL;
 /// V8 is forbidden from being used, so we store our data at this index
 /// instead.
 #define OUR_SLOT 1
+#define DEBUGGER_INDEX 1
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
@@ -154,11 +155,13 @@ public:
   explicit v8_inspector_client_wrapper(
 	v8::Platform *platform,
     v8::Isolate *isolate,
+	const v8::Local<v8::Context> &context,
 	const InspectorOnResponseCallback &onResponse = {},
 	const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause = {}
   );
 
   v8::Local<v8::Context> getContext();
+  void setContext(const v8::Local<v8::Context> &context);
   v8::Isolate* getIsolate();
   void setIsolate(v8::Isolate *isolate);
   void setOnResponseCallback(const InspectorOnResponseCallback &callback);
@@ -181,7 +184,7 @@ private:
   std::unique_ptr<v8_inspector::V8InspectorSession> session_;
   std::unique_ptr<v8_inspector_channel_wrapper> channel_;
   v8::Isolate* isolate_;
-//   v8::Local<v8::Context> context_;
+  v8::Local<v8::Context> context_;
   InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
   bool terminated_;
   bool run_nested_loop_;
@@ -190,22 +193,23 @@ private:
 v8_inspector_client_wrapper::v8_inspector_client_wrapper(
 	v8::Platform *platform,
 	v8::Isolate *isolate,
+	const v8::Local<v8::Context> &context,
 	const InspectorOnResponseCallback &onResponse,
 	const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause
 ) :
     platform_(platform),
-	isolate_(isolate),
+	// isolate_(isolate),
+	context_(context),
 	onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause)
 {
-	// context_ = isolate_->GetCurrentContext();
+	isolate_ = context->GetIsolate();
 	inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
     channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse));
     session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
-	auto context = isolate_->GetCurrentContext();
-    context->SetAlignedPointerInEmbedderData(1, this);
+    context_->SetAlignedPointerInEmbedderData(DEBUGGER_INDEX, this);
 
     v8_inspector::StringView contextName = convertToStringView("inspector");
-    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context_, kContextGroupId, contextName));
 	terminated_ = true;
 	run_nested_loop_ = false;
 }
@@ -215,17 +219,24 @@ v8::Isolate* v8_inspector_client_wrapper::getIsolate() {
 }
 
 v8::Local<v8::Context> v8_inspector_client_wrapper::getContext() {
-	return isolate_->GetCurrentContext();
+	return context_;
+}
+
+void v8_inspector_client_wrapper::setContext(const v8::Local<v8::Context> &context) {
+	// context_ = context;
+
+    // // session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
+    // context->SetAlignedPointerInEmbedderData(DEBUGGER_INDEX, this);
+    // v8_inspector::StringView contextName = convertToStringView("inspector");
+    // inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+	// schedulePauseOnNextStatement(convertToStringView("Context change."));
 }
 
 void v8_inspector_client_wrapper::setIsolate(v8::Isolate *isolate) {
-	isolate_ = isolate;
-	channel_->setIsolate(isolate_);
-    session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
-	auto context = isolate_->GetCurrentContext();
-    context->SetAlignedPointerInEmbedderData(1, this);
-    v8_inspector::StringView contextName = convertToStringView("inspector");
-    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+	// isolate_ = isolate;
+	// channel_->setIsolate(isolate_);
+    // session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
+	// setContext(isolate_->GetCurrentContext());
 }
 
 void v8_inspector_client_wrapper::setOnResponseCallback(const InspectorOnResponseCallback &callback) {
@@ -259,7 +270,7 @@ void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
 
 // override
 v8::Local<v8::Context> v8_inspector_client_wrapper::ensureDefaultContextInGroup(int contextGroupId) {
-    return isolate_->GetCurrentContext();
+    return context_;
 }
 
 void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
@@ -400,6 +411,7 @@ struct v8_local_array_buff {
 
 v8_inspector_c_wrapper* v8_InspectorCreate(
 	v8_isolate *isolate,
+	v8_context_ref *context_ref,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData,
 	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
@@ -413,10 +425,12 @@ v8_inspector_c_wrapper* v8_InspectorCreate(
 	};
 	auto platform = GLOBAL_PLATFORM;
 	auto v8_isolate = reinterpret_cast<v8::Isolate *>(isolate);
+	auto context = context_ref->context;
 	return reinterpret_cast<v8_inspector_c_wrapper *>(
 		new v8_inspector_client_wrapper(
 			platform,
 			v8_isolate,
+			context,
 			onResponseWrapper,
 			onWaitFrontendMessageOnPauseWrapper
 		)
@@ -496,6 +510,13 @@ v8_context_ref* v8_InspectorGetContext(
 ) {
 	return new v8_context_ref(
 		reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getContext());
+}
+
+void v8_InspectorSetContext(
+	v8_inspector_c_wrapper *inspector,
+	v8_context_ref *context
+) {
+	reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setContext(context->context);
 }
 
 void get_v8_string_value(

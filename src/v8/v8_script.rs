@@ -142,7 +142,7 @@ impl V8PersistedScript {
 
     /// Recompiles the script in-place.
     pub fn recompile<'isolate_scope, 'isolate>(
-        &mut self,
+        &self,
         ctx: &V8ContextScope<'isolate_scope, 'isolate>,
     ) -> bool {
         let code = self.get_script_code(ctx.get_isolate_scope());
@@ -151,8 +151,12 @@ impl V8PersistedScript {
             unsafe {
                 v8_FreePersistedScript(self.inner_persisted_script);
             }
-            self.inner_persisted_script = persisted_script.inner_persisted_script;
-            std::mem::forget(persisted_script);
+            // self.inner_persisted_script = persisted_script.inner_persisted_script;
+            unsafe {
+                self.inner_persisted_script
+                    .swap(persisted_script.inner_persisted_script)
+            };
+            // std::mem::forget(persisted_script);
             true
         } else {
             false

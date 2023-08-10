@@ -135,6 +135,7 @@ typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *
 isolate. The callbacks are optional. */
 v8_inspector_c_wrapper* v8_InspectorCreate(
 	v8_isolate *isolate,
+	v8_context_ref *context_ref,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData,
 	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
@@ -188,6 +189,11 @@ v8_isolate* v8_InspectorGetIsolate(
 
 v8_context_ref* v8_InspectorGetContext(
 	v8_inspector_c_wrapper *inspector
+);
+
+void v8_InspectorSetContext(
+	v8_inspector_c_wrapper *inspector,
+	v8_context_ref *context
 );
 
 typedef void (*v8_StringToUtf8StringCallback)(

@@ -179,13 +179,15 @@
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
 use std::net::{TcpListener, TcpStream};
+use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tungstenite::{Error, Message, WebSocket};
 
-use crate::v8::inspector::messages::{ClientMessage, MethodCallInformation};
+use crate::v8::inspector::messages::ClientMessage;
+use crate::v8_c_raw::bindings::v8_context_ref;
 
 use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
 
@@ -243,6 +245,12 @@ impl WebSocketServer {
         )
     }
 
+    /// Returns [`true`] if there is data available to read.
+    pub fn has_data_to_read(&mut self) -> Result<bool, std::io::Error> {
+        let mut bytes = [0];
+        self.0.get_ref().peek(&mut bytes).map(|b| b == 1)
+    }
+
     /// Waits for a message available to read, and once there is one,
     /// reads it and returns as a text.
     pub fn read_next_message(&mut self) -> Result<String, std::io::Error> {
@@ -258,6 +266,32 @@ impl WebSocketServer {
             )),
             Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
         }
+    }
+
+    /// Attempts to read the next message.
+    pub fn try_read_next_message(&mut self) -> Result<Option<String>, std::io::Error> {
+        log::trace!("Reading the next message.");
+        if !self.has_data_to_read()? {
+            return Ok(None);
+        }
+
+        match self.0.read() {
+            Ok(message) => message
+                .into_text()
+                .map(|v| Some(v))
+                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
+            Err(Error::Io(e)) => Err(e),
+            Err(Error::ConnectionClosed | Error::AlreadyClosed) => Err(std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "The WebSocket connection has been closed.",
+            )),
+            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
+        }
+    }
+
+    /// Sets a read timeout. Setting [`None`] removes the timeout.
+    pub fn set_read_timeout(&self, duration: Option<std::time::Duration>) -> std::io::Result<()> {
+        self.0.get_ref().set_read_timeout(duration)
     }
 }
 
@@ -359,7 +393,7 @@ impl DebuggerSession {
         let on_response = move |s: String| {
             if let Ok(message) = serde_json::from_str::<ClientMessage>(&s) {
                 if let Some(parsed_script) = message.method.get_script_parsed() {
-                    log::info!("Parsed script: {parsed_script:?}");
+                    log::trace!("Parsed script: {parsed_script:?}");
                 }
             }
             log::trace!("Responding with string {s}.");
@@ -470,6 +504,17 @@ impl DebuggerSession {
         &self.connection_hints
     }
 
+    /// Sets the read timeout for the web socket server.
+    pub fn set_read_timeout(
+        &self,
+        duration: Option<std::time::Duration>,
+    ) -> Result<(), std::io::Error> {
+        self.web_socket
+            .lock()
+            .expect("Couldn't lock the WebSocketServer mutex")
+            .set_read_timeout(duration)
+    }
+
     /// Reads the next message without parsing it.
     pub fn read_next_message(&self) -> Result<String, std::io::Error> {
         loop {
@@ -478,8 +523,6 @@ impl DebuggerSession {
                     Ok(s) => {
                         if let Ok(None) = websocket.0.get_ref().read_timeout() {
                             websocket
-                                .0
-                                .get_ref()
                                 .set_read_timeout(Some(
                                     WebSocketServer::DEFAULT_READ_TIMEOUT_DURATION,
                                 ))
@@ -492,8 +535,6 @@ impl DebuggerSession {
                             continue;
                         } else if e.kind() == std::io::ErrorKind::WouldBlock {
                             websocket
-                                .0
-                                .get_ref()
                                 .set_read_timeout(None)
                                 .expect("Failed to temporarily reset the read timeout");
                             log::trace!("Reset the timeout due to WouldBlock.");
@@ -512,12 +553,37 @@ impl DebuggerSession {
         }
     }
 
-    /// Reads (without parsing), proccesses and then returns the next
-    /// message from the client.
+    /// Attempts to read the next message, if it is available. Returns
+    /// immediately if there is nothing to read, without waiting for
+    /// the message to be received.
+    pub fn try_read_next_message(&self) -> Result<Option<String>, std::io::Error> {
+        if let Ok(mut websocket) = self.web_socket.lock() {
+            websocket.try_read_next_message()
+        } else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "The mutex is poisoned.",
+            ));
+        }
+    }
+
+    /// Waits for a message to read, reads (without parsing), proccesses
+    /// it and then it.
     pub fn read_and_process_next_message(&self) -> Result<String, std::io::Error> {
         let message = self.read_next_message()?;
         log::trace!("Got incoming websocket message: {message}");
         self.inspector.dispatch_protocol_message(&message);
+        Ok(message)
+    }
+
+    /// Attempts to read a message from the client. If there are no
+    /// messages available to read at this time, [`None`] is returned.
+    pub fn try_read_and_process_next_message(&self) -> Result<Option<String>, std::io::Error> {
+        let message = self.try_read_next_message()?;
+        log::trace!("Got incoming websocket message: {message:?}");
+        if let Some(ref message) = message {
+            self.inspector.dispatch_protocol_message(message);
+        }
         Ok(message)
     }
 
@@ -538,11 +604,48 @@ impl DebuggerSession {
         }
     }
 
+    /// Reads and processes all the next messages queued, until
+    /// the read timeout is reached, or the connection is dropped by the
+    /// client or until any other error state is reached.
+    pub fn process_messages_with_timeout(
+        &self,
+        duration: std::time::Duration,
+    ) -> Result<(), std::io::Error> {
+        self.set_read_timeout(Some(duration))?;
+
+        if let Err(e) = self.try_read_and_process_next_message() {
+            if e.kind() == std::io::ErrorKind::ConnectionAborted
+                || e.kind() == std::io::ErrorKind::TimedOut
+                || e.kind() == std::io::ErrorKind::WouldBlock
+            {
+                return Ok(());
+            } else {
+                return Err(e);
+            }
+        } else {
+            Ok(())
+        }
+    }
+
     /// Schedules a pause (sets a breakpoint) for the next statement.
     /// See [super::Inspector::schedule_pause_on_next_statement].
     pub fn schedule_pause_on_next_statement(&self) {
         self.inspector
             .schedule_pause_on_next_statement("User breakpoint.");
+    }
+
+    /// Stops the debugging session if it has been established.
+    pub fn stop(&self) {
+        if let Ok(mut ws) = self.web_socket.lock() {
+            if let Err(e) = ws.0.send(Message::Close(None)) {
+                log::warn!("Couldn't stop the debugging session: {e}");
+            }
+        }
+    }
+
+    /// Sets another context for the inspector.
+    pub fn set_context(&self, context: NonNull<v8_context_ref>) {
+        self.inspector.set_context(context);
     }
 }
 

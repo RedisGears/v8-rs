@@ -15,6 +15,7 @@ use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -111,6 +112,11 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         self.inner_ctx_ref
     }
 
+    /// Returns a raw context pointer.
+    pub fn get_raw_context(&self) -> NonNull<v8_context_ref> {
+        NonNull::new(self.inner_ctx_ref).unwrap()
+    }
+
     pub(crate) fn new(
         context: *mut v8_context,
         exit_on_drop: bool,
@@ -136,6 +142,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         let inspector = if with_inspector {
             Some(Arc::new(RawInspector::new(
                 isolate_scope.isolate.inner_isolate,
+                context_ref,
             )))
         } else {
             None
