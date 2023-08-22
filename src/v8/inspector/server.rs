@@ -251,42 +251,60 @@ impl WebSocketServer {
         self.0.get_ref().peek(&mut bytes).map(|b| b == 1)
     }
 
+    fn process_message(
+        &mut self,
+        message: tungstenite::Result<Message>,
+    ) -> Result<Option<String>, std::io::Error> {
+        let closed_error = || {
+            std::io::Error::new(
+                std::io::ErrorKind::ConnectionAborted,
+                "The WebSocket connection has been closed.",
+            )
+        };
+
+        let convert_error = |e| -> std::io::Error {
+            match e {
+                Error::Io(e) => e,
+                Error::ConnectionClosed | Error::AlreadyClosed => closed_error(),
+                e => std::io::Error::new(std::io::ErrorKind::Other, e),
+            }
+        };
+
+        match message {
+            Ok(message) => match message {
+                Message::Close(_) => return Err(closed_error()),
+                Message::Ping(payload) => {
+                    log::trace!("Sending Pong.");
+
+                    self.0
+                        .send(Message::Pong(payload))
+                        .map(|_| None)
+                        .map_err(convert_error)
+                }
+                message => message.into_text().map(Some).map_err(convert_error),
+            },
+            Err(e) => Err(convert_error(e)),
+        }
+    }
+
     /// Waits for a message available to read, and once there is one,
     /// reads it and returns as a text.
     pub fn read_next_message(&mut self) -> Result<String, std::io::Error> {
-        log::trace!("Reading the next message.");
-        match self.0.read() {
-            Ok(message) => message
-                .into_text()
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
-            Err(Error::Io(e)) => Err(e),
-            Err(Error::ConnectionClosed | Error::AlreadyClosed) => Err(std::io::Error::new(
-                std::io::ErrorKind::ConnectionAborted,
-                "The WebSocket connection has been closed.",
-            )),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
-        }
+        log::trace!("Reading the next message (blocking).");
+
+        let message = self.0.read();
+        self.process_message(message).map(|m| m.unwrap_or_default())
     }
 
     /// Attempts to read the next message.
     pub fn try_read_next_message(&mut self) -> Result<Option<String>, std::io::Error> {
-        log::trace!("Reading the next message.");
+        // log::trace!("Reading the next message (non-blocking).");
         if !self.has_data_to_read()? {
             return Ok(None);
         }
 
-        match self.0.read() {
-            Ok(message) => message
-                .into_text()
-                .map(|v| Some(v))
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e)),
-            Err(Error::Io(e)) => Err(e),
-            Err(Error::ConnectionClosed | Error::AlreadyClosed) => Err(std::io::Error::new(
-                std::io::ErrorKind::ConnectionAborted,
-                "The WebSocket connection has been closed.",
-            )),
-            Err(e) => Err(std::io::Error::new(std::io::ErrorKind::Other, e)),
-        }
+        let message = self.0.read();
+        self.process_message(message)
     }
 
     /// Sets a read timeout. Setting [`None`] removes the timeout.
@@ -488,10 +506,10 @@ impl DebuggerSession {
             session.inspector.dispatch_protocol_message(&message_string);
 
             if message.is_client_ready() {
-                session
-                    .inspector
-                    .schedule_pause_on_next_statement("Debugger started.");
-                session.inspector.wait_frontend_message_on_pause();
+                // session
+                //     .inspector
+                //     .schedule_pause_on_next_statement("Debugger started.");
+                // session.inspector.wait_frontend_message_on_pause();
 
                 return Ok(session);
             }
@@ -580,8 +598,12 @@ impl DebuggerSession {
     /// messages available to read at this time, [`None`] is returned.
     pub fn try_read_and_process_next_message(&self) -> Result<Option<String>, std::io::Error> {
         let message = self.try_read_next_message()?;
-        log::trace!("Got incoming websocket message: {message:?}");
+
         if let Some(ref message) = message {
+            log::trace!(
+                "Got incoming websocket message: {message}, len={}",
+                message.len()
+            );
             self.inspector.dispatch_protocol_message(message);
         }
         Ok(message)
@@ -607,23 +629,29 @@ impl DebuggerSession {
     /// Reads and processes all the next messages queued, until
     /// the read timeout is reached, or the connection is dropped by the
     /// client or until any other error state is reached.
+    ///
+    /// Returns [`true`] if the client has disconnected and the remote
+    /// debugging is thus no longer possible.
     pub fn process_messages_with_timeout(
         &self,
         duration: std::time::Duration,
-    ) -> Result<(), std::io::Error> {
+    ) -> Result<bool, std::io::Error> {
         self.set_read_timeout(Some(duration))?;
 
         if let Err(e) = self.try_read_and_process_next_message() {
-            if e.kind() == std::io::ErrorKind::ConnectionAborted
+            if e.kind() == std::io::ErrorKind::ConnectionAborted {
+                return Ok(true);
+            } else if e.kind() == std::io::ErrorKind::WouldBlock
                 || e.kind() == std::io::ErrorKind::TimedOut
-                || e.kind() == std::io::ErrorKind::WouldBlock
+                || e.kind() == std::io::ErrorKind::Interrupted
             {
-                return Ok(());
+                return Ok(false);
             } else {
+                log::trace!("Other message error: {e:?}");
                 return Err(e);
             }
         } else {
-            Ok(())
+            Ok(false)
         }
     }
 
@@ -635,10 +663,18 @@ impl DebuggerSession {
     }
 
     /// Stops the debugging session if it has been established.
+    ///
+    /// The [`should_send_close`] argument determines whether a closing
+    /// websocket frame should be sent. The flag should be set to
+    /// [`true`] if the initiator of the session stop is the server, and
+    /// [`false`] when the connection is dropped by the client.
+    // pub fn stop(&self, should_send_close: bool) {
     pub fn stop(&self) {
         if let Ok(mut ws) = self.web_socket.lock() {
-            if let Err(e) = ws.0.send(Message::Close(None)) {
-                log::warn!("Couldn't stop the debugging session: {e}");
+            if ws.0.can_write() {
+                if let Err(e) = ws.0.send(Message::Close(None)) {
+                    log::warn!("Couldn't stop the debugging session: {e}");
+                }
             }
         }
     }

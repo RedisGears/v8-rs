@@ -175,7 +175,7 @@ public:
   void waitFrontendMessageOnPause();
 
   // Can we return `v8::Local<v8::Context>` from `v8::Context *` ?
-  v8::Local<v8::Context> ensureDefaultContextInGroup(const int contextGroupId) override;
+//   v8::Local<v8::Context> ensureDefaultContextInGroup(const int contextGroupId) override;
 
 private:
   static const int kContextGroupId = 1;
@@ -268,10 +268,9 @@ void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
     terminated_ = true;
 }
 
-// override
-v8::Local<v8::Context> v8_inspector_client_wrapper::ensureDefaultContextInGroup(int contextGroupId) {
-    return context_;
-}
+// v8::Local<v8::Context> v8_inspector_client_wrapper::ensureDefaultContextInGroup(int contextGroupId) {
+//     return context_;
+// }
 
 void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
     session_->schedulePauseOnNextStatement(reason, reason);

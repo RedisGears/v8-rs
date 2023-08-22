@@ -103,7 +103,7 @@ impl RawInspector {
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
         let message = message.as_ref();
-        log::trace!("Dispatching incoming message: {message}");
+        log::trace!("Dispatching incoming message: {message}",);
 
         let string = match std::ffi::CString::new(message) {
             Ok(string) => string,
