@@ -8,10 +8,52 @@
 //!
 //! See [ClientMessage], [MethodInvocation], [ServerMessage],
 //! and [ErrorMessage].
+//!
+//! For more information on the protocol, see the official V8
+//! documentation:
+//! <https://chromedevtools.github.io/devtools-protocol/v8/>.
 use serde::{Deserialize, Serialize};
 
 use serde_aux::prelude::*;
 
+/// The error subset of dispatch codes of the v8 inspector protocol. A
+/// copy from the "dispatch.h" header file.
+#[derive(Debug, Copy, Clone)]
+pub enum ErrorCode {
+    /// Indicates that a message could not be parsed. E.g., malformed
+    /// JSON.
+    Parse = -32700,
+    /// Indicates that a request is lacking required top-level
+    /// properties ('id', 'method'), has top-level properties of the
+    /// wrong type, or has unknown top-level properties.
+    InvalidRequest = -32600,
+    /// Indicates that a protocol method such as "Page.bringToFront"
+    /// could not be dispatched because it's not known to the (domain)
+    /// dispatcher.
+    MethodNotFound = -32601,
+    /// Indicates that the params sent to a domain handler are invalid.
+    InvalidParameters = -32602,
+    /// Used for application level errors, e.g. within protocol agents.
+    Internal = -32603,
+    /// Used for application level errors, e.g. within protocol agents.
+    Server = -32000,
+    /// Indicate that session with the id specified in the protocol
+    /// message was not found (e.g. because it has already been
+    /// detached).
+    SessionNotFound = -32001,
+}
+
+impl From<ErrorCode> for i32 {
+    fn from(value: ErrorCode) -> Self {
+        value as i32
+    }
+}
+
+/// The V8 inspector protocol's `Debugger.scriptParsed` event. From the
+/// official documentation:
+///
+/// > Fired when virtual machine parses script. This event is also fired
+/// > for all known and uncollected scripts upon enabling debugger.
 #[derive(Debug, Clone, Deserialize)]
 pub struct ScriptParsed {
     /// The ID of the script parsed within the current context.
@@ -21,17 +63,26 @@ pub struct ScriptParsed {
     /// The URL path to the script. If empty, the script was parsed not
     /// from any path but from a string instead.
     pub url: String,
+    /// Line offset of the script within the resource with given URL
+    /// (for script tags).
     #[serde(rename = "startLine")]
     pub start_line: u64,
+    /// Column offset of the script within the resource with given URL.
     #[serde(rename = "startColumn")]
     pub start_column: u64,
+    /// Last line of the script.
     #[serde(rename = "endLine")]
     pub end_line: u64,
+    /// Length of the last line of the script.
     #[serde(rename = "endColumn")]
     pub end_column: u64,
+    /// Specifies script creation context.
     #[serde(rename = "executionContextId")]
     pub execution_context_id: u64,
+    /// Content hash of the script, SHA-256.
     pub hash: String,
+    /// True, if this script is generated as a result of the live edit
+    /// operation.
     #[serde(rename = "isLiveEdit")]
     pub is_live_edit: bool,
     /// A string containing the source map URL. Sometimes encoded in
@@ -98,6 +149,9 @@ impl ClientMessage {
     /// connected to the [super::Inspector] server and waits for the
     /// debugging session to start.
     const DEBUGGER_SHOULD_START_METHOD_NAME: &str = "Runtime.runIfWaitingForDebugger";
+    /// The V8 method which pauses the execution, effectively setting
+    /// a silent breakpoint on the next statement.
+    const DEBUGGER_PAUSE_METHOD_NAME: &str = "Debugger.pause";
 
     /// Creates a new client message which says that the remote debugger
     /// (the client) is ready to proceed.
@@ -137,6 +191,12 @@ impl ClientMessage {
     /// (the client) is ready to proceed.
     pub fn is_client_ready(&self) -> bool {
         self.method.name == Self::DEBUGGER_SHOULD_START_METHOD_NAME
+    }
+
+    /// Returns [`true`] if the message says that the remote debugger
+    /// (the client) wants to pause the JavaScript execution.
+    pub fn is_debugger_pause(&self) -> bool {
+        self.method.name == Self::DEBUGGER_PAUSE_METHOD_NAME
     }
 }
 
@@ -190,6 +250,12 @@ impl ServerMessage {
             Self::Invoke(invocation) => Some(invocation),
             _ => None,
         }
+    }
+}
+
+impl From<ErrorMessage> for ServerMessage {
+    fn from(error: ErrorMessage) -> Self {
+        Self::Error { error }
     }
 }
 

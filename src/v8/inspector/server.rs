@@ -186,9 +186,10 @@ use std::time::Duration;
 
 use tungstenite::{Error, Message, WebSocket};
 
-use crate::v8::inspector::messages::ClientMessage;
+use crate::v8::inspector::messages::{ClientMessage, ErrorCode};
 use crate::v8_c_raw::bindings::v8_context_ref;
 
+use super::messages::{ErrorMessage, ServerMessage};
 use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
 
 /// The debugging server which waits for a connection of a remote
@@ -522,6 +523,47 @@ impl DebuggerSession {
         &self.connection_hints
     }
 
+    /// Checks whether we need to intercept the message and if we do,
+    /// intercepts it and returns [`true`], otherwise returns [`false`].
+    fn intercept_message(&self, message: &str) -> Result<bool, std::io::Error> {
+        // println!("Checking for the message interception.");
+        // // let message: ClientMessage = serde_json::from_str(message)?;
+        // let message: ClientMessage = match serde_json::from_str(message) {
+        //     Ok(m) => m,
+        //     Err(e) => {
+        //         println!("Error deserializing a client message: {e}.");
+        //         return Ok(false);
+        //     }
+        // };
+        // if message.is_debugger_pause() {
+        //     println!("The debugger pause message is ignored.");
+        //     // println!("The debugger pause message is being intercepted.");
+        //     // let error = ErrorMessage {
+        //     //     code: ErrorCode::MethodNotFound.into(),
+        //     //     message: "Pausing the execution is not supported.".to_owned(),
+        //     // };
+        //     // let error = ServerMessage::from(error);
+        //     // let string = serde_json::to_string(&error)?;
+        //     // println!("Creates json string from message: {string}.");
+
+        //     // // {
+        //     // //     println!("Is websocked locked: {:?}", self.web_socket.try_lock());
+        //     // // }
+        //     // match self.web_socket.lock() {
+        //     //     Ok(mut websocket) => match websocket.0.write(Message::Text(string)) {
+        //     //         Ok(_) => {
+        //     //             println!("The message {message:?} has been intercepted successfully.")
+        //     //         }
+        //     //         Err(e) => println!("Couldn't intercept the message: {message:?}: {e}"),
+        //     //     },
+        //     //     Err(e) => println!("Couldn't lock the socket: {e}."),
+        //     // }
+        //     // return Ok(true);
+        // }
+
+        Ok(false)
+    }
+
     /// Sets the read timeout for the web socket server.
     pub fn set_read_timeout(
         &self,
@@ -590,7 +632,7 @@ impl DebuggerSession {
     pub fn read_and_process_next_message(&self) -> Result<String, std::io::Error> {
         let message = self.read_next_message()?;
         log::trace!("Got incoming websocket message: {message}");
-        self.inspector.dispatch_protocol_message(&message);
+        let _ = self.intercept_or_dispatch_protocol_message(&message)?;
         Ok(message)
     }
 
@@ -604,9 +646,22 @@ impl DebuggerSession {
                 "Got incoming websocket message: {message}, len={}",
                 message.len()
             );
-            self.inspector.dispatch_protocol_message(message);
+            let _ = self.intercept_or_dispatch_protocol_message(message)?;
         }
         Ok(message)
+    }
+
+    /// Intercepts or dispatches the protocol message.
+    pub fn intercept_or_dispatch_protocol_message(
+        &self,
+        message: &str,
+    ) -> Result<bool, std::io::Error> {
+        if !self.intercept_message(&message)? {
+            self.inspector.dispatch_protocol_message(message);
+            Ok(false)
+        } else {
+            Ok(true)
+        }
     }
 
     /// Reads and processes all the next messages in a loop, until
