@@ -144,11 +144,14 @@ v8_inspector_c_wrapper* v8_InspectorCreate(
 /** Deletes (invokes the destructor and deallocates) an inspector
 object. */
 void v8_FreeInspector(v8_inspector_c_wrapper *inspector);
+
 /** Dispatches an inspector protocol message to the inspector passed. */
 void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *inspector, const char *message_json);
+
 /** Schedules a pause (sets a breakpoint) on the next statement, with
 the reason message provided. */
 void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *inspector, const char *reason);
+
 /** The callback which is invoked when the V8 Inspector requires more
  * data from the front-end (the client) and, therefore, this callback
  * must attempt to read more data and dispatch it to the inspector.
