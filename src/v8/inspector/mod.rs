@@ -62,16 +62,6 @@ impl RawInspector {
         Self { raw }
     }
 
-    /// Sets a new (possibly another) [crate::v8::isolate::V8Isolate].
-    pub fn set_isolate(&self, raw_isolate: NonNull<v8_isolate>) {
-        unsafe { crate::v8_c_raw::bindings::v8_InspectorSetIsolate(self.raw, raw_isolate.as_ptr()) }
-    }
-
-    /// Sets a new context.
-    pub fn set_context(&self, raw_context: NonNull<v8_context_ref>) {
-        unsafe { crate::v8_c_raw::bindings::v8_InspectorSetContext(self.raw, raw_context.as_ptr()) }
-    }
-
     /// Returns the isolate this inspector is bound to. The isolate
     /// returned won't be released automatically.
     pub fn get_isolate(&self) -> V8Isolate {

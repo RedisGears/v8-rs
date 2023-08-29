@@ -678,11 +678,6 @@ impl DebuggerSession {
             }
         }
     }
-
-    /// Sets another context for the inspector.
-    pub fn set_context(&self, context: NonNull<v8_context_ref>) {
-        self.inspector.set_context(context);
-    }
 }
 
 #[cfg(test)]

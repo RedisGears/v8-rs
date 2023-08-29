@@ -132,9 +132,8 @@ typedef void (*v8_InspectorOnResponseCallback)(const char *string, void *userdat
 typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *inspector,  void *userdata);
 
 /** Creates a debugging inspector for the global platform and the given
-isolate. The callbacks are optional. */
+context. The callbacks are optional. */
 v8_inspector_c_wrapper* v8_InspectorCreate(
-	v8_isolate *isolate,
 	v8_context_ref *context_ref,
 	v8_InspectorOnResponseCallback onResponse,
 	void *onResponseUserData,
@@ -176,24 +175,14 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 	void *onWaitUserData
 );
 
-/** Sets the V8Isolate for the inspector. */
-void v8_InspectorSetIsolate(
-	v8_inspector_c_wrapper *inspector,
-	v8_isolate *isolate
-);
-
 /** Returns the V8Isolate the passed inspector is bound to. */
 v8_isolate* v8_InspectorGetIsolate(
 	v8_inspector_c_wrapper *inspector
 );
 
+/** Returns the V8ContextScope the passed inspector is bound to. */
 v8_context_ref* v8_InspectorGetContext(
 	v8_inspector_c_wrapper *inspector
-);
-
-void v8_InspectorSetContext(
-	v8_inspector_c_wrapper *inspector,
-	v8_context_ref *context
 );
 
 typedef void (*v8_StringToUtf8StringCallback)(
