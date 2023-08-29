@@ -152,10 +152,8 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         if inner_script.is_null() {
             None
         } else {
-            let code = code.to_owned();
             Some(V8LocalScript {
                 inner_script,
-                code: code.into(),
                 isolate_scope: self.isolate_scope,
             })
         }
