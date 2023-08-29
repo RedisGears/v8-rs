@@ -52,7 +52,7 @@ pub(crate) extern "C" fn load_module<
     // return value.
     // Users can use this isolate score as if it was a regular isolate scope.
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
-    let ctx_scope = V8ContextScope::new_for_ref(v8_ctx_ref, false, &isolate_scope, false);
+    let ctx_scope = V8ContextScope::new_for_ref(v8_ctx_ref, false, &isolate_scope);
     let name_obj = V8LocalString {
         inner_string: name,
         isolate_scope: &isolate_scope,

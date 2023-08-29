@@ -665,7 +665,7 @@ int v8_InitializePlatform(int thread_pool_size, const char *flags) {
 		v8::V8::SetFlagsFromString(flags);
 	}
 	if (strcmp(v8_Version(), V8_VERSION_STRING)) {
-		fprintf(stderr, "The library (%s) and the header versions (%s) mismatch.", v8_Version(), V8_VERSION_STRING);
+		fprintf(stderr, "The library (%s) and the header versions (%s) mismatch.\n", v8_Version(), V8_VERSION_STRING);
 		return 0;
 	}
 	GLOBAL_PLATFORM = v8::platform::NewDefaultPlatform(thread_pool_size).release();

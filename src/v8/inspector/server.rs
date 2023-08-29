@@ -217,7 +217,7 @@ impl TcpServer {
     pub fn accept_next_websocket_connection(self) -> Result<WebSocketServer, std::io::Error> {
         let connection = self.server.accept()?;
         tungstenite::accept(connection.0)
-            .map(|t| WebSocketServer::from(t))
+            .map(WebSocketServer::from)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
@@ -277,7 +277,7 @@ impl WebSocketServer {
 
         match message {
             Ok(message) => match message {
-                Message::Close(_) => return Err(closed_error()),
+                Message::Close(_) => Err(closed_error()),
                 Message::Ping(payload) => {
                     log::trace!("Sending Pong.");
 
@@ -578,10 +578,10 @@ impl DebuggerSession {
         if let Ok(mut websocket) = self.web_socket.lock() {
             websocket.try_read_next_message()
         } else {
-            return Err(std::io::Error::new(
+            Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "The mutex is poisoned.",
-            ));
+            ))
         }
     }
 
@@ -640,7 +640,7 @@ impl DebuggerSession {
 
         if let Err(e) = self.try_read_and_process_next_message() {
             if e.kind() == std::io::ErrorKind::ConnectionAborted {
-                return Ok(true);
+                Ok(true)
             } else if e.kind() == std::io::ErrorKind::WouldBlock
                 || e.kind() == std::io::ErrorKind::TimedOut
                 || e.kind() == std::io::ErrorKind::Interrupted
@@ -688,7 +688,10 @@ impl DebuggerSession {
 #[cfg(test)]
 mod tests {
     use crate::v8::{
-        inspector::server::{DebuggerSession, TcpServer},
+        inspector::{
+            server::{DebuggerSession, TcpServer},
+            RawInspector,
+        },
         isolate::V8Isolate,
     };
 
@@ -714,12 +717,9 @@ mod tests {
         let ctx = i_scope.new_context(None);
 
         // Enter the created execution context for debugging:
-        let ctx_scope = ctx.debug_enter(&i_scope);
+        let ctx_scope = ctx.enter(&i_scope);
 
-        // Create an inspector.
-        let inspector = ctx_scope
-            .get_inspector()
-            .expect("The isolate was expected to have created an inspector");
+        let inspector = Arc::new(RawInspector::new(isolate.get_raw(), ctx_scope.get_inner()));
 
         let stage_1 = Arc::new(Mutex::new(()));
 

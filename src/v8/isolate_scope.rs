@@ -186,24 +186,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         &'isolate_scope self,
     ) -> Option<V8ContextScope<'isolate_scope, 'isolate>> {
         V8Context::get_current_raw_ref_for_isolate(self.isolate)
-            .map(|p| V8ContextScope::new_for_ref(p.as_ptr(), true, self, false))
-    }
-
-    /// Either creates a new context scope with the provided `globals`
-    /// or returns the current one without re-initialising `globals`
-    /// there.
-    pub fn new_or_current_context_scope<'isolate_scope>(
-        &'isolate_scope self,
-        context: &V8Context,
-        debug: bool,
-    ) -> V8ContextScope<'isolate_scope, 'isolate> {
-        self.get_current_context_scope().unwrap_or_else(|| {
-            if debug {
-                context.debug_enter(self)
-            } else {
-                context.enter(self)
-            }
-        })
+            .map(|p| V8ContextScope::new_for_ref(p.as_ptr(), true, self))
     }
 
     /// Raise an exception with the given local generic value.

@@ -92,7 +92,6 @@ pub struct V8ContextScope<'isolate_scope, 'isolate> {
     inner_ctx_ref: *mut v8_context_ref,
     exit_on_drop: bool,
     isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    inspector: Option<Arc<RawInspector>>,
 }
 
 impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
@@ -121,13 +120,11 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         context: *mut v8_context,
         exit_on_drop: bool,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-        with_inspector: bool,
     ) -> Self {
         Self::new_for_ref(
             unsafe { v8_ContextEnter(context) },
             exit_on_drop,
             isolate_scope,
-            with_inspector,
         )
     }
 
@@ -137,21 +134,11 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         context_ref: *mut v8_context_ref,
         exit_on_drop: bool,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-        with_inspector: bool,
     ) -> Self {
-        let inspector = if with_inspector {
-            Some(Arc::new(RawInspector::new(
-                isolate_scope.isolate.inner_isolate,
-                context_ref,
-            )))
-        } else {
-            None
-        };
         Self {
             inner_ctx_ref: context_ref,
             exit_on_drop,
             isolate_scope,
-            inspector,
         }
     }
 
@@ -275,11 +262,6 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     pub fn reset_private_data<I: Into<UserIndex>>(&self, index: I) {
         let index = index.into();
         self.reset_private_data_raw(index)
-    }
-
-    /// Obtains an inspector for this context scope.
-    pub fn get_inspector(&self) -> Option<Arc<RawInspector>> {
-        self.inspector.clone()
     }
 
     /// Create a new resolver object

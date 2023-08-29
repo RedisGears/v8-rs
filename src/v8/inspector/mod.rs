@@ -28,18 +28,15 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::{ops::Deref, ptr::NonNull, rc::Rc, sync::Arc};
+use std::{ops::Deref, ptr::NonNull, sync::Arc};
 
 pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
 
-use crate::{
-    v8::inspector::messages::MethodCallInformation,
-    v8_c_raw::bindings::{v8_context_ref, v8_isolate},
-};
+use crate::v8_c_raw::bindings::{v8_context_ref, v8_isolate};
 
-use super::{isolate::V8Isolate, isolate_scope::V8IsolateScope, v8_context_scope::V8ContextScope};
+use super::isolate::V8Isolate;
 
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
@@ -90,15 +87,6 @@ impl RawInspector {
     pub fn get_context_scope_ptr(&self) -> *mut v8_context_ref {
         unsafe { crate::v8_c_raw::bindings::v8_InspectorGetContext(self.raw) }
     }
-
-    // pub fn get_scope<'a>(&'a self) -> (V8Isolate, V8IsolateScope<'a>, V8ContextScope<'a, 'a>) {
-    //     let isolate = self.get_isolate();
-    //     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
-    //     let context_scope = isolate_scope
-    //         .get_current_context_scope()
-    //         .expect("No context scope was created");
-    //     (isolate, isolate_scope, context_scope)
-    // }
 
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
@@ -287,30 +275,6 @@ impl Inspector {
         }
 
         unsafe { Box::from_raw(on_wait_frontend_message_on_pause_callback as *mut _) }
-    }
-
-    /// Resets the `onResponse` callback. See
-    /// [Self::set_on_response_callback].
-    fn reset_on_response_callback(raw: &RawInspector) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
-                raw.raw,
-                None,
-                std::ptr::null_mut(),
-            );
-        }
-    }
-
-    /// Resets the `onWaitFrontendMessageOnPause` callback. See
-    /// [Self::set_on_wait_frontend_message_on_pause_callback].
-    fn reset_on_wait_frontend_message_on_pause_callback(raw: &RawInspector) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
-                raw.raw,
-                None,
-                std::ptr::null_mut(),
-            );
-        }
     }
 }
 

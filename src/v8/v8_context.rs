@@ -5,8 +5,8 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_ContextEnter, v8_FreeContext, v8_GetCurrentCtxRef, v8_GetPrivateData, v8_NewContext,
-    v8_ResetPrivateData, v8_SetPrivateData, v8_context, v8_context_ref,
+    v8_FreeContext, v8_GetCurrentCtxRef, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
+    v8_SetPrivateData, v8_context, v8_context_ref,
 };
 use crate::{RawIndex, UserIndex};
 
@@ -78,15 +78,7 @@ impl V8Context {
         &self,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
     ) -> V8ContextScope<'isolate_scope, 'isolate> {
-        V8ContextScope::new(self.inner_ctx, true, isolate_scope, false)
-    }
-
-    /// Enter the context for debugging the JS code.
-    pub fn debug_enter<'isolate_scope, 'isolate>(
-        &self,
-        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8ContextScope<'isolate_scope, 'isolate> {
-        V8ContextScope::new(self.inner_ctx, true, isolate_scope, true)
+        V8ContextScope::new(self.inner_ctx, true, isolate_scope)
     }
 
     /// Sets a private data on the context considering the index as
