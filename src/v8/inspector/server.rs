@@ -79,7 +79,7 @@
 //! let ctx_scope = ctx.enter(&i_scope);
 //!
 //! // Obtain an inspector.
-//! let inspector = Arc::new(RawInspector::new(isolate.get_raw(), ctx_scope.get_inner()));
+//! let inspector = Arc::new(RawInspector::new(ctx_scope.get_inner()));
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
 //! let mut stage_2 = Arc::new(Mutex::new(()));
@@ -719,7 +719,7 @@ mod tests {
         // Enter the created execution context for debugging:
         let ctx_scope = ctx.enter(&i_scope);
 
-        let inspector = Arc::new(RawInspector::new(isolate.get_raw(), ctx_scope.get_inner()));
+        let inspector = Arc::new(RawInspector::new(ctx_scope.get_inner()));
 
         let stage_1 = Arc::new(Mutex::new(()));
 

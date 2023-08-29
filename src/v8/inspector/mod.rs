@@ -49,10 +49,9 @@ pub struct RawInspector {
 impl RawInspector {
     /// Creates a new inspector for the provided isolate.
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
-    pub fn new(raw_isolate: *mut v8_isolate, raw_context: *mut v8_context_ref) -> Self {
+    pub fn new(raw_context: *mut v8_context_ref) -> Self {
         let raw = unsafe {
             crate::v8_c_raw::bindings::v8_InspectorCreate(
-                raw_isolate,
                 raw_context,
                 None,
                 std::ptr::null_mut(),
