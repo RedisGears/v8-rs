@@ -108,7 +108,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         self.exit_on_drop = exit_on_drop;
     }
 
-    pub(crate) fn get_inner(&self) -> *mut v8_context_ref {
+    pub fn get_inner(&self) -> *mut v8_context_ref {
         self.inner_ctx_ref
     }
 

@@ -79,7 +79,7 @@
 //! let ctx_scope = ctx.enter(&i_scope);
 //!
 //! // Obtain an inspector.
-//! let inspector = Arc::new(RawInspector::new(isolate.get_raw()));
+//! let inspector = Arc::new(RawInspector::new(isolate.get_raw(), ctx_scope.get_inner()));
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
 //! let mut stage_2 = Arc::new(Mutex::new(()));
@@ -511,11 +511,6 @@ impl DebuggerSession {
             session.inspector.dispatch_protocol_message(&message_string);
 
             if message.is_client_ready() {
-                // session
-                //     .inspector
-                //     .schedule_pause_on_next_statement("Debugger started.");
-                // session.inspector.wait_frontend_message_on_pause();
-
                 return Ok(session);
             }
         }
@@ -700,13 +695,7 @@ mod tests {
     use super::ClientMessage;
     use std::sync::{Arc, Mutex};
 
-    /*
-    This is to test the crash when setting a breakpoint.
-
-    Chromium inspector:
-
-    32029:M 26 May 2023 10:56:37.928 . <redisgears_2> 'v8_rs::v8::inspector::server' /home/fx/workspace/v8-rs/src/v8/inspector/server.rs:281: [OnWait] Read the message: "{\"id\":20,\"method\":\"Debugger.setBreakpointByUrl\",\"params\":{\"lineNumber\":2,\"scriptHash\":\"e18847f3eb3ba96b6de3f10a3370067120fe0f5dc162f58b08e39df7e5f5308f\",\"columnNumber\":68,\"condition\":\"\"}}"
-    */
+    // This is to test the crash when setting a breakpoint.
     #[test]
     fn can_set_breakpoint() {
         // Initialise the V8 engine:
@@ -801,9 +790,16 @@ mod tests {
                 let mut client = Client::default();
                 client.send_ready(&mut ws);
                 let _ = ws.read();
-                client.send_breakpoint(&mut ws, 0, 0, "
-                // TODO: get the CARGO_SOURCE_DIR env.
-                file:///home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)|/home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)");
+                let project_path = env!("CARGO_MANIFEST_DIR");
+                client.send_breakpoint(
+                    &mut ws,
+                    0,
+                    0,
+                    &format!(
+                        "
+                file://{project_path}/src/lib.rs($|?)|{project_path}/src/lib.rs($|?)"
+                    ),
+                );
                 drop(stage_1.lock().expect("Couldn't lock the stage 1"));
                 ws.close(None).expect("Couldn't close the WebSocket");
             })
