@@ -83,12 +83,16 @@ impl RawInspector {
         }
     }
 
-    /// Returns a [V8ContextScope] of this inspector.
+    /// Returns a raw mutable pointer of the underylgin object of
+    /// [`crate::v8::v8_context_scope::V8ContextScope`] of this
+    /// inspector.
     pub fn get_context_scope_ptr(&self) -> *mut v8_context_ref {
         unsafe { crate::v8_c_raw::bindings::v8_InspectorGetContext(self.raw) }
     }
 
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
+    /// The message must be a valid string encoded in JSON and following
+    /// the V8 Inspector Protocol.
     pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
         let message = message.as_ref();
         log::trace!("Dispatching incoming message: {message}",);
@@ -106,7 +110,8 @@ impl RawInspector {
     }
 
     /// Schedules a debugger pause (sets a breakpoint) for the next
-    /// statement.
+    /// statement. The `reason` argument may be any string, helpful to
+    /// the user.
     pub fn schedule_pause_on_next_statement<T: AsRef<str>>(&self, reason: T) {
         let string = match std::ffi::CString::new(reason.as_ref()) {
             Ok(string) => string,
@@ -120,7 +125,10 @@ impl RawInspector {
         }
     }
 
-    /// Enables the debugger main loop.
+    /// Enables the debugger main loop. Only useful when the debugger
+    /// is on pause. It is usually called automatically by the inspector
+    /// but may also be called from here to wait for a certain event
+    /// on the client side.
     pub fn wait_frontend_message_on_pause(&self) {
         unsafe { crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(self.raw) }
     }
@@ -158,6 +166,14 @@ type OnWaitFrontendMessageOnPauseCallback =
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
 /// API. An inspector is tied to the [V8Isolate] it was created for.
+///
+/// This is a more user-friendly version of the inspector, which, at
+/// the same time, can be used for a remote debugging session. The
+/// reason why this [`Inspector`] exists is to help managing the
+/// debugging sessions, as for the V8 to properly debug, it requires
+/// to be able to send the responses back to the client. The callbacks
+/// which this version of the `Inspector` has are mandatory for a
+/// properly working session.
 pub struct Inspector {
     raw: Arc<RawInspector>,
     /// This callback is stored to preserve the lifetime, it is never
