@@ -7,7 +7,8 @@ Rust wrapper for the [Google V8 JavaScript Engine](https://chromium.googlesource
 use v8_rs::v8::*;
 
 // Initialise the V8 engine:
-v8_init(1);
+v8_init_platform(1, Some("--expose-gc")).unwrap();
+v8_init();
 
 // Create a new isolate:
 let isolate = isolate::V8Isolate::new();
