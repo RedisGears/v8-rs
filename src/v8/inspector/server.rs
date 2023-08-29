@@ -693,7 +693,14 @@ mod tests {
     use super::ClientMessage;
     use std::sync::{Arc, Mutex};
 
-    // This is to test the crash when setting a breakpoint.
+    /// This is to test the crash when setting a breakpoint.
+    /// It:
+    /// 1. Starts the V8 engine.
+    /// 2. Creates all the facilities required for a simple script.
+    /// 3. Starts a websocket server on the host.
+    /// 4. Accepts a connection and starts the debugging.
+    /// 5. Uses a fake client to send the breakpoint setting message.
+    /// 6. Ensures the message is read by the server without a problem.
     #[test]
     fn can_set_breakpoint() {
         // Initialise the V8 engine:
