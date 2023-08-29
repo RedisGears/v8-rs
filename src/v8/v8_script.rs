@@ -4,8 +4,6 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-use std::borrow::Borrow;
-
 use crate::v8_c_raw::bindings::{
     v8_FreePersistedScript, v8_FreeScript, v8_PersistedScriptToLocal, v8_Run, v8_ScriptPersist,
     v8_local_script, v8_persisted_script,
@@ -14,8 +12,6 @@ use crate::v8_c_raw::bindings::{
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
-
-use super::v8_string::V8LocalString;
 
 /// JS script object
 #[derive(Debug)]

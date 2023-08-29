@@ -5,9 +5,9 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_ArgsGet, v8_ArgsGetSelf, v8_FreeNativeFunctionTemplate, v8_GetCurrentCtxRef,
-    v8_GetCurrentIsolate, v8_NativeFunctionTemplateToFunction, v8_local_native_function_template,
-    v8_local_value, v8_local_value_arr,
+    v8_ArgsGet, v8_ArgsGetSelf, v8_FreeNativeFunctionTemplate, v8_GetCurrentIsolate,
+    v8_NativeFunctionTemplateToFunction, v8_local_native_function_template, v8_local_value,
+    v8_local_value_arr,
 };
 
 use std::os::raw::c_void;

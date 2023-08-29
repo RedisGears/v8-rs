@@ -4,20 +4,18 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
+use crate::v8_c_raw::bindings::v8_SetPrivateDataOnCtxRef;
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextEnter, v8_ContextRefGetGlobals, v8_ExitContextRef,
     v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
     v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context,
     v8_context_ref,
 };
-use crate::v8_c_raw::bindings::{v8_SetPrivateDataOnCtxRef, v8_isolate};
 use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
 use std::ptr::NonNull;
-use std::rc::Rc;
-use std::sync::Arc;
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_module::V8LocalModule;
@@ -31,7 +29,6 @@ use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 
-use super::inspector::RawInspector;
 use super::isolate::V8Isolate;
 
 /// An RAII data guard which resets the private data slot after going
@@ -95,10 +92,6 @@ pub struct V8ContextScope<'isolate_scope, 'isolate> {
 }
 
 impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
-    pub(crate) fn get_isolate_scope(&self) -> &'isolate_scope V8IsolateScope<'isolate> {
-        self.isolate_scope
-    }
-
     pub fn is_exit_on_drop(&self) -> bool {
         self.exit_on_drop
     }
@@ -326,10 +319,6 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
             inner_func,
             isolate_scope: self.isolate_scope,
         }
-    }
-
-    fn get_isolate_ptr_mut(&self) -> *mut v8_isolate {
-        self.isolate_scope.isolate.inner_isolate
     }
 }
 

@@ -179,7 +179,6 @@
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
 use std::net::{TcpListener, TcpStream};
-use std::ptr::NonNull;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -187,7 +186,6 @@ use std::time::Duration;
 use tungstenite::{Error, Message, WebSocket};
 
 use crate::v8::inspector::messages::ClientMessage;
-use crate::v8_c_raw::bindings::v8_context_ref;
 
 use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
 

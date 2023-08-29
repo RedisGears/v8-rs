@@ -28,13 +28,13 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::{ops::Deref, ptr::NonNull, sync::Arc};
+use std::{ops::Deref, sync::Arc};
 
 pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
 
-use crate::v8_c_raw::bindings::{v8_context_ref, v8_isolate};
+use crate::v8_c_raw::bindings::v8_context_ref;
 
 use super::isolate::V8Isolate;
 
