@@ -186,10 +186,9 @@ use std::time::Duration;
 
 use tungstenite::{Error, Message, WebSocket};
 
-use crate::v8::inspector::messages::{ClientMessage, ErrorCode};
+use crate::v8::inspector::messages::ClientMessage;
 use crate::v8_c_raw::bindings::v8_context_ref;
 
-use super::messages::{ErrorMessage, ServerMessage};
 use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
 
 /// The debugging server which waits for a connection of a remote
@@ -215,9 +214,10 @@ impl TcpServer {
 
     /// Starts listening for and a new single websocket connection.
     /// Once the connection is accepted, it is returned to the user.
-    pub fn accept_next_websocket_connection(&self) -> Result<WebSocketServer, std::io::Error> {
-        tungstenite::accept(self.server.accept()?.0)
-            .map(WebSocketServer::from)
+    pub fn accept_next_websocket_connection(self) -> Result<WebSocketServer, std::io::Error> {
+        let connection = self.server.accept()?;
+        tungstenite::accept(connection.0)
+            .map(|t| WebSocketServer::from(t))
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 
@@ -237,19 +237,23 @@ impl WebSocketServer {
 
     /// Returns the ways to connect to the server to establish a new
     /// debugger session.
-    pub fn get_connection_hints(&self) -> DebuggerSessionConnectionHints {
-        DebuggerSessionConnectionHints::from(
-            self.0
-                .get_ref()
-                .peer_addr()
-                .expect("Couldn't get the peer address"),
-        )
+    pub fn get_connection_hints(&self) -> Result<DebuggerSessionConnectionHints, std::io::Error> {
+        Ok(DebuggerSessionConnectionHints::from(
+            self.0.get_ref().local_addr()?,
+        ))
     }
 
     /// Returns [`true`] if there is data available to read.
     pub fn has_data_to_read(&mut self) -> Result<bool, std::io::Error> {
         let mut bytes = [0];
-        self.0.get_ref().peek(&mut bytes).map(|b| b == 1)
+        if self.0.can_read() && self.0.get_ref().peer_addr().is_ok() {
+            self.0.get_ref().peek(&mut bytes).map(|b| b == 1)
+        } else {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "The connection is aborted.",
+            ))
+        }
     }
 
     fn process_message(
@@ -480,7 +484,7 @@ impl DebuggerSession {
         web_socket: WebSocketServer,
         inspector: Arc<RawInspector>,
     ) -> Result<Self, std::io::Error> {
-        let connection_hints = web_socket.get_connection_hints();
+        let connection_hints = web_socket.get_connection_hints()?;
         let web_socket = Rc::new(Mutex::new(web_socket));
         let callbacks = Self::create_inspector_callbacks(web_socket.clone());
         let inspector = Inspector::new(
@@ -521,47 +525,6 @@ impl DebuggerSession {
     /// debugger session.
     pub fn get_connection_hints(&self) -> &DebuggerSessionConnectionHints {
         &self.connection_hints
-    }
-
-    /// Checks whether we need to intercept the message and if we do,
-    /// intercepts it and returns [`true`], otherwise returns [`false`].
-    fn intercept_message(&self, message: &str) -> Result<bool, std::io::Error> {
-        // println!("Checking for the message interception.");
-        // // let message: ClientMessage = serde_json::from_str(message)?;
-        // let message: ClientMessage = match serde_json::from_str(message) {
-        //     Ok(m) => m,
-        //     Err(e) => {
-        //         println!("Error deserializing a client message: {e}.");
-        //         return Ok(false);
-        //     }
-        // };
-        // if message.is_debugger_pause() {
-        //     println!("The debugger pause message is ignored.");
-        //     // println!("The debugger pause message is being intercepted.");
-        //     // let error = ErrorMessage {
-        //     //     code: ErrorCode::MethodNotFound.into(),
-        //     //     message: "Pausing the execution is not supported.".to_owned(),
-        //     // };
-        //     // let error = ServerMessage::from(error);
-        //     // let string = serde_json::to_string(&error)?;
-        //     // println!("Creates json string from message: {string}.");
-
-        //     // // {
-        //     // //     println!("Is websocked locked: {:?}", self.web_socket.try_lock());
-        //     // // }
-        //     // match self.web_socket.lock() {
-        //     //     Ok(mut websocket) => match websocket.0.write(Message::Text(string)) {
-        //     //         Ok(_) => {
-        //     //             println!("The message {message:?} has been intercepted successfully.")
-        //     //         }
-        //     //         Err(e) => println!("Couldn't intercept the message: {message:?}: {e}"),
-        //     //     },
-        //     //     Err(e) => println!("Couldn't lock the socket: {e}."),
-        //     // }
-        //     // return Ok(true);
-        // }
-
-        Ok(false)
     }
 
     /// Sets the read timeout for the web socket server.
@@ -632,7 +595,7 @@ impl DebuggerSession {
     pub fn read_and_process_next_message(&self) -> Result<String, std::io::Error> {
         let message = self.read_next_message()?;
         log::trace!("Got incoming websocket message: {message}");
-        let _ = self.intercept_or_dispatch_protocol_message(&message)?;
+        self.inspector.dispatch_protocol_message(&message);
         Ok(message)
     }
 
@@ -646,22 +609,9 @@ impl DebuggerSession {
                 "Got incoming websocket message: {message}, len={}",
                 message.len()
             );
-            let _ = self.intercept_or_dispatch_protocol_message(message)?;
+            self.inspector.dispatch_protocol_message(message);
         }
         Ok(message)
-    }
-
-    /// Intercepts or dispatches the protocol message.
-    pub fn intercept_or_dispatch_protocol_message(
-        &self,
-        message: &str,
-    ) -> Result<bool, std::io::Error> {
-        if !self.intercept_message(&message)? {
-            self.inspector.dispatch_protocol_message(message);
-            Ok(false)
-        } else {
-            Ok(true)
-        }
     }
 
     /// Reads and processes all the next messages in a loop, until
@@ -852,6 +802,7 @@ mod tests {
                 client.send_ready(&mut ws);
                 let _ = ws.read();
                 client.send_breakpoint(&mut ws, 0, 0, "
+                // TODO: get the CARGO_SOURCE_DIR env.
                 file:///home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)|/home/fx/workspace/RedisGears/redisgears_core/src/lib.rs($|?)");
                 drop(stage_1.lock().expect("Couldn't lock the stage 1"));
                 ws.close(None).expect("Couldn't close the WebSocket");
