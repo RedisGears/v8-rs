@@ -79,7 +79,7 @@ mod json_path_tests {
     }
 
     #[ctor::ctor]
-    fn foo() {
+    fn initialize_platform() {
         /* V8 makes use of protection keys (https://man7.org/linux/man-pages/man7/pkeys.7.html)
          * So in order to make sure all threads will inherit the pkey, we must initialise th paltform
          * on the main thread. Currently there is not way to tell rust tests to perform some initialisation
