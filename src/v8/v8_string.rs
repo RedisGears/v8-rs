@@ -5,7 +5,7 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_FreeString, v8_StringToStringObject, v8_StringToValue, v8_local_string,
+    v8_CloneString, v8_FreeString, v8_StringToStringObject, v8_StringToValue, v8_local_string,
 };
 
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -20,17 +20,26 @@ pub struct V8LocalString<'isolate_scope, 'isolate> {
 
 impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
     /// Creates a new string within the provided isolate.
-    pub fn new(isolate_scope: &'isolate_scope V8IsolateScope<'isolate>, s: &str) -> Self {
-        let inner_string = unsafe {
-            crate::v8_c_raw::bindings::v8_NewString(
-                isolate_scope.isolate.inner_isolate,
-                s.as_ptr().cast(),
-                s.len(),
-            )
-        };
+    pub fn new(isolate_scope: &'isolate_scope V8IsolateScope<'isolate>, string: &str) -> Self {
+        let inner_string = Self::new_string(isolate_scope, string);
         Self {
             inner_string,
             isolate_scope,
+        }
+    }
+
+    /// Creates a new JS string for the provided isolate and returns
+    /// a raw pointer to it.
+    pub(crate) fn new_string(
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+        string: &str,
+    ) -> *mut v8_local_string {
+        unsafe {
+            crate::v8_c_raw::bindings::v8_NewString(
+                isolate_scope.isolate.inner_isolate,
+                string.as_ptr().cast(),
+                string.len(),
+            )
         }
     }
 
@@ -59,7 +68,7 @@ impl<'isolate_scope, 'isolate> V8LocalString<'isolate_scope, 'isolate> {
 
 impl<'isolate_scope, 'isolate> std::fmt::Debug for V8LocalString<'isolate_scope, 'isolate> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let string_value = String::from(self.to_owned());
+        let string_value = String::try_from(self.to_owned()).map_err(|_| std::fmt::Error)?;
         #[allow(dead_code)]
         #[derive(Debug)]
         struct V8StringDebugPrinter {
@@ -77,25 +86,32 @@ impl<'isolate_scope, 'isolate> std::fmt::Debug for V8LocalString<'isolate_scope,
     }
 }
 
-impl<'isolate_scope, 'isolate> From<V8LocalString<'isolate_scope, 'isolate>> for String {
-    fn from(value: V8LocalString<'isolate_scope, 'isolate>) -> Self {
-        String::from(&value)
+impl<'isolate_scope, 'isolate> TryFrom<V8LocalString<'isolate_scope, 'isolate>> for String {
+    type Error = &'static str;
+
+    fn try_from(value: V8LocalString<'isolate_scope, 'isolate>) -> Result<String, Self::Error> {
+        String::try_from(&value)
     }
 }
 
-impl<'isolate_scope, 'isolate> From<&V8LocalString<'isolate_scope, 'isolate>> for String {
-    fn from(value: &V8LocalString<'isolate_scope, 'isolate>) -> Self {
+impl<'isolate_scope, 'isolate> TryFrom<&V8LocalString<'isolate_scope, 'isolate>> for String {
+    type Error = &'static str;
+
+    fn try_from(value: &V8LocalString<'isolate_scope, 'isolate>) -> Result<String, Self::Error> {
         value
             .to_value()
             .to_utf8()
             .map(|utf| utf.as_str().to_owned())
-            .expect("The V8LocalString isn't a valid UTF8 string.")
+            .ok_or("The V8LocalString isn't a valid UTF8 string.")
     }
 }
 
 impl<'isolate_scope, 'isolate> Clone for V8LocalString<'isolate_scope, 'isolate> {
     fn clone(&self) -> Self {
-        Self::new(self.isolate_scope, &String::from(self))
+        Self {
+            isolate_scope: self.isolate_scope,
+            inner_string: unsafe { v8_CloneString(self.inner_string) },
+        }
     }
 }
 

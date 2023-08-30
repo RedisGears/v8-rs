@@ -154,7 +154,10 @@ mod tests {
         let source = isolate_scope.new_string("test");
         let copy = source.clone();
         assert_ne!(source.inner_string, copy.inner_string);
-        assert_eq!(String::from(source), String::from(copy));
+        assert_eq!(
+            String::try_from(source).unwrap(),
+            String::try_from(copy).unwrap()
+        );
     }
 
     #[test]

@@ -256,6 +256,9 @@ void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd);
 /** Create a new JS string object */
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);
 
+/** Clones the passed JS string */
+v8_local_string* v8_CloneString(v8_local_string *source);
+
 /** Convert the JS string to JS generic value */
 v8_local_value* v8_StringToValue(v8_local_string *str);
 

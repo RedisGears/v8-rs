@@ -605,6 +605,12 @@ v8_local_string* v8_NewString(v8_isolate* i, const char *str, size_t len) {
     return v8_str;
 }
 
+v8_local_string* v8_CloneString(v8_local_string *source) {
+    v8_local_string *v8_str = (struct v8_local_string*)V8_ALLOC(sizeof(*v8_str));
+    v8_str = new (v8_str) v8_local_string(*source);
+    return v8_str;
+}
+
 v8_local_value* v8_StringToValue(v8_local_string *str) {
     v8_local_value *v8_val = (struct v8_local_value*)V8_ALLOC(sizeof(*v8_val));
     v8_val = new (v8_val) v8_local_value(str->str);
