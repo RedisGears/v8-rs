@@ -38,7 +38,7 @@ pub struct V8IsolateScope<'isolate> {
 }
 
 extern "C" fn free_external_data<T: 'static>(arg1: *mut ::std::os::raw::c_void) {
-    unsafe { Box::from_raw(arg1 as *mut T) };
+    let _ = unsafe { Box::from_raw(arg1 as *mut T) };
 }
 
 #[derive(Debug, Clone, Copy)]
