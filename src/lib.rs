@@ -90,22 +90,6 @@ impl From<UserIndex> for RawIndex {
     }
 }
 
-// #[cfg(test)]
-// mod json_path_tests {
-//     use std::sync::Mutex;
-
-//     use crate::v8::isolate_scope::GarbageCollectionJobType;
-//     use crate::v8::v8_array::V8LocalArray;
-//     use crate::v8::v8_init_platform;
-//     use crate::v8::v8_object::V8LocalObject;
-//     use crate::v8::v8_utf8::V8LocalUtf8;
-//     use crate::v8::v8_value::V8LocalValue;
-//     use crate::v8::{
-//         isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
-//         v8_native_function_template, v8_object, v8_set, v8_utf8,
-//         v8_value::{self},
-//     };
-//     use crate::{self as v8_rs};
 #[cfg(test)]
 mod test_utils {
     use crate::v8::v8_init;
