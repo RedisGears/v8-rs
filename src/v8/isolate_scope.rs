@@ -138,7 +138,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
     /// the isolate is already entered and we already have a scope handler. For example,
     /// when calling a native function we can create a dummy isolate scope because we
     /// know we already entered the isolate and created a scope handler.
-    pub fn new_dummy(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
+    pub(crate) fn new_dummy(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
         V8IsolateScope {
             isolate,
             storage: V8IsolateScopeStorage::default(),
@@ -155,10 +155,10 @@ impl<'isolate> V8IsolateScope<'isolate> {
     /// The storage provided must have been created precisely for the
     /// isolate passed.
     pub fn restore(isolate: &'isolate V8Isolate, storage: V8IsolateScopeStorage) -> Option<Self> {
-        if !storage.is_same_isolate(isolate) {
-            None
-        } else {
+        if storage.is_same_isolate(isolate) {
             Some(Self { isolate, storage })
+        } else {
+            None
         }
     }
 
