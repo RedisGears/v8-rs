@@ -28,7 +28,6 @@ use crate::v8::v8_set::V8LocalSet;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_unlocker::V8Unlocker;
 use crate::v8::v8_value::V8LocalValue;
-use crate::v8_c_raw::bindings::v8_isolate;
 
 use std::marker::PhantomData;
 use std::os::raw::{c_char, c_void};
@@ -132,7 +131,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         &'isolate_scope self,
     ) -> Option<V8ContextScope<'isolate_scope, 'isolate>> {
         V8Context::get_current_raw_ref_for_isolate(self.isolate)
-            .map(|p| V8ContextScope::new_for_ref(p.as_ptr(), true, self))
+            .map(|p| V8ContextScope::new_for_ref(p, true, self))
     }
 
     /// Raise an exception with the given local generic value.

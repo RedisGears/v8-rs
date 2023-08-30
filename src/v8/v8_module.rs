@@ -17,7 +17,7 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 use std::os::raw::c_int;
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 /// JS script object
 pub struct V8LocalModule<'isolate_scope, 'isolate> {
@@ -52,7 +52,11 @@ pub(crate) extern "C" fn load_module<
     // return value.
     // Users can use this isolate score as if it was a regular isolate scope.
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
-    let ctx_scope = V8ContextScope::new_for_ref(v8_ctx_ref, false, &isolate_scope);
+    let ctx_scope = V8ContextScope::new_for_ref(
+        unsafe { NonNull::new_unchecked(v8_ctx_ref) },
+        false,
+        &isolate_scope,
+    );
     let name_obj = V8LocalString {
         inner_string: name,
         isolate_scope: &isolate_scope,

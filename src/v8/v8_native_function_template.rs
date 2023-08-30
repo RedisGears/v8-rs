@@ -76,8 +76,7 @@ pub(crate) extern "C" fn native_basic_function<
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
 
     let inner_ctx_ref = V8Context::get_current_raw_ref_for_isolate(&isolate)
-        .expect("Couldn't get the current context")
-        .as_ptr();
+        .expect("Couldn't get the current context");
     let ctx_scope = V8ContextScope::new_for_ref(inner_ctx_ref, false, &isolate_scope);
 
     let args = V8LocalNativeFunctionArgs {
