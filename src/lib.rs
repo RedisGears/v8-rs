@@ -78,10 +78,18 @@ mod json_path_tests {
         static ref IS_INITIALIZED: Mutex<bool> = Mutex::new(false);
     }
 
+    #[ctor::ctor]
+    fn foo() {
+        /* V8 makes use of protection keys (https://man7.org/linux/man-pages/man7/pkeys.7.html)
+         * So in order to make sure all threads will inherit the pkey, we must initialise th paltform
+         * on the main thread. Currently there is not way to tell rust tests to perform some initialisation
+         * step on the main thread, to achieve that we use ctor. */
+        v8_init_platform(1, Some("--expose-gc")).unwrap();
+    }
+
     fn initialize() {
         let mut is_initialized = IS_INITIALIZED.lock().unwrap();
         if !*is_initialized {
-            v8_init_platform(1, Some("--expose-gc")).unwrap();
             v8_init().unwrap();
             *is_initialized = true;
         }
