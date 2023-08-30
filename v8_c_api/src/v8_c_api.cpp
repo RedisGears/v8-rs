@@ -74,14 +74,6 @@ struct v8_local_string {
     }
     v8_local_string(v8::Local<v8::String> val): str(val) {}
     ~v8_local_string() {}
-
-    inline std::string toString(v8::Isolate *isolate) const {
-        if (!isolate) {
-            isolate = v8::Isolate::GetCurrent();
-        }
-        v8::String::Utf8Value s(isolate, str);
-        return std::string(*s);
-    }
 };
 
 struct v8_local_script {
