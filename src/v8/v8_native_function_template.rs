@@ -75,7 +75,6 @@ pub(crate) extern "C" fn native_basic_function<
     // Users can use this isolate scope as if it was a regular isolate scope.
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
 
-    // let inner_ctx_ref = unsafe { v8_GetCurrentCtxRef(inner_isolate) };
     let inner_ctx_ref = V8Context::get_current_raw_ref_for_isolate(&isolate)
         .expect("Couldn't get the current context")
         .as_ptr();
