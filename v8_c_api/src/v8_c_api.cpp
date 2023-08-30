@@ -9,7 +9,6 @@
 #include "libplatform/libplatform.h"
 
 #include <cassert>
-#include <memory>
 
 namespace {
 v8::Platform* GLOBAL_PLATFORM = NULL;
