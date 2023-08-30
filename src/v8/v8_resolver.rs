@@ -33,12 +33,12 @@ impl<'isolate_scope, 'isolate> V8LocalResolver<'isolate_scope, 'isolate> {
 
     /// Resolve the resolver with the given JS value.
     pub fn resolve(&self, ctx_scope: &V8ContextScope, val: &V8LocalValue) {
-        unsafe { v8_ResolverResolve(ctx_scope.inner_ctx_ref, self.inner_resolver, val.inner_val) };
+        unsafe { v8_ResolverResolve(ctx_scope.get_inner(), self.inner_resolver, val.inner_val) };
     }
 
     /// Reject the resolver with the given JS value.
     pub fn reject(&self, ctx_scope: &V8ContextScope, val: &V8LocalValue) {
-        unsafe { v8_ResolverReject(ctx_scope.inner_ctx_ref, self.inner_resolver, val.inner_val) };
+        unsafe { v8_ResolverReject(ctx_scope.get_inner(), self.inner_resolver, val.inner_val) };
     }
 
     /// Convert the resolver into a generic JS value.

@@ -28,13 +28,75 @@ use crate::v8::v8_set::V8LocalSet;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_unlocker::V8Unlocker;
 use crate::v8::v8_value::V8LocalValue;
+use crate::v8_c_raw::bindings::v8_isolate;
 
 use std::os::raw::{c_char, c_void};
 
-pub struct V8IsolateScope<'isolate> {
-    pub(crate) isolate: &'isolate V8Isolate,
+/// An owned, unpinned storage of the handlers and isolate scopes.
+/// Useful to have when we want to "save" a [V8IsolateScope] without
+/// destroying these objects.
+#[derive(Debug)]
+pub struct V8IsolateScopeStorage {
+    /// A pointer to the isolate these scopes were created from.
+    /// This pointer is used only to check that the scopes are still
+    /// valid.
+    original_isolate: *mut v8_isolate,
     inner_handlers_scope: *mut v8_handlers_scope,
     inner_isolate_scope: *mut v8_isolate_scope,
+}
+
+impl V8IsolateScopeStorage {
+    fn new(isolate: &V8Isolate) -> Self {
+        Self {
+            original_isolate: isolate.get_raw(),
+            inner_isolate_scope: unsafe { v8_IsolateEnter(isolate.inner_isolate) },
+            inner_handlers_scope: unsafe { v8_NewHandlersScope(isolate.inner_isolate) },
+        }
+    }
+
+    /// Returns `true` if this storage was originally created for the
+    /// isolate which is passed as an argument.
+    fn is_same_isolate(&self, isolate: &V8Isolate) -> bool {
+        self.original_isolate == isolate.get_raw()
+    }
+
+    /// Returns `true` if this storage is uninitialised.
+    fn is_uninitialised(&self) -> bool {
+        self.original_isolate.is_null()
+            || self.inner_handlers_scope.is_null()
+            || self.inner_isolate_scope.is_null()
+    }
+}
+
+impl Default for V8IsolateScopeStorage {
+    fn default() -> Self {
+        Self {
+            original_isolate: std::ptr::null_mut(),
+            inner_handlers_scope: std::ptr::null_mut(),
+            inner_isolate_scope: std::ptr::null_mut(),
+        }
+    }
+}
+
+impl Drop for V8IsolateScopeStorage {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.inner_handlers_scope.is_null() {
+                v8_FreeHandlersScope(self.inner_handlers_scope);
+            }
+            if !self.inner_isolate_scope.is_null() {
+                v8_IsolateExit(self.inner_isolate_scope);
+            }
+        }
+    }
+}
+
+/// Isolate scope is an entered [V8Isolate] with a handlers scope
+/// object.
+#[derive(Debug)]
+pub struct V8IsolateScope<'isolate> {
+    pub(crate) isolate: &'isolate V8Isolate,
+    storage: V8IsolateScopeStorage,
 }
 
 extern "C" fn free_external_data<T: 'static>(arg1: *mut ::std::os::raw::c_void) {
@@ -54,12 +116,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     /// 1. Enter the isolate
     /// 2. Create a scope handler.
     pub(crate) fn new(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
-        let inner_isolate_scope = unsafe { v8_IsolateEnter(isolate.inner_isolate) };
-        let inner_handlers_scope = unsafe { v8_NewHandlersScope(isolate.inner_isolate) };
         V8IsolateScope {
             isolate,
-            inner_handlers_scope,
-            inner_isolate_scope,
+            storage: V8IsolateScopeStorage::new(isolate),
         }
     }
 
@@ -79,18 +138,55 @@ impl<'isolate> V8IsolateScope<'isolate> {
     /// the isolate is already entered and we already have a scope handler. For example,
     /// when calling a native function we can create a dummy isolate scope because we
     /// know we already entered the isolate and created a scope handler.
-    pub(crate) fn new_dummy(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
+    pub fn new_dummy(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
         V8IsolateScope {
             isolate,
-            inner_handlers_scope: std::ptr::null_mut(),
-            inner_isolate_scope: std::ptr::null_mut(),
+            storage: V8IsolateScopeStorage::default(),
         }
     }
 
+    /// Returns a raw pointer to the isolate.
+    pub fn get_raw_isolate(&self) -> *mut v8_isolate {
+        self.isolate.get_raw()
+    }
+
+    /// Creates a new [V8IsolateScope] (or "restores it") with an
+    /// already existing storage for the scopes.
+    /// The storage provided must have been created precisely for the
+    /// isolate passed.
+    pub fn restore(isolate: &'isolate V8Isolate, storage: V8IsolateScopeStorage) -> Option<Self> {
+        if !storage.is_same_isolate(isolate) {
+            None
+        } else {
+            Some(Self { isolate, storage })
+        }
+    }
+
+    /// Forgets about the isolate and handlers scopes, so that those
+    /// aren't deleted in destructor. Returns the storage object created
+    /// for this [V8IsolateScope], so that it is still possible to
+    /// restore later.
+    pub fn forget(&mut self) -> V8IsolateScopeStorage {
+        std::mem::take(&mut self.storage)
+    }
+
+    /// Returns `true` if the scopes are left uninitialised.
+    pub fn is_forgotten(&self) -> bool {
+        self.storage.is_uninitialised()
+    }
+
     /// Creating a new context for JS code invocation.
-    #[must_use]
     pub fn new_context(&self, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         V8Context::new(self.isolate, globals)
+    }
+
+    /// Returns a [V8ContextScope] if it has already been entered and
+    /// created for this isolate and isolate scope.
+    pub fn get_current_context_scope<'isolate_scope>(
+        &'isolate_scope self,
+    ) -> Option<V8ContextScope<'isolate_scope, 'isolate>> {
+        V8Context::get_current_raw_ref_for_isolate(self.isolate)
+            .map(|p| V8ContextScope::new_for_ref(p.as_ptr(), true, self))
     }
 
     /// Raise an exception with the given local generic value.
@@ -130,17 +226,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         &'isolate_scope self,
         s: &str,
     ) -> V8LocalString<'isolate_scope, 'isolate> {
-        let inner_string = unsafe {
-            v8_NewString(
-                self.isolate.inner_isolate,
-                s.as_ptr().cast::<c_char>(),
-                s.len(),
-            )
-        };
-        V8LocalString {
-            inner_string,
-            isolate_scope: self,
-        }
+        V8LocalString::new(self, s)
     }
 
     /// Create a new string object.
@@ -311,19 +397,6 @@ impl<'isolate> V8IsolateScope<'isolate> {
         V8Unlocker {
             inner_unlocker,
             _isolate_scope: self,
-        }
-    }
-}
-
-impl<'isolate> Drop for V8IsolateScope<'isolate> {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.inner_handlers_scope.is_null() {
-                v8_FreeHandlersScope(self.inner_handlers_scope);
-            }
-            if !self.inner_isolate_scope.is_null() {
-                v8_IsolateExit(self.inner_isolate_scope);
-            }
         }
     }
 }

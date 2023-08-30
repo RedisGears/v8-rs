@@ -52,11 +52,7 @@ pub(crate) extern "C" fn load_module<
     // return value.
     // Users can use this isolate score as if it was a regular isolate scope.
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
-    let ctx_scope = V8ContextScope {
-        inner_ctx_ref: v8_ctx_ref,
-        exit_on_drop: false,
-        isolate_scope: &isolate_scope,
-    };
+    let ctx_scope = V8ContextScope::new_for_ref(v8_ctx_ref, false, &isolate_scope);
     let name_obj = V8LocalString {
         inner_string: name,
         isolate_scope: &isolate_scope,
@@ -90,7 +86,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
         let res = unsafe {
             v8_InitiateModule(
                 self.inner_module,
-                ctx_scope.inner_ctx_ref,
+                ctx_scope.get_inner(),
                 Some(load_module::<T>),
             )
         };
@@ -102,7 +98,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
         &self,
         ctx_scope: &V8ContextScope,
     ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let res = unsafe { v8_EvaluateModule(self.inner_module, ctx_scope.inner_ctx_ref) };
+        let res = unsafe { v8_EvaluateModule(self.inner_module, ctx_scope.get_inner()) };
         if res.is_null() {
             None
         } else {

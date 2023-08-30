@@ -22,6 +22,7 @@ use std::os::raw::{c_char, c_int};
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.
 /// In order to free an isolate, one must call [`V8Isolate::free_isolate`].
+#[derive(Debug)]
 pub struct V8Isolate {
     pub(crate) inner_isolate: *mut v8_isolate,
     pub(crate) no_release: bool,
@@ -78,6 +79,15 @@ extern "C" fn near_oom_callback_free_pd<F: Fn(usize, usize) -> usize>(data: *mut
     }
 }
 
+impl From<*mut v8_isolate> for V8Isolate {
+    fn from(value: *mut v8_isolate) -> Self {
+        Self {
+            inner_isolate: value,
+            no_release: false,
+        }
+    }
+}
+
 impl V8Isolate {
     /// Create a new v8 isolate with default heap size (up to 1G).
     #[must_use]
@@ -93,7 +103,7 @@ impl V8Isolate {
         initial_heap_size_in_bytes: usize,
         maximum_heap_size_in_bytes: usize,
     ) -> Self {
-        let inner_isolate = unsafe {
+        unsafe {
             let res = v8_NewIsolate(initial_heap_size_in_bytes, maximum_heap_size_in_bytes);
             if crate::v8::FATAL_ERROR_CALLBACK.is_some() {
                 v8_IsolateSetFatalErrorHandler(res, Some(fatal_error_callback))
@@ -102,12 +112,8 @@ impl V8Isolate {
                 v8_IsolateSetOOMErrorHandler(res, Some(oom_error_callback))
             }
             res
-        };
-
-        Self {
-            inner_isolate,
-            no_release: false,
         }
+        .into()
     }
 
     /// Enter the isolate for code invocation.
@@ -115,7 +121,6 @@ impl V8Isolate {
     /// object is destroy the code will exit the isolate.
     ///
     /// An isolate must be entered before running any JS code.
-    #[must_use]
     pub fn enter(&self) -> V8IsolateScope {
         V8IsolateScope::new(self)
     }
@@ -236,6 +241,11 @@ impl V8Isolate {
     /// acquired the V8 lock with a Locker object.
     pub fn cancel_terminate_execution(&self) {
         unsafe { v8_CancelTerminateExecution(self.inner_isolate) }
+    }
+
+    /// Returns a raw pointer to a [v8_isolate].
+    pub fn get_raw(&self) -> *mut v8_isolate {
+        self.inner_isolate
     }
 }
 

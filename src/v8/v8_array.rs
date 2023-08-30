@@ -49,7 +49,7 @@ impl<'isolate_scope, 'isolate> V8LocalArray<'isolate_scope, 'isolate> {
         ctx_scope: &V8ContextScope,
         index: usize,
     ) -> V8LocalValue<'isolate_scope, 'isolate> {
-        let inner_val = unsafe { v8_ArrayGet(ctx_scope.inner_ctx_ref, self.inner_array, index) };
+        let inner_val = unsafe { v8_ArrayGet(ctx_scope.get_inner(), self.inner_array, index) };
         V8LocalValue {
             inner_val,
             isolate_scope: self.isolate_scope,

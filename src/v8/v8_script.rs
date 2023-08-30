@@ -14,20 +14,25 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
 
 /// JS script object
+#[derive(Debug)]
 pub struct V8LocalScript<'isolate_scope, 'isolate> {
     pub(crate) inner_script: *mut v8_local_script,
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
+/// A persisted script is a JavaScript-compiled code, which isn't tied
+/// to the isolate it was compiled for. Hence it doesn't have any
+/// lifetime boundaries and can live on its own, and converted into a
+/// [V8LocalScript] later when it is required.
+#[derive(Debug)]
 pub struct V8PersistedScript {
     pub(crate) inner_persisted_script: *mut v8_persisted_script,
 }
 
 impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
-    /// Run the script
-    #[must_use]
+    /// Run the script.
     pub fn run(&self, ctx: &V8ContextScope) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let inner_val = unsafe { v8_Run(ctx.inner_ctx_ref, self.inner_script) };
+        let inner_val = unsafe { v8_Run(ctx.get_inner(), self.inner_script) };
         if inner_val.is_null() {
             None
         } else {
@@ -38,6 +43,9 @@ impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
         }
     }
 
+    /// Persists the script by making it not tied to the isolate it was
+    /// created for, allowing it to outlive it and not be bound to any
+    /// lifetime.
     pub fn persist(&self) -> V8PersistedScript {
         let inner_persisted_script = unsafe {
             v8_ScriptPersist(self.isolate_scope.isolate.inner_isolate, self.inner_script)
@@ -45,6 +53,12 @@ impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
         V8PersistedScript {
             inner_persisted_script,
         }
+    }
+}
+
+impl<'isolate_scope, 'isolate> From<V8LocalScript<'isolate_scope, 'isolate>> for V8PersistedScript {
+    fn from(value: V8LocalScript<'isolate_scope, 'isolate>) -> Self {
+        value.persist()
     }
 }
 
@@ -77,6 +91,8 @@ unsafe impl Send for V8PersistedScript {}
 
 impl Drop for V8PersistedScript {
     fn drop(&mut self) {
-        unsafe { v8_FreePersistedScript(self.inner_persisted_script) }
+        unsafe {
+            v8_FreePersistedScript(self.inner_persisted_script);
+        }
     }
 }

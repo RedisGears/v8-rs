@@ -15,6 +15,7 @@ use crate::v8::v8_value::V8LocalValue;
 
 /// An object that responsible to catch any exception which raised
 /// during the JS code invocation.
+#[derive(Debug)]
 pub struct V8TryCatch<'isolate_scope, 'isolate> {
     pub(crate) inner_trycatch: *mut v8_trycatch,
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
@@ -38,8 +39,7 @@ impl<'isolate_scope, 'isolate> V8TryCatch<'isolate_scope, 'isolate> {
         &self,
         ctx_scope: &V8ContextScope,
     ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let inner_val =
-            unsafe { v8_TryCatchGetTrace(self.inner_trycatch, ctx_scope.inner_ctx_ref) };
+        let inner_val = unsafe { v8_TryCatchGetTrace(self.inner_trycatch, ctx_scope.get_inner()) };
         if inner_val.is_null() {
             return None;
         }
