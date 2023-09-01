@@ -8,6 +8,10 @@
 #define SRC_V8_C_API_H_
 
 #include <stddef.h>
+#include <stdint.h>
+
+/** A special isolate ID which is is invalid. */
+static const uint64_t ISOLATE_ID_INVALID = 0;
 
 /** Allocator definition
  * Note: only structs memory will be allocated using the allocator,
@@ -240,6 +244,9 @@ size_t v8_IsolateTotalHeapSize(v8_isolate* i);
 size_t v8_IsolateHeapSizeLimit(v8_isolate* i);
 
 void v8_IsolateNotifyMemoryPressure(v8_isolate* i);
+
+/** Returns the ID of the passed isolate. */
+uint64_t v8_GetIsolateId(v8_isolate* isolate);
 
 /** Return the currently used isolate or NULL if not isolate is in used */
 v8_isolate* v8_IsolateGetCurrent();
