@@ -13,6 +13,8 @@ use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
 
+use super::isolate::IsolateId;
+
 /// JS script object
 #[derive(Debug)]
 pub struct V8LocalScript<'isolate_scope, 'isolate> {
@@ -27,6 +29,8 @@ pub struct V8LocalScript<'isolate_scope, 'isolate> {
 #[derive(Debug)]
 pub struct V8PersistedScript {
     pub(crate) inner_persisted_script: *mut v8_persisted_script,
+    /// The ID of the isolate this persisted script was created from.
+    pub(crate) isolate_id: IsolateId,
 }
 
 impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
@@ -50,8 +54,16 @@ impl<'isolate_scope, 'isolate> V8LocalScript<'isolate_scope, 'isolate> {
         let inner_persisted_script = unsafe {
             v8_ScriptPersist(self.isolate_scope.isolate.inner_isolate, self.inner_script)
         };
+
+        let isolate_id = self
+            .isolate_scope
+            .isolate
+            .get_id()
+            .expect("Poisoned isolate");
+
         V8PersistedScript {
             inner_persisted_script,
+            isolate_id,
         }
     }
 }
@@ -63,19 +75,30 @@ impl<'isolate_scope, 'isolate> From<V8LocalScript<'isolate_scope, 'isolate>> for
 }
 
 impl V8PersistedScript {
+    /// Converts this persisted script back into the local object to the
+    /// passed isolate.
     pub fn to_local<'isolate_scope, 'isolate>(
         &self,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
-    ) -> V8LocalScript<'isolate_scope, 'isolate> {
-        let inner_script = unsafe {
-            v8_PersistedScriptToLocal(
-                isolate_scope.isolate.inner_isolate,
-                self.inner_persisted_script,
-            )
-        };
-        V8LocalScript {
-            inner_script,
-            isolate_scope,
+    ) -> Result<V8LocalScript<'isolate_scope, 'isolate>, &'static str> {
+        if let Some(id) = isolate_scope.isolate.get_id() {
+            if id != self.isolate_id {
+                Err("The passed isolate is not the isolate this persisted script was created from.")
+            } else {
+                let inner_script = unsafe {
+                    v8_PersistedScriptToLocal(
+                        isolate_scope.isolate.inner_isolate,
+                        self.inner_persisted_script,
+                    )
+                };
+
+                Ok(V8LocalScript {
+                    inner_script,
+                    isolate_scope,
+                })
+            }
+        } else {
+            Err("The passed isolate is invalid.")
         }
     }
 }

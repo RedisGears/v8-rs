@@ -961,6 +961,49 @@ mod tests {
         // must be higher than that of the first.
         assert!(first_id < second_id);
     }
+
+    #[test]
+    fn persisted_script_converts_to_local() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("function foo() { return 0; }");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+
+        // Case 1: using the same isolate scope.
+        let persisted = script.persist();
+        assert!(persisted.to_local(&isolate_scope).is_ok());
+
+        // Case 2: using the another isolate scope for the same isolate.
+        {
+            let isolate_scope_2 = isolate.enter();
+            assert!(persisted.to_local(&isolate_scope_2).is_ok());
+        }
+    }
+
+    #[test]
+    fn persisted_script_doesnt_convert_to_local() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("function foo() { return 0; }");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+
+        let persisted = script.persist();
+        assert!(persisted.to_local(&isolate_scope).is_ok());
+
+        {
+            let isolate_2 = isolate::V8Isolate::new();
+            let isolate_scope_2 = isolate_2.enter();
+            assert!(persisted.to_local(&isolate_scope_2).is_err());
+        }
+
+        // TODO: mock and cover the case of invalid ID.
+    }
 }
 
 /// This tests the "README.md" file code.
