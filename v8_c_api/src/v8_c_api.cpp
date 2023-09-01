@@ -8,17 +8,33 @@
 #include "v8-version-string.h"
 #include "libplatform/libplatform.h"
 
+#include <atomic>
 #include <cassert>
 
 namespace {
 v8::Platform* GLOBAL_PLATFORM = NULL;
+
+/** Starts with 1, because 0 is an invalid ID. */
+std::atomic_uint_fast64_t ISOLATE_ID_COUNTER = 1;
 } // anonymous namespace
 
-/// Our slot is a slot where we store our own data. The 0th index of
-/// V8 is forbidden from being used, so we store our data at this index
-/// instead.
+/** The isolate data indices:
+ * 0 - reserved by V8.
+ * 1 - our internal data (can be anything).
+ * 2 - isolate id.
+ * 3 - debugger object.
+ * 4 and higher - any other user data.
+*/
+
+/** Our slot is a slot where we store our own data. The 0th index of
+ * V8 is forbidden from being used, so we store our data at this index
+ * instead.
+ */
 #define OUR_SLOT 1
-#define DEBUGGER_INDEX 1
+/** The data index of the isolate id. */
+#define ISOLATE_ID_INDEX 2
+/** The data index of the debugger . */
+#define DEBUGGER_INDEX 3
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
@@ -263,6 +279,18 @@ v8_pd_node* v8_PDListAdd(v8_pd_list *list, void *pd, void (*free_data)(void *dat
     return new_node;
 }
 
+void* v8_PDListGet(v8_pd_list *list, size_t index) {
+    if (!list) {
+        return nullptr;
+    }
+
+    v8_pd_node *node = list->start;
+    while (node && index--) {
+        node = node->next;
+    }
+    return node->data;
+}
+
 void v8_PDListFree(v8_pd_list* pd_list) {
     while (pd_list->end) {
         v8_ListNodeFree(pd_list->end);
@@ -324,6 +352,9 @@ v8_isolate* v8_NewIsolate(size_t initial_heap_size_in_bytes, size_t maximum_heap
 
     v8_pd_list *native_data = v8_PDListCreate(create_params.array_buffer_allocator);
     isolate->SetData(OUR_SLOT, native_data);
+    uint64_t *isolate_id = (uint64_t *)V8_ALLOC(sizeof(uint64_t));
+    *isolate_id = ISOLATE_ID_COUNTER++;
+    isolate->SetData(ISOLATE_ID_INDEX, isolate_id);
 
     return (v8_isolate*)isolate;
 }
@@ -344,6 +375,15 @@ void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void
     v8_PDListAdd(native_data, pd, free_pd);
     isolate->AddNearHeapLimitCallback(near_oom_callback, pd);
     isolate->AutomaticallyRestoreInitialHeapLimit();
+}
+
+uint64_t v8_GetIsolateId(v8_isolate* isolate) {
+    v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate *>(isolate);
+    uint64_t *id_ptr = reinterpret_cast<uint64_t*>(v8_isolate->GetData(ISOLATE_ID_INDEX));
+    if (!id_ptr) {
+        return ISOLATE_ID_INVALID;
+    }
+    return *id_ptr;
 }
 
 v8_isolate* v8_IsolateGetCurrent() {
@@ -394,6 +434,7 @@ void v8_CancelTerminateExecution(v8_isolate* i) {
 void v8_FreeIsolate(v8_isolate* i) {
     v8::Isolate *isolate = (v8::Isolate*)i;
     v8_pd_list *native_data = (v8_pd_list*)isolate->GetData(OUR_SLOT);
+    V8_FREE(reinterpret_cast<uint64_t *>(isolate->GetData(ISOLATE_ID_INDEX)));
     v8::ArrayBuffer::Allocator *allocator = native_data->allocator;
     v8_PDListFree(native_data);
     isolate->Dispose();

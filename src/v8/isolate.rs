@@ -6,11 +6,11 @@
 //! An isolate rust wrapper to v8 isolate.
 
 use crate::v8_c_raw::bindings::{
-    v8_CancelTerminateExecution, v8_FreeIsolate, v8_IdleNotificationDeadline, v8_IsolateGetCurrent,
-    v8_IsolateHeapSizeLimit, v8_IsolateNotifyMemoryPressure, v8_IsolateSetFatalErrorHandler,
-    v8_IsolateSetNearOOMHandler, v8_IsolateSetOOMErrorHandler, v8_IsolateTotalHeapSize,
-    v8_IsolateUsedHeapSize, v8_NewIsolate, v8_RequestInterrupt, v8_TerminateCurrExecution,
-    v8_isolate,
+    v8_CancelTerminateExecution, v8_FreeIsolate, v8_GetIsolateId, v8_IdleNotificationDeadline,
+    v8_IsolateGetCurrent, v8_IsolateHeapSizeLimit, v8_IsolateNotifyMemoryPressure,
+    v8_IsolateSetFatalErrorHandler, v8_IsolateSetNearOOMHandler, v8_IsolateSetOOMErrorHandler,
+    v8_IsolateTotalHeapSize, v8_IsolateUsedHeapSize, v8_NewIsolate, v8_RequestInterrupt,
+    v8_TerminateCurrExecution, v8_isolate, ISOLATE_ID_INVALID,
 };
 
 use std::os::raw::c_void;
@@ -18,6 +18,18 @@ use std::os::raw::c_void;
 use crate::v8::isolate_scope::V8IsolateScope;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
+
+/// An ID type for an isolate.
+/// IDs are set for each new isolate created automatically.
+#[repr(transparent)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd, Ord, Hash)]
+pub struct IsolateId(pub(crate) u64);
+
+impl From<u64> for IsolateId {
+    fn from(value: u64) -> Self {
+        Self(value)
+    }
+}
 
 /// An isolate rust wrapper object.
 /// The isolate will not be automatically freed.
@@ -246,6 +258,16 @@ impl V8Isolate {
     /// Returns a raw pointer to a [v8_isolate].
     pub fn get_raw(&self) -> *mut v8_isolate {
         self.inner_isolate
+    }
+
+    /// Returns the unique ID of this isolate.
+    pub fn get_id(&self) -> Option<IsolateId> {
+        let raw_id = unsafe { v8_GetIsolateId(self.inner_isolate) };
+        if raw_id == ISOLATE_ID_INVALID {
+            None
+        } else {
+            Some(raw_id.into())
+        }
     }
 }
 

@@ -932,7 +932,7 @@ mod tests {
     }
 
     #[test]
-    fn test_value_gc_callback() {
+    fn value_gc_callback() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let mut dropped_called = false;
@@ -948,6 +948,18 @@ mod tests {
         let _ctx_scope = ctx.enter(&isolate_scope);
         isolate_scope.request_gc_for_testing(GarbageCollectionJobType::Full);
         assert!(dropped_called);
+    }
+
+    #[test]
+    fn isolate_id_is_set() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let first_id = isolate.get_id().unwrap();
+        let isolate = isolate::V8Isolate::new();
+        let second_id = isolate.get_id().unwrap();
+        // As the second isolate was created after the first, its ID
+        // must be higher than that of the first.
+        assert!(first_id < second_id);
     }
 }
 
