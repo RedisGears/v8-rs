@@ -152,7 +152,7 @@ impl<'isolate_scope, 'isolate> V8LocalNativeFunctionArgs<'isolate_scope, 'isolat
         V8LocalNativeFunctionArgsIter {
             args: self,
             index: 0,
-            ctx_scope: ctx_scope,
+            ctx_scope,
         }
     }
 }

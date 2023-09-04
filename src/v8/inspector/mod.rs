@@ -28,7 +28,7 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, ptr::NonNull, sync::Arc};
 
 pub mod messages;
 #[cfg(feature = "debug-server")]
@@ -43,7 +43,7 @@ use super::{isolate::V8Isolate, v8_context_scope::V8ContextScope};
 /// API. An inspector is tied to the [V8Isolate] it was created for.
 #[derive(Debug)]
 pub struct RawInspector {
-    raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
+    raw: NonNull<crate::v8_c_raw::bindings::v8_inspector_c_wrapper>,
 }
 
 impl RawInspector {
@@ -52,13 +52,13 @@ impl RawInspector {
     pub fn new(context_scope: &V8ContextScope<'_, '_>) -> Self {
         let raw_context = context_scope.get_inner();
         let raw = unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorCreate(
+            NonNull::new_unchecked(crate::v8_c_raw::bindings::v8_InspectorCreate(
                 raw_context,
                 None,
                 std::ptr::null_mut(),
                 None,
                 std::ptr::null_mut(),
-            )
+            ))
         };
         Self { raw }
     }
@@ -66,7 +66,8 @@ impl RawInspector {
     /// Returns the isolate this inspector is bound to. The isolate
     /// returned won't be released automatically.
     pub fn get_isolate(&self) -> V8Isolate {
-        let isolate = unsafe { crate::v8_c_raw::bindings::v8_InspectorGetIsolate(self.raw) };
+        let isolate =
+            unsafe { crate::v8_c_raw::bindings::v8_InspectorGetIsolate(self.raw.as_ptr()) };
         V8Isolate {
             inner_isolate: isolate,
             no_release: true,
@@ -77,7 +78,7 @@ impl RawInspector {
     /// [`crate::v8::v8_context_scope::V8ContextScope`] of this
     /// inspector.
     pub fn get_context_scope_ptr(&self) -> *mut v8_context_ref {
-        unsafe { crate::v8_c_raw::bindings::v8_InspectorGetContext(self.raw) }
+        unsafe { crate::v8_c_raw::bindings::v8_InspectorGetContext(self.raw.as_ptr()) }
     }
 
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
@@ -93,7 +94,7 @@ impl RawInspector {
         };
         unsafe {
             crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
-                self.raw,
+                self.raw.as_ptr(),
                 string.as_ptr(),
             )
         }
@@ -109,7 +110,7 @@ impl RawInspector {
         };
         unsafe {
             crate::v8_c_raw::bindings::v8_InspectorSchedulePauseOnNextStatement(
-                self.raw,
+                self.raw.as_ptr(),
                 string.as_ptr(),
             )
         }
@@ -120,14 +121,16 @@ impl RawInspector {
     /// but may also be called from here to wait for a certain event
     /// on the client side.
     pub fn wait_frontend_message_on_pause(&self) {
-        unsafe { crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(self.raw) }
+        unsafe {
+            crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(self.raw.as_ptr())
+        }
     }
 }
 
 impl Drop for RawInspector {
     fn drop(&mut self) {
         unsafe {
-            crate::v8_c_raw::bindings::v8_FreeInspector(self.raw as *mut _);
+            crate::v8_c_raw::bindings::v8_FreeInspector(self.raw.as_ptr());
         }
     }
 }
@@ -252,7 +255,7 @@ impl Inspector {
 
         unsafe {
             crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
-                raw.raw,
+                raw.raw.as_ptr(),
                 Some(on_response),
                 on_response_callback as _,
             );
@@ -274,7 +277,7 @@ impl Inspector {
 
         unsafe {
             crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
-                raw.raw,
+                raw.raw.as_ptr(),
                 Some(on_wait_frontend_message_on_pause),
                 on_wait_frontend_message_on_pause_callback as _,
             );
