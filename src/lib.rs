@@ -4,8 +4,43 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 //! V8-rs is a crate containing bindings to the V8 C++ API.
+//!
+//! # Example
+//!
+//! ```rust
+//! use v8_rs::v8::*;
+//!
+//! // Initialise the V8 engine:
+//! v8_init_platform(1, Some("--expose-gc")).unwrap();
+//! v8_init();
+//!
+//! // Create a new isolate:
+//! let isolate = isolate::V8Isolate::new();
+//!
+//! // Enter the isolate created:
+//! let i_scope = isolate.enter();
+//!
+//! // Create the code string object:
+//! let code_str = i_scope.new_string("1+1");
+//!
+//! // Create a JS execution context for code invocation:""
+//! let ctx = i_scope.new_context(None);
+//!
+//! // Enter the created execution context:
+//! let ctx_scope = ctx.enter(&i_scope);
+//!
+//! // Compile the code:
+//! let script = ctx_scope.compile(&code_str).unwrap();
+//!
+//! // Run the compiled code:
+//! let res = script.run(&ctx_scope).unwrap();
+//!
+//! // Get the result:
+//! let res_utf8 = res.to_utf8().unwrap();
+//! assert_eq!(res_utf8.as_str(), "2");
+//! ```
 
-// #![deny(missing_docs)]
+#![warn(missing_docs)]
 
 /// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
@@ -56,27 +91,12 @@ impl From<UserIndex> for RawIndex {
 }
 
 #[cfg(test)]
-mod json_path_tests {
+mod test_utils {
+    use crate::v8::v8_init;
+    use crate::v8::v8_init_platform;
     use std::sync::Mutex;
 
-    use crate::v8::isolate_scope::GarbageCollectionJobType;
-    use crate::v8::v8_array::V8LocalArray;
-    use crate::v8::v8_init_platform;
-    use crate::v8::v8_object::V8LocalObject;
-    use crate::v8::v8_utf8::V8LocalUtf8;
-    use crate::v8::v8_value::V8LocalValue;
-    use crate::v8::{
-        isolate, isolate_scope, v8_array, v8_array_buffer, v8_context_scope, v8_init,
-        v8_native_function_template, v8_object, v8_set, v8_utf8,
-        v8_value::{self},
-    };
-    use crate::{self as v8_rs};
-
-    use v8_derive::{new_native_function, NativeFunctionArgument};
-
-    lazy_static::lazy_static! {
-        static ref IS_INITIALIZED: Mutex<bool> = Mutex::new(false);
-    }
+    static mut IS_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
     #[ctor::ctor]
     fn initialize_platform() {
@@ -87,28 +107,38 @@ mod json_path_tests {
         v8_init_platform(1, Some("--expose-gc")).unwrap();
     }
 
-    fn initialize() {
-        let mut is_initialized = IS_INITIALIZED.lock().unwrap();
+    pub fn initialize() {
+        let mut is_initialized = unsafe { IS_INITIALIZED.lock().unwrap() };
         if !*is_initialized {
             v8_init().unwrap();
             *is_initialized = true;
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_utils::initialize;
+    use crate::tests::isolate_scope::GarbageCollectionJobType;
+    use crate::v8::v8_array::V8LocalArray;
+    use crate::v8::{
+        isolate, isolate_scope, v8_context_scope, v8_native_function_template, v8_value,
+    };
 
     #[test]
-    fn test_simple_init_destroy() {
+    fn simple_init_destroy() {
         initialize();
     }
 
     #[test]
-    fn test_simple_isolate_creation() {
+    fn simple_isolate_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let _i_scope = isolate.enter();
     }
 
     #[test]
-    fn test_simple_string_creation() {
+    fn simple_string_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -116,7 +146,22 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_simple_object_creation() {
+    fn string_is_properly_cloneable() {
+        initialize();
+
+        let isolate = crate::v8::isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let source = isolate_scope.new_string("test");
+        let copy = source.clone();
+        assert_ne!(source.inner_string, copy.inner_string);
+        assert_eq!(
+            String::try_from(source).unwrap(),
+            String::try_from(copy).unwrap()
+        );
+    }
+
+    #[test]
+    fn simple_object_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -124,7 +169,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_simple_native_function_creation() {
+    fn simple_native_function_creation() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -135,141 +180,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_native_function_args() {
-        initialize();
-        let isolate = isolate::V8Isolate::new();
-        let isolate_scope = isolate.enter();
-        let native =
-            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
-                let v = args.get(0);
-                let s = v.to_utf8().unwrap();
-                assert_eq!(s.as_str(), "2");
-                None
-            });
-        let native_funciton_name = isolate_scope.new_string("foo");
-        let mut globals = isolate_scope.new_object_template();
-        globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate_scope.new_string("foo(2)");
-        let ctx = isolate_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter(&isolate_scope);
-        let script = ctx_scope.compile(&code_str).unwrap();
-        script.run(&ctx_scope).unwrap();
-    }
-
-    #[test]
-    fn test_native_function_call_js() {
-        initialize();
-        let isolate = isolate::V8Isolate::new();
-        let isolate_scope = isolate.enter();
-
-        let foo1 = isolate_scope.new_native_function_template(|args, _isolate, ctx_scope| {
-            let v = args.get(0);
-            let _res = v.call(ctx_scope, None);
-            None
-        });
-        let foo1_name = isolate_scope.new_string("foo1");
-
-        let foo2 =
-            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
-                let v = args.get(0);
-                let s = v.to_utf8().unwrap();
-                assert_eq!(s.as_str(), "2");
-                None
-            });
-        let foo2_name = isolate_scope.new_string("foo2");
-
-        let mut globals = isolate_scope.new_object_template();
-        globals.set_native_function(&foo1_name, &foo1);
-        globals.set_native_function(&foo2_name, &foo2);
-
-        let code_str = isolate_scope.new_string("foo1(()=>{foo2(2)})");
-        let i_scope = isolate.enter();
-        let ctx = i_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter(&isolate_scope);
-        let script = ctx_scope.compile(&code_str).unwrap();
-        script.run(&ctx_scope).unwrap();
-    }
-
-    #[test]
-    fn test_native_function_call_with_args() {
-        initialize();
-        let isolate = isolate::V8Isolate::new();
-        let isolate_scope = isolate.enter();
-
-        let foo1 = isolate_scope.new_native_function_template(|args, isolate_scope, ctx_scope| {
-            let foo = isolate_scope.new_string("foo");
-            let v = args.get(0);
-            let _res = v.call(ctx_scope, Some(&[&foo.to_value()]));
-            None
-        });
-        let foo1_name = isolate_scope.new_string("foo1");
-
-        let foo2 =
-            isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
-                let v = args.get(0);
-                let s = v.to_utf8().unwrap();
-                assert_eq!(s.as_str(), "foo");
-                None
-            });
-        let foo2_name = isolate_scope.new_string("foo2");
-
-        let mut globals = isolate_scope.new_object_template();
-        globals.set_native_function(&foo1_name, &foo1);
-        globals.set_native_function(&foo2_name, &foo2);
-
-        let code_str = isolate_scope.new_string("foo1((a)=>{foo2(a)})");
-        let ctx = isolate_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter(&isolate_scope);
-        let script = ctx_scope.compile(&code_str).unwrap();
-        script.run(&ctx_scope).unwrap();
-    }
-
-    #[test]
-    fn test_native_function_raise_exception() {
-        initialize();
-        let isolate = isolate::V8Isolate::new();
-        let isolate_scope = isolate.enter();
-
-        let native = isolate_scope.new_native_function_template(|_args, isolate, _ctx_scope| {
-            isolate.raise_exception_str("this is an error");
-            None
-        });
-        let native_funciton_name = isolate_scope.new_string("foo");
-        let mut globals = isolate_scope.new_object_template();
-        globals.set_native_function(&native_funciton_name, &native);
-        let code_str = isolate_scope.new_string("foo(2)");
-        let ctx = isolate_scope.new_context(Some(&globals));
-        let ctx_scope = ctx.enter(&isolate_scope);
-        let script = ctx_scope.compile(&code_str).unwrap();
-        let trycatch = isolate_scope.new_try_catch();
-        assert!(script.run(&ctx_scope).is_none());
-        let exception = trycatch.get_exception();
-        let exception_msg = exception.to_utf8().unwrap();
-        assert_eq!(exception_msg.as_str(), "this is an error");
-    }
-
-    #[test]
-    fn test_native_function_raise_exception_error() {
-        initialize();
-        let isolate = isolate::V8Isolate::new();
-        let isolate_scope = isolate.enter();
-        let code_str = isolate_scope
-            .new_string("function foo(){throw new Error('this is an error!');};foo();");
-        let ctx = isolate_scope.new_context(None);
-        let ctx_scope = ctx.enter(&isolate_scope);
-        let script = ctx_scope.compile(&code_str).unwrap();
-        let trycatch = isolate_scope.new_try_catch();
-        assert!(script.run(&ctx_scope).is_none());
-        let exception = trycatch.get_exception();
-        let exception_msg = exception.to_utf8().unwrap();
-        assert_eq!(exception_msg.as_str(), "Error: this is an error!");
-        let trace = trycatch.get_trace(&ctx_scope);
-        let trace_str = trace.unwrap().to_utf8().unwrap();
-        assert!(trace_str.as_str().contains("at foo"));
-    }
-
-    #[test]
-    fn test_set_api() {
+    fn set_api() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -291,38 +202,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_delete_object_property() {
-        initialize();
-        let isolate = isolate::V8Isolate::new();
-        let isolate_scope = isolate.enter();
-        let ctx = isolate_scope.new_context(None);
-        let ctx_scope = ctx.enter(&isolate_scope);
-
-        let property_name = isolate_scope.new_string("foo").to_value();
-        let object = isolate_scope.new_object();
-        object.set(&ctx_scope, &property_name, &isolate_scope.new_long(1));
-
-        assert_eq!(
-            &object
-                .get_own_property_names(&ctx_scope)
-                .iter(&ctx_scope)
-                .map(|v| v.to_utf8().unwrap().as_str().to_owned())
-                .collect::<Vec<String>>(),
-            &["foo".to_owned()]
-        );
-
-        assert!(object.delete(&ctx_scope, &property_name));
-
-        assert!(object
-            .get_own_property_names(&ctx_scope)
-            .iter(&ctx_scope)
-            .map(|v| v.to_utf8().unwrap().as_str().to_owned())
-            .collect::<Vec<String>>()
-            .is_empty());
-    }
-
-    #[test]
-    fn test_simple_code_run() {
+    fn simple_code_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -336,7 +216,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_simple_module_run() {
+    fn simple_module_run() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -374,7 +254,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_async_function() {
+    fn async_function() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -397,14 +277,14 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_promise_resolver() {
+    fn promise_resolver() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
         let mut globals = isolate_scope.new_object_template();
         globals.add_native_function("foo", |_args, isolate_scope, ctx_scope| {
             let resolver = ctx_scope.new_resolver();
-            resolver.resolve(&ctx_scope, &isolate_scope.new_string("foo").to_value());
+            resolver.resolve(ctx_scope, &isolate_scope.new_string("foo").to_value());
             let promise = resolver.get_promise();
             let promise_val = promise.to_value();
             Some(promise_val)
@@ -427,7 +307,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_compilation_error() {
+    fn compilation_error() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -444,7 +324,7 @@ mod json_path_tests {
     }
 
     #[test]
-    fn test_run_error() {
+    fn run_error() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let isolate_scope = isolate.enter();
@@ -497,201 +377,210 @@ mod json_path_tests {
         res
     }
 
-    #[test]
-    fn test_value_is_object() {
-        define_function_and_call("foo({})", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_object());
-            None
-        })
-        .expect("Got error on function run");
-    }
+    mod value {
+        use super::define_function_and_call;
 
-    #[test]
-    fn test_value_is_function() {
-        define_function_and_call("foo(()=>{})", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_function());
-            None
-        })
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_value_is_async_function() {
-        define_function_and_call(
-            "foo(async function(){})",
-            "foo",
-            |args, _isolate, _ctx_scope| {
-                assert!(args.get(0).is_async_function());
+        #[test]
+        fn is_object() {
+            define_function_and_call("foo({})", "foo", |args, _isolate, _ctx_scope| {
+                assert!(args.get(0).is_object());
                 None
-            },
-        )
-        .expect("Got error on function run");
-    }
+            })
+            .expect("Got error on function run");
+        }
 
-    #[test]
-    fn test_value_is_string() {
-        define_function_and_call("foo(\"foo\")", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_string());
-            None
-        })
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_value_is_number() {
-        define_function_and_call("foo(1)", "foo", |args, _isolate, _ctx_scope| {
-            assert!(args.get(0).is_number());
-            None
-        })
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_value_is_promise() {
-        define_function_and_call(
-            "foo(async function(){}())",
-            "foo",
-            |args, _isolate, _ctx_scope| {
-                assert!(args.get(0).is_promise());
+        #[test]
+        fn is_function() {
+            define_function_and_call("foo(()=>{})", "foo", |args, _isolate, _ctx_scope| {
+                assert!(args.get(0).is_function());
                 None
-            },
-        )
-        .expect("Got error on function run");
+            })
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn is_async_function() {
+            define_function_and_call(
+                "foo(async function(){})",
+                "foo",
+                |args, _isolate, _ctx_scope| {
+                    assert!(args.get(0).is_async_function());
+                    None
+                },
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn is_string() {
+            define_function_and_call("foo(\"foo\")", "foo", |args, _isolate, _ctx_scope| {
+                assert!(args.get(0).is_string());
+                None
+            })
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn is_number() {
+            define_function_and_call("foo(1)", "foo", |args, _isolate, _ctx_scope| {
+                assert!(args.get(0).is_number());
+                None
+            })
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn is_promise() {
+            define_function_and_call(
+                "foo(async function(){}())",
+                "foo",
+                |args, _isolate, _ctx_scope| {
+                    assert!(args.get(0).is_promise());
+                    None
+                },
+            )
+            .expect("Got error on function run");
+        }
     }
 
-    #[test]
-    fn test_native_function_macro_i64() {
-        define_function_and_call(
-            "test(1,2)",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
+    mod native_function {
+        use v8_derive::new_native_function;
 
-    #[test]
-    fn test_native_function_macro_f64() {
-        define_function_and_call(
-            "test(1,2.2)",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2.2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
+        use crate::tests::{define_function_and_call, initialize};
+        use crate::v8::isolate::V8Isolate;
+        use crate::v8::{v8_array, v8_array_buffer, v8_object, v8_set, v8_utf8, v8_value};
+        use crate::{self as v8_rs};
 
-    #[test]
-    fn test_native_function_macro_string() {
-        define_function_and_call(
-            "test(1,2.2,'test')",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64, arg3: String| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2.2);
-                assert_eq!(arg3, "test");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_native_function_macro_bool() {
-        define_function_and_call(
-            "test(1,2.2,true)",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64, arg3: bool| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2.2);
-                assert_eq!(arg3, true);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_native_function_macro_v8_local_utf8() {
-        define_function_and_call(
-            "test('test')",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: v8_utf8::V8LocalUtf8| {
-                assert_eq!(arg1.as_str(), "test");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_native_function_macro_v8_local_value() {
-        define_function_and_call(
-            "test('test')",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: v8_value::V8LocalValue| {
-                assert_eq!(arg1.to_utf8().unwrap().as_str(), "test");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_native_function_macro_v8_local_set() {
-        define_function_and_call(
-            "test(new Set())",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, _arg1: v8_set::V8LocalSet| {
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_native_function_macro_v8_local_array() {
-        define_function_and_call(
-            "test([1, 2])",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: v8_array::V8LocalArray| {
-                assert_eq!(arg1.len(), 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_native_function_macro_v8_local_array_buffer() {
-        define_function_and_call(
-            "test(new Uint8Array([255, 255, 255, 255]).buffer)",
-            "test",
-            new_native_function!(
-                |_isolate, _ctx_scope, arg1: v8_array_buffer::V8LocalArrayBuffer| {
-                    assert_eq!(arg1.data(), &[255, 255, 255, 255]);
+        #[test]
+        fn macro_i64() {
+            define_function_and_call(
+                "test(1,2)",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
+                    assert_eq!(arg1, 1);
+                    assert_eq!(arg2, 2);
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect("Got error on function run");
-    }
+                }),
+            )
+            .expect("Got error on function run");
+        }
 
-    #[test]
-    fn test_native_function_macro_v8_local_object() {
-        define_function_and_call(
-            "test({'foo':'bar'})",
-            "test",
-            new_native_function!(
-                |isolate_scope: &isolate_scope::V8IsolateScope,
-                 ctx_scope,
-                 arg1: v8_object::V8LocalObject| {
+        #[test]
+        fn macro_f64() {
+            define_function_and_call(
+                "test(1,2.2)",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64| {
+                    assert_eq!(arg1, 1);
+                    assert_eq!(arg2, 2.2);
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_string() {
+            define_function_and_call(
+                "test(1,2.2,'test')",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64, arg3: String| {
+                    assert_eq!(arg1, 1);
+                    assert_eq!(arg2, 2.2);
+                    assert_eq!(arg3, "test");
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_bool() {
+            define_function_and_call(
+                "test(1,2.2,true)",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: f64, arg3: bool| {
+                    assert_eq!(arg1, 1);
+                    assert_eq!(arg2, 2.2);
+                    assert!(arg3);
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_v8_local_utf8() {
+            define_function_and_call(
+                "test('test')",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: v8_utf8::V8LocalUtf8| {
+                    assert_eq!(arg1.as_str(), "test");
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_v8_local_value() {
+            define_function_and_call(
+                "test('test')",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: v8_value::V8LocalValue| {
+                    assert_eq!(arg1.to_utf8().unwrap().as_str(), "test");
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_v8_local_set() {
+            define_function_and_call(
+                "test(new Set())",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, _arg1: v8_set::V8LocalSet| {
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_v8_local_array() {
+            define_function_and_call(
+                "test([1, 2])",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: v8_array::V8LocalArray| {
+                    assert_eq!(arg1.len(), 2);
+                    Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                }),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_v8_local_array_buffer() {
+            define_function_and_call(
+                "test(new Uint8Array([255, 255, 255, 255]).buffer)",
+                "test",
+                new_native_function!(
+                    |_isolate, _ctx_scope, arg1: v8_array_buffer::V8LocalArrayBuffer| {
+                        assert_eq!(arg1.data(), &[255, 255, 255, 255]);
+                        Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    }
+                ),
+            )
+            .expect("Got error on function run");
+        }
+
+        #[test]
+        fn macro_v8_local_object() {
+            define_function_and_call(
+                "test({'foo':'bar'})",
+                "test",
+                new_native_function!(|isolate_scope, ctx_scope, arg1: v8_object::V8LocalObject| {
                     assert_eq!(
                         arg1.get(ctx_scope, &isolate_scope.new_string("foo").to_value())
                             .unwrap()
@@ -701,388 +590,349 @@ mod json_path_tests {
                         "bar"
                     );
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect("Got error on function run");
-    }
+                }),
+            )
+            .expect("Got error on function run");
+        }
 
-    #[test]
-    fn test_native_function_macro_wrong_args_count() {
-        let err = define_function_and_call(
-            "test(1)",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Wrong number of arguments given."
-        );
-    }
-
-    #[test]
-    fn test_native_function_macro_wrong_arg_type() {
-        let err = define_function_and_call(
-            "test(1, 'foo')",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Value is not long."
-        );
-    }
-
-    #[test]
-    fn test_native_function_macro_optional_arguments_not_exists() {
-        let err = define_function_and_call(
-            "test(1, 'foo')",
-            "test",
-            new_native_function!(|_isolate,
-                                  _ctx_scope,
-                                  arg1: i64,
-                                  arg2: i64,
-                                  arg3: Option<f64>| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2);
-                assert_eq!(arg3, None);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Value is not long."
-        );
-    }
-
-    #[test]
-    fn test_native_function_macro_optional_arguments_exists() {
-        let err = define_function_and_call(
-            "test(1, 'foo', 2.2)",
-            "test",
-            new_native_function!(|_isolate,
-                                  _ctx_scope,
-                                  arg1: i64,
-                                  arg2: i64,
-                                  arg3: Option<f64>| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2, 2);
-                assert_eq!(arg3, Some(2.2));
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Value is not long."
-        );
-    }
-
-    #[test]
-    fn test_native_function_macro_optional_arguments_object_not_exists() {
-        let err = define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(
-                |_isolate,
-                 _ctx_scope,
-                 arg1: i64,
-                 arg2: i64,
-                 arg3: Option<v8_array::V8LocalArray>| {
+        #[test]
+        fn macro_wrong_args_count() {
+            let err = define_function_and_call(
+                "test(1)",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
-                    assert!(arg3.is_none());
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Value is not long."
-        );
-    }
+                }),
+            )
+            .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Wrong number of arguments given."
+            );
+        }
 
-    #[test]
-    fn test_native_function_macro_optional_arguments_object() {
-        let err = define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(
-                |_isolate,
-                 _ctx_scope,
-                 arg1: i64,
-                 arg2: i64,
-                 arg3: Option<v8_array::V8LocalArray>| {
+        #[test]
+        fn macro_wrong_arg_type() {
+            let err = define_function_and_call(
+                "test(1, 'foo')",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: i64| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2, 2);
-                    assert_eq!(arg3.unwrap().len(), 2);
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Value is not long."
-        );
-    }
+                }),
+            )
+            .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Value is not long."
+            );
+        }
 
-    #[test]
-    fn test_native_function_macro_optional_arguments_value() {
-        let err = define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(
-                |_isolate,
-                 _ctx_scope,
-                 arg1: i64,
-                 arg2: i64,
-                 arg3: Option<v8_value::V8LocalValue>| {
-                    assert_eq!(arg1, 1);
-                    assert_eq!(arg2, 2);
-                    assert_eq!(arg3.unwrap().is_array(), true);
+        #[test]
+        fn macro_optional_arguments_not_exists() {
+            let err =
+                define_function_and_call(
+                    "test(1, 'foo')",
+                    "test",
+                    new_native_function!(
+                        |_isolate, _ctx_scope, arg1: i64, arg2: i64, arg3: Option<f64>| {
+                            assert_eq!(arg1, 1);
+                            assert_eq!(arg2, 2);
+                            assert_eq!(arg3, None);
+                            Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                        }
+                    ),
+                )
+                .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Value is not long."
+            );
+        }
+
+        #[test]
+        fn macro_optional_arguments_exists() {
+            let err =
+                define_function_and_call(
+                    "test(1, 'foo', 2.2)",
+                    "test",
+                    new_native_function!(
+                        |_isolate, _ctx_scope, arg1: i64, arg2: i64, arg3: Option<f64>| {
+                            assert_eq!(arg1, 1);
+                            assert_eq!(arg2, 2);
+                            assert_eq!(arg3, Some(2.2));
+                            Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                        }
+                    ),
+                )
+                .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Value is not long."
+            );
+        }
+
+        #[test]
+        fn macro_optional_arguments_object_not_exists() {
+            let err = define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(
+                    |_isolate,
+                     _ctx_scope,
+                     arg1: i64,
+                     arg2: i64,
+                     arg3: Option<v8_array::V8LocalArray>| {
+                        assert_eq!(arg1, 1);
+                        assert_eq!(arg2, 2);
+                        assert!(arg3.is_none());
+                        Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    }
+                ),
+            )
+            .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Value is not long."
+            );
+        }
+
+        #[test]
+        fn macro_optional_arguments_object() {
+            let err = define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(
+                    |_isolate,
+                     _ctx_scope,
+                     arg1: i64,
+                     arg2: i64,
+                     arg3: Option<v8_array::V8LocalArray>| {
+                        assert_eq!(arg1, 1);
+                        assert_eq!(arg2, 2);
+                        assert_eq!(arg3.unwrap().len(), 2);
+                        Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    }
+                ),
+            )
+            .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Value is not long."
+            );
+        }
+
+        #[test]
+        fn macro_optional_arguments_value() {
+            let err = define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(
+                    |_isolate,
+                     _ctx_scope,
+                     arg1: i64,
+                     arg2: i64,
+                     arg3: Option<v8_value::V8LocalValue>| {
+                        assert_eq!(arg1, 1);
+                        assert_eq!(arg2, 2);
+                        assert!(arg3.unwrap().is_array());
+                        Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    }
+                ),
+            )
+            .expect_err("Did not get error when suppose to.");
+            assert_eq!(
+                err,
+                "Can not convert value at position 1 into i64. Value is not long."
+            );
+        }
+
+        #[test]
+        fn macro_consume_args() {
+            define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg: Vec<v8_value::V8LocalValue>| {
+                    assert_eq!(arg.len(), 3);
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(
-            err,
-            "Can not convert value at position 1 into i64. Value is not long."
-        );
-    }
+                }),
+            )
+            .expect("Got error on function run");
+        }
 
-    #[test]
-    fn test_native_function_macro_consume_args() {
-        define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg: Vec<v8_value::V8LocalValue>| {
-                assert_eq!(arg.len(), 3);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
+        #[test]
+        fn macro_consume_args_2() {
+            define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(
+                    |_isolate, _ctx_scope, arg1: i64, arg2: Vec<v8_value::V8LocalValue>| {
+                        assert_eq!(arg1, 1);
+                        assert_eq!(arg2.len(), 2);
+                        Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
+                    }
+                ),
+            )
+            .expect("Got error on function run");
+        }
 
-    #[test]
-    fn test_native_function_macro_consume_args_2() {
-        define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(
-                |_isolate, _ctx_scope, arg1: i64, arg2: Vec<v8_value::V8LocalValue>| {
+        #[test]
+        fn macro_consume_args_error() {
+            let err = define_function_and_call(
+                "test(1, 'foo', [1, 2])",
+                "test",
+                new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: Vec<i64>| {
                     assert_eq!(arg1, 1);
                     assert_eq!(arg2.len(), 2);
                     Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-                }
-            ),
-        )
-        .expect("Got error on function run");
+                }),
+            )
+            .expect_err("Did not get error when suppose to.");
+            assert_eq!(err, "Failed consuming arguments. Value is not long.");
+        }
+
+        #[test]
+        fn args() {
+            initialize();
+            let isolate = V8Isolate::new();
+            let isolate_scope = isolate.enter();
+            let native =
+                isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+                    let v = args.get(0);
+                    let s = v.to_utf8().unwrap();
+                    assert_eq!(s.as_str(), "2");
+                    None
+                });
+            let native_funciton_name = isolate_scope.new_string("foo");
+            let mut globals = isolate_scope.new_object_template();
+            globals.set_native_function(&native_funciton_name, &native);
+            let code_str = isolate_scope.new_string("foo(2)");
+            let ctx = isolate_scope.new_context(Some(&globals));
+            let ctx_scope = ctx.enter(&isolate_scope);
+            let script = ctx_scope.compile(&code_str).unwrap();
+            script.run(&ctx_scope).unwrap();
+        }
+
+        #[test]
+        fn call_js() {
+            initialize();
+            let isolate = V8Isolate::new();
+            let isolate_scope = isolate.enter();
+
+            let foo1 = isolate_scope.new_native_function_template(|args, _isolate, ctx_scope| {
+                let v = args.get(0);
+                let _res = v.call(ctx_scope, None);
+                None
+            });
+            let foo1_name = isolate_scope.new_string("foo1");
+
+            let foo2 =
+                isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+                    let v = args.get(0);
+                    let s = v.to_utf8().unwrap();
+                    assert_eq!(s.as_str(), "2");
+                    None
+                });
+            let foo2_name = isolate_scope.new_string("foo2");
+
+            let mut globals = isolate_scope.new_object_template();
+            globals.set_native_function(&foo1_name, &foo1);
+            globals.set_native_function(&foo2_name, &foo2);
+
+            let code_str = isolate_scope.new_string("foo1(()=>{foo2(2)})");
+            let i_scope = isolate.enter();
+            let ctx = i_scope.new_context(Some(&globals));
+            let ctx_scope = ctx.enter(&isolate_scope);
+            let script = ctx_scope.compile(&code_str).unwrap();
+            script.run(&ctx_scope).unwrap();
+        }
+
+        #[test]
+        fn call_with_args() {
+            initialize();
+            let isolate = V8Isolate::new();
+            let isolate_scope = isolate.enter();
+
+            let foo1 =
+                isolate_scope.new_native_function_template(|args, isolate_scope, ctx_scope| {
+                    let foo = isolate_scope.new_string("foo");
+                    let v = args.get(0);
+                    let _res = v.call(ctx_scope, Some(&[&foo.to_value()]));
+                    None
+                });
+            let foo1_name = isolate_scope.new_string("foo1");
+
+            let foo2 =
+                isolate_scope.new_native_function_template(|args, _isolate_scope, _ctx_scope| {
+                    let v = args.get(0);
+                    let s = v.to_utf8().unwrap();
+                    assert_eq!(s.as_str(), "foo");
+                    None
+                });
+            let foo2_name = isolate_scope.new_string("foo2");
+
+            let mut globals = isolate_scope.new_object_template();
+            globals.set_native_function(&foo1_name, &foo1);
+            globals.set_native_function(&foo2_name, &foo2);
+
+            let code_str = isolate_scope.new_string("foo1((a)=>{foo2(a)})");
+            let ctx = isolate_scope.new_context(Some(&globals));
+            let ctx_scope = ctx.enter(&isolate_scope);
+            let script = ctx_scope.compile(&code_str).unwrap();
+            script.run(&ctx_scope).unwrap();
+        }
+
+        #[test]
+        fn raise_exception() {
+            initialize();
+            let isolate = V8Isolate::new();
+            let isolate_scope = isolate.enter();
+
+            let native =
+                isolate_scope.new_native_function_template(|_args, isolate, _ctx_scope| {
+                    isolate.raise_exception_str("this is an error");
+                    None
+                });
+            let native_funciton_name = isolate_scope.new_string("foo");
+            let mut globals = isolate_scope.new_object_template();
+            globals.set_native_function(&native_funciton_name, &native);
+            let code_str = isolate_scope.new_string("foo(2)");
+            let ctx = isolate_scope.new_context(Some(&globals));
+            let ctx_scope = ctx.enter(&isolate_scope);
+            let script = ctx_scope.compile(&code_str).unwrap();
+            let trycatch = isolate_scope.new_try_catch();
+            assert!(script.run(&ctx_scope).is_none());
+            let exception = trycatch.get_exception();
+            let exception_msg = exception.to_utf8().unwrap();
+            assert_eq!(exception_msg.as_str(), "this is an error");
+        }
+
+        #[test]
+        fn raise_exception_error() {
+            initialize();
+            let isolate = V8Isolate::new();
+            let isolate_scope = isolate.enter();
+            let code_str = isolate_scope
+                .new_string("function foo(){throw new Error('this is an error!');};foo();");
+            let ctx = isolate_scope.new_context(None);
+            let ctx_scope = ctx.enter(&isolate_scope);
+            let script = ctx_scope.compile(&code_str).unwrap();
+            let trycatch = isolate_scope.new_try_catch();
+            assert!(script.run(&ctx_scope).is_none());
+            let exception = trycatch.get_exception();
+            let exception_msg = exception.to_utf8().unwrap();
+            assert_eq!(exception_msg.as_str(), "Error: this is an error!");
+            let trace = trycatch.get_trace(&ctx_scope);
+            let trace_str = trace.unwrap().to_utf8().unwrap();
+            assert!(trace_str.as_str().contains("at foo"));
+        }
     }
 
     #[test]
-    fn test_native_function_macro_consume_args_error() {
-        let err = define_function_and_call(
-            "test(1, 'foo', [1, 2])",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, arg1: i64, arg2: Vec<i64>| {
-                assert_eq!(arg1, 1);
-                assert_eq!(arg2.len(), 2);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert_eq!(err, "Failed consuming arguments. Value is not long.");
-    }
-
-    #[derive(NativeFunctionArgument, PartialEq, Eq, Debug)]
-    struct InnerArgs {
-        i: i64,
-    }
-
-    #[derive(NativeFunctionArgument, PartialEq, Eq, Debug)]
-    struct Args {
-        i: i64,
-        s: String,
-        b: bool,
-        o: Option<String>,
-        inner: InnerArgs,
-        optional_inner: Option<InnerArgs>,
-    }
-
-    #[test]
-    fn test_object_argument_macro() {
-        define_function_and_call(
-            "test({i: 1, s: 'foo', b: false, inner: { i: 10 }})",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, args: Args| {
-                assert_eq!(
-                    args,
-                    Args {
-                        i: 1,
-                        s: "foo".to_owned(),
-                        b: false,
-                        o: None,
-                        inner: InnerArgs { i: 10 },
-                        optional_inner: None,
-                    },
-                );
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_object_argument_macro_with_optional_argument() {
-        define_function_and_call(
-            "test({i: 1, s: 'foo', b: false, inner: { i: 10 }}, {i: 1, s: 'foo', b: false, inner: { i: 10 }})",
-            "test",
-            new_native_function!(|_isolate,
-                                  _ctx_scope,
-                                  args: Args,
-                                  optional_args1: Option<Args>,
-                                  optional_args2: Option<Args>| {
-                assert_eq!(
-                    args,
-                    Args {
-                        i: 1,
-                        s: "foo".to_owned(),
-                        b: false,
-                        o: None,
-                        inner: InnerArgs { i: 10 },
-                        optional_inner: None,
-                    },
-                );
-                assert_eq!(
-                    optional_args1,
-                    Some(Args {
-                        i: 1,
-                        s: "foo".to_owned(),
-                        b: false,
-                        o: None,
-                        inner: InnerArgs { i: 10 },
-                        optional_inner: None,
-                    }),
-                );
-                assert_eq!(optional_args2, None);
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_error_on_object_argument_macro() {
-        let err = define_function_and_call(
-            "test({i: 1, s: 'foo', b: false })",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, args: Args| {
-                assert_eq!(
-                    args,
-                    Args {
-                        i: 1,
-                        s: "foo".to_owned(),
-                        b: false,
-                        o: None,
-                        inner: InnerArgs { i: 10 },
-                        optional_inner: None,
-                    },
-                );
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert!(err.contains("Field inner does not exists"));
-    }
-
-    #[test]
-    fn test_wrong_type_on_object_argument_macro() {
-        let err = define_function_and_call(
-            "test({i: 1, s: 'foo', b: 'false', inner: { i: 10 }})",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, args: Args| {
-                assert_eq!(
-                    args,
-                    Args {
-                        i: 1,
-                        s: "foo".to_owned(),
-                        b: false,
-                        o: None,
-                        inner: InnerArgs { i: 10 },
-                        optional_inner: None,
-                    },
-                );
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert!(err.contains("Failed getting field b, Value is not a boolean"));
-    }
-
-    #[test]
-    fn test_extra_fields_on_object_argument_macro() {
-        let err = define_function_and_call(
-            "test({i: 1, s: 'foo', b: false, inner: { i: 10, extra: true }})",
-            "test",
-            new_native_function!(|_isolate, _ctx_scope, args: Args| {
-                assert_eq!(
-                    args,
-                    Args {
-                        i: 1,
-                        s: "foo".to_owned(),
-                        b: false,
-                        o: None,
-                        inner: InnerArgs { i: 10 },
-                        optional_inner: None,
-                    },
-                );
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect_err("Did not get error when suppose to.");
-        assert!(err.contains("Unknown properties given: extra"));
-    }
-
-    #[derive(NativeFunctionArgument)]
-    struct JSArgs<'isolate_scope, 'isolate> {
-        v: V8LocalValue<'isolate_scope, 'isolate>,
-        o: V8LocalObject<'isolate_scope, 'isolate>,
-        a: V8LocalArray<'isolate_scope, 'isolate>,
-        s: V8LocalUtf8<'isolate_scope, 'isolate>,
-    }
-
-    #[test]
-    fn test_object_argument_macro_with_v8_objects() {
-        define_function_and_call(
-            "test({v: 1, o: { i: 10 }, a: [], s: 'foo' })",
-            "test",
-            new_native_function!(|_isolate, ctx_scope, args: JSArgs| {
-                assert!(args.v.is_long());
-                assert!(args.o.get_str_field(ctx_scope, "i").map_or(false, |_| true));
-                assert!(args.a.is_empty());
-                assert_eq!(args.s.as_str(), "foo");
-                Result::<Option<v8_value::V8LocalValue>, String>::Ok(None)
-            }),
-        )
-        .expect("Got error on function run");
-    }
-
-    #[test]
-    fn test_value_gc_callback() {
+    fn value_gc_callback() {
         initialize();
         let isolate = isolate::V8Isolate::new();
         let mut dropped_called = false;
@@ -1099,4 +949,72 @@ mod json_path_tests {
         isolate_scope.request_gc_for_testing(GarbageCollectionJobType::Full);
         assert!(dropped_called);
     }
+
+    #[test]
+    fn isolate_id_is_set() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let first_id = isolate.get_id().unwrap();
+        let isolate = isolate::V8Isolate::new();
+        let second_id = isolate.get_id().unwrap();
+        // As the second isolate was created after the first, its ID
+        // must be higher than that of the first.
+        assert!(first_id < second_id);
+    }
+
+    #[test]
+    fn persisted_script_converts_to_local() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("function foo() { return 0; }");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+
+        // Case 1: using the same isolate scope.
+        let persisted = script.persist();
+        assert!(persisted.to_local(&isolate_scope).is_ok());
+
+        // Case 2: using the another isolate scope for the same isolate.
+        {
+            let isolate_scope_2 = isolate.enter();
+            assert!(persisted.to_local(&isolate_scope_2).is_ok());
+        }
+    }
+
+    #[test]
+    fn persisted_script_doesnt_convert_to_local() {
+        initialize();
+        let isolate = isolate::V8Isolate::new();
+        let isolate_scope = isolate.enter();
+        let code_str = isolate_scope.new_string("function foo() { return 0; }");
+        let ctx = isolate_scope.new_context(None);
+        let ctx_scope = ctx.enter(&isolate_scope);
+        let script = ctx_scope.compile(&code_str).unwrap();
+
+        let persisted = script.persist();
+        assert!(persisted.to_local(&isolate_scope).is_ok());
+
+        {
+            let isolate_2 = isolate::V8Isolate::new();
+            let isolate_scope_2 = isolate_2.enter();
+            assert!(persisted.to_local(&isolate_scope_2).is_err());
+        }
+
+        // TODO: mock and cover the case of invalid ID.
+    }
+}
+
+/// This tests the "README.md" file code.
+#[cfg(doctest)]
+mod test_readme {
+    macro_rules! external_doc_test {
+        ($x:expr) => {
+            #[doc = $x]
+            extern "C" {}
+        };
+    }
+
+    external_doc_test!(include_str!("../README.md"));
 }

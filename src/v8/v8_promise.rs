@@ -39,7 +39,7 @@ impl<'isolate_scope, 'isolate> V8LocalPromise<'isolate_scope, 'isolate> {
         unsafe {
             v8_PromiseThen(
                 self.inner_promise,
-                ctx.inner_ctx_ref,
+                ctx.get_inner(),
                 resolve.inner_func,
                 reject.inner_func,
             );

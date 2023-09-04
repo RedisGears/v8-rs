@@ -5,8 +5,8 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_ContextEnter, v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
-    v8_SetPrivateData, v8_context,
+    v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData, v8_SetPrivateData,
+    v8_context,
 };
 use crate::{RawIndex, UserIndex};
 
@@ -46,6 +46,7 @@ impl<'context, 'data, T: 'data> Drop for V8ContextDataGuard<'context, 'data, T> 
     }
 }
 
+#[derive(Debug)]
 pub struct V8Context {
     pub(crate) inner_ctx: *mut v8_context,
 }
@@ -71,12 +72,7 @@ impl V8Context {
         &self,
         isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
     ) -> V8ContextScope<'isolate_scope, 'isolate> {
-        let inner_ctx_ref = unsafe { v8_ContextEnter(self.inner_ctx) };
-        V8ContextScope {
-            inner_ctx_ref,
-            exit_on_drop: true,
-            isolate_scope,
-        }
+        V8ContextScope::new(self.inner_ctx, true, isolate_scope)
     }
 
     /// Sets a private data on the context considering the index as

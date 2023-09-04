@@ -11,6 +11,7 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_value::V8LocalValue;
 
 /// JS object
+#[derive(Debug)]
 pub struct V8LocalSet<'isolate_scope, 'isolate> {
     pub(crate) inner_set: *mut v8_local_set,
     pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
@@ -28,7 +29,7 @@ impl<'isolate_scope, 'isolate> V8LocalSet<'isolate_scope, 'isolate> {
     }
 
     pub fn add(&self, ctx_scope: &V8ContextScope, val: &V8LocalValue) {
-        unsafe { v8_SetAdd(ctx_scope.inner_ctx_ref, self.inner_set, val.inner_val) };
+        unsafe { v8_SetAdd(ctx_scope.get_inner(), self.inner_set, val.inner_val) };
     }
 }
 

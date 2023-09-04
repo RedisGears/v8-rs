@@ -4,16 +4,18 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-use crate::v8_c_raw::bindings::v8_SetPrivateDataOnCtxRef;
 use crate::v8_c_raw::bindings::{
-    v8_Compile, v8_CompileAsModule, v8_ContextRefGetGlobals, v8_ExitContextRef, v8_FreeContextRef,
-    v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
-    v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context_ref,
+    v8_Compile, v8_CompileAsModule, v8_ContextEnter, v8_ContextRefGetGlobals, v8_ExitContextRef,
+    v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
+    v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context,
+    v8_context_ref,
 };
+use crate::v8_c_raw::bindings::{v8_GetCurrentCtxRef, v8_SetPrivateDataOnCtxRef};
 use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
+use std::ptr::NonNull;
 
 use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8::v8_module::V8LocalModule;
@@ -26,6 +28,8 @@ use crate::v8::v8_resolver::V8LocalResolver;
 use crate::v8::v8_script::V8LocalScript;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
+
+use super::isolate::V8Isolate;
 
 /// An RAII data guard which resets the private data slot after going
 /// out of scope.
@@ -61,17 +65,88 @@ impl<'context_scope, 'data, 'isolate_scope, 'isolate, T: 'data> Drop
     }
 }
 
+/// A context scope as in the "Execution Context" scope. The main
+/// difference from the [V8IsolateScope] is that an `Isolate` is a
+/// lifetime boundary for some V8 Engine state we want to hold, and the
+/// [V8ContextScope] is the execution state of this state. An "isolate"
+/// is more like a storage of data and the code, and the
+/// [V8ContextScope] is the execution state for these data and code.
+///
+/// The [V8ContextScope] is more temporary, and so has more narrow
+/// lifetime, than an isolate (and so [V8IsolateScope]).
+///
+/// All the "local" values, such as, for example, [V8LocalString], are
+/// local to the isolate they were created in, and so to the
+/// [V8IsolateScope]. Such objects can't outlive the parent (their)
+/// isolate and so are always tied to the lifetime of those. To untie
+/// the connection between an object and its isolate, and to make such
+/// an object persistent and not temporary, as in "not tied to the
+/// parent isolate lifetime", it is possible to convert those to some
+/// abstract and serialised persisted values, such as
+/// [crate::v8::v8_value::V8PersistValue].
+#[derive(Debug)]
 pub struct V8ContextScope<'isolate_scope, 'isolate> {
-    pub(crate) inner_ctx_ref: *mut v8_context_ref,
-    pub(crate) exit_on_drop: bool,
-    pub(crate) isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    inner_ctx_ref: NonNull<v8_context_ref>,
+    exit_on_drop: bool,
+    isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
 }
 
 impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
+    /// Returns a raw context pointer.
+    pub(crate) fn get_inner(&self) -> *mut v8_context_ref {
+        self.inner_ctx_ref.as_ptr()
+    }
+
+    /// Creates a new [`Self`] with the provided raw pointer to
+    /// [`v8_context`] and isolate scope.
+    pub(crate) fn new(
+        context: *mut v8_context,
+        exit_on_drop: bool,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> Self {
+        Self::new_for_ref(
+            unsafe { NonNull::new_unchecked(v8_ContextEnter(context)) },
+            exit_on_drop,
+            isolate_scope,
+        )
+    }
+
+    /// Returns a raw pointer to the current isolate, if it was left.
+    pub(crate) fn get_current_raw_ref_for_isolate(
+        isolate: &V8Isolate,
+    ) -> Option<NonNull<v8_context_ref>> {
+        NonNull::new(unsafe { v8_GetCurrentCtxRef(isolate.inner_isolate) })
+    }
+
+    /// Creates a new [V8ContextScope] with the reference provided.
+    /// Useful for custom creation with the bindings.
+    pub(crate) fn new_for_ref(
+        context_ref: NonNull<v8_context_ref>,
+        exit_on_drop: bool,
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> Self {
+        Self {
+            inner_ctx_ref: context_ref,
+            exit_on_drop,
+            isolate_scope,
+        }
+    }
+
+    /// Returns the context scope which was left unfreed.
+    pub(crate) fn get_current_for_isolate(
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> Option<Self> {
+        Self::get_current_raw_ref_for_isolate(isolate_scope.isolate)
+            .map(|c| Self::new_for_ref(c, false, isolate_scope))
+    }
+
     /// Compile the given code into a script object.
     #[must_use]
-    pub fn compile(&self, s: &V8LocalString) -> Option<V8LocalScript<'isolate_scope, 'isolate>> {
-        let inner_script = unsafe { v8_Compile(self.inner_ctx_ref, s.inner_string) };
+    pub fn compile(
+        &self,
+        code: &V8LocalString<'isolate_scope, 'isolate>,
+    ) -> Option<V8LocalScript<'isolate_scope, 'isolate>> {
+        let inner_script = unsafe { v8_Compile(self.get_inner(), code.inner_string) };
         if inner_script.is_null() {
             None
         } else {
@@ -84,7 +159,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
 
     #[must_use]
     pub fn get_globals(&self) -> V8LocalObject<'isolate_scope, 'isolate> {
-        let inner_obj = unsafe { v8_ContextRefGetGlobals(self.inner_ctx_ref) };
+        let inner_obj = unsafe { v8_ContextRefGetGlobals(self.get_inner()) };
         V8LocalObject {
             inner_obj,
             isolate_scope: self.isolate_scope,
@@ -101,7 +176,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     ) -> Option<V8LocalModule<'isolate_scope, 'isolate>> {
         let inner_module = unsafe {
             v8_CompileAsModule(
-                self.inner_ctx_ref,
+                self.get_inner(),
                 name.inner_string,
                 code.inner_string,
                 i32::from(is_module),
@@ -119,7 +194,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
 
     pub(crate) fn get_private_data_raw<T, I: Into<RawIndex>>(&self, index: I) -> Option<&T> {
         let index = index.into();
-        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index.0) };
+        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.get_inner(), index.0) };
         if pd.is_null() {
             None
         } else {
@@ -132,7 +207,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         index: I,
     ) -> Option<&mut T> {
         let index = index.into();
-        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.inner_ctx_ref, index.0) };
+        let pd = unsafe { v8_GetPrivateDataFromCtxRef(self.get_inner(), index.0) };
         if pd.is_null() {
             None
         } else {
@@ -157,13 +232,13 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     pub(crate) fn set_private_data_raw<T, I: Into<RawIndex>>(&self, index: I, pd: &T) {
         let index = index.into();
         unsafe {
-            v8_SetPrivateDataOnCtxRef(self.inner_ctx_ref, index.0, pd as *const T as *mut c_void)
+            v8_SetPrivateDataOnCtxRef(self.get_inner(), index.0, pd as *const T as *mut c_void)
         }
     }
 
     pub(crate) fn reset_private_data_raw<I: Into<RawIndex>>(&self, index: I) {
         let index = index.into().0;
-        unsafe { v8_ResetPrivateDataOnCtxRef(self.inner_ctx_ref, index) }
+        unsafe { v8_ResetPrivateDataOnCtxRef(self.get_inner(), index) }
     }
 
     /// Sets the private data at the specified index (V8 data slot).
@@ -188,7 +263,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     /// Create a new resolver object
     #[must_use]
     pub fn new_resolver(&self) -> V8LocalResolver<'isolate_scope, 'isolate> {
-        let inner_resolver = unsafe { v8_NewResolver(self.inner_ctx_ref) };
+        let inner_resolver = unsafe { v8_NewResolver(self.get_inner()) };
         V8LocalResolver {
             inner_resolver,
             isolate_scope: self.isolate_scope,
@@ -200,7 +275,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         &self,
         val: &V8LocalString,
     ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let inner_val = unsafe { v8_NewObjectFromJsonString(self.inner_ctx_ref, val.inner_string) };
+        let inner_val = unsafe { v8_NewObjectFromJsonString(self.get_inner(), val.inner_string) };
         if inner_val.is_null() {
             return None;
         }
@@ -215,7 +290,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         &self,
         val: &V8LocalValue,
     ) -> Option<V8LocalString<'isolate_scope, 'isolate>> {
-        let inner_string = unsafe { v8_JsonStringify(self.inner_ctx_ref, val.inner_val) };
+        let inner_string = unsafe { v8_JsonStringify(self.get_inner(), val.inner_val) };
         if inner_string.is_null() {
             return None;
         }
@@ -239,7 +314,7 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     ) -> V8LocalNativeFunction<'isolate_scope, 'isolate> {
         let inner_func = unsafe {
             v8_NewNativeFunction(
-                self.inner_ctx_ref,
+                self.get_inner(),
                 Some(native_basic_function::<T>),
                 Box::into_raw(Box::new(func)).cast::<c_void>(),
                 Some(free_pd::<T>),
@@ -252,11 +327,25 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
     }
 }
 
+impl<'isolate_scope, 'isolate> AsRef<V8Isolate> for V8ContextScope<'isolate_scope, 'isolate> {
+    fn as_ref(&self) -> &V8Isolate {
+        self.isolate_scope.isolate
+    }
+}
+
+impl<'isolate_scope, 'isolate> AsRef<V8IsolateScope<'isolate>>
+    for V8ContextScope<'isolate_scope, 'isolate>
+{
+    fn as_ref(&self) -> &V8IsolateScope<'isolate> {
+        self.isolate_scope
+    }
+}
+
 impl<'isolate_scope, 'isolate> Drop for V8ContextScope<'isolate_scope, 'isolate> {
     fn drop(&mut self) {
         if self.exit_on_drop {
-            unsafe { v8_ExitContextRef(self.inner_ctx_ref) }
+            unsafe { v8_ExitContextRef(self.get_inner()) }
         }
-        unsafe { v8_FreeContextRef(self.inner_ctx_ref) }
+        unsafe { v8_FreeContextRef(self.get_inner()) }
     }
 }

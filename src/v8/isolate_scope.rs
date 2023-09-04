@@ -29,12 +29,49 @@ use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_unlocker::V8Unlocker;
 use crate::v8::v8_value::V8LocalValue;
 
+use std::marker::PhantomData;
 use std::os::raw::{c_char, c_void};
+use std::ptr::NonNull;
 
+/// An owned, unpinned storage of the handlers and isolate scopes.
+/// Useful to have when we want to "save" a [V8IsolateScope] without
+/// destroying these objects.
+#[derive(Debug)]
+struct V8IsolateScopeStorage<'isolate> {
+    inner_handlers_scope: NonNull<v8_handlers_scope>,
+    inner_isolate_scope: NonNull<v8_isolate_scope>,
+    _phantom_data: PhantomData<&'isolate V8Isolate>,
+}
+
+impl<'isolate> V8IsolateScopeStorage<'isolate> {
+    fn new(isolate: &V8Isolate) -> Self {
+        Self {
+            inner_isolate_scope: unsafe {
+                NonNull::new_unchecked(v8_IsolateEnter(isolate.inner_isolate))
+            },
+            inner_handlers_scope: unsafe {
+                NonNull::new_unchecked(v8_NewHandlersScope(isolate.inner_isolate))
+            },
+            _phantom_data: PhantomData,
+        }
+    }
+}
+
+impl<'isolate> Drop for V8IsolateScopeStorage<'isolate> {
+    fn drop(&mut self) {
+        unsafe {
+            v8_FreeHandlersScope(self.inner_handlers_scope.as_mut());
+            v8_IsolateExit(self.inner_isolate_scope.as_mut());
+        }
+    }
+}
+
+/// Isolate scope is an entered [V8Isolate] with a handlers scope
+/// object.
+#[derive(Debug)]
 pub struct V8IsolateScope<'isolate> {
     pub(crate) isolate: &'isolate V8Isolate,
-    inner_handlers_scope: *mut v8_handlers_scope,
-    inner_isolate_scope: *mut v8_isolate_scope,
+    _storage: Option<V8IsolateScopeStorage<'isolate>>,
 }
 
 extern "C" fn free_external_data<T: 'static>(arg1: *mut ::std::os::raw::c_void) {
@@ -54,12 +91,9 @@ impl<'isolate> V8IsolateScope<'isolate> {
     /// 1. Enter the isolate
     /// 2. Create a scope handler.
     pub(crate) fn new(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
-        let inner_isolate_scope = unsafe { v8_IsolateEnter(isolate.inner_isolate) };
-        let inner_handlers_scope = unsafe { v8_NewHandlersScope(isolate.inner_isolate) };
         V8IsolateScope {
             isolate,
-            inner_handlers_scope,
-            inner_isolate_scope,
+            _storage: Some(V8IsolateScopeStorage::new(isolate)),
         }
     }
 
@@ -82,15 +116,21 @@ impl<'isolate> V8IsolateScope<'isolate> {
     pub(crate) fn new_dummy(isolate: &'isolate V8Isolate) -> V8IsolateScope<'isolate> {
         V8IsolateScope {
             isolate,
-            inner_handlers_scope: std::ptr::null_mut(),
-            inner_isolate_scope: std::ptr::null_mut(),
+            _storage: None,
         }
     }
 
     /// Creating a new context for JS code invocation.
-    #[must_use]
     pub fn new_context(&self, globals: Option<&V8LocalObjectTemplate>) -> V8Context {
         V8Context::new(self.isolate, globals)
+    }
+
+    /// Returns a [V8ContextScope] if it has already been entered and
+    /// created for this isolate and isolate scope.
+    pub(crate) fn get_current_context_scope<'isolate_scope>(
+        &'isolate_scope self,
+    ) -> Option<V8ContextScope<'isolate_scope, 'isolate>> {
+        V8ContextScope::get_current_for_isolate(self)
     }
 
     /// Raise an exception with the given local generic value.
@@ -130,17 +170,7 @@ impl<'isolate> V8IsolateScope<'isolate> {
         &'isolate_scope self,
         s: &str,
     ) -> V8LocalString<'isolate_scope, 'isolate> {
-        let inner_string = unsafe {
-            v8_NewString(
-                self.isolate.inner_isolate,
-                s.as_ptr().cast::<c_char>(),
-                s.len(),
-            )
-        };
-        V8LocalString {
-            inner_string,
-            isolate_scope: self,
-        }
+        V8LocalString::new(self, s)
     }
 
     /// Create a new string object.
@@ -311,19 +341,6 @@ impl<'isolate> V8IsolateScope<'isolate> {
         V8Unlocker {
             inner_unlocker,
             _isolate_scope: self,
-        }
-    }
-}
-
-impl<'isolate> Drop for V8IsolateScope<'isolate> {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.inner_handlers_scope.is_null() {
-                v8_FreeHandlersScope(self.inner_handlers_scope);
-            }
-            if !self.inner_isolate_scope.is_null() {
-                v8_IsolateExit(self.inner_isolate_scope);
-            }
         }
     }
 }
