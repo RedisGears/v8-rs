@@ -31,7 +31,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         key: &V8LocalValue,
     ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
         let inner_val =
-            unsafe { v8_ObjectGet(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
+            unsafe { v8_ObjectGet(ctx_scope.get_inner(), self.inner_obj, key.inner_val) };
         if inner_val.is_null() {
             None
         } else {
@@ -77,7 +77,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     pub fn set(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue, val: &V8LocalValue) {
         unsafe {
             v8_ObjectSet(
-                ctx_scope.inner_ctx_ref,
+                ctx_scope.get_inner(),
                 self.inner_obj,
                 key.inner_val,
                 val.inner_val,
@@ -102,7 +102,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         let name = self.isolate_scope.new_string(key).to_value();
         unsafe {
             v8_ObjectSet(
-                ctx_scope.inner_ctx_ref,
+                ctx_scope.get_inner(),
                 self.inner_obj,
                 name.inner_val,
                 native_function.inner_val,
@@ -139,7 +139,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     }
 
     pub fn freeze(&self, ctx_scope: &V8ContextScope) {
-        unsafe { v8_ObjectFreeze(ctx_scope.inner_ctx_ref, self.inner_obj) };
+        unsafe { v8_ObjectFreeze(ctx_scope.get_inner(), self.inner_obj) };
     }
 
     /// Return an array contains the enumerable properties names of the given object
@@ -149,7 +149,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         ctx_scope: &V8ContextScope,
     ) -> V8LocalArray<'isolate_scope, 'isolate> {
         let inner_array =
-            unsafe { v8_ValueGetPropertyNames(ctx_scope.inner_ctx_ref, self.inner_obj) };
+            unsafe { v8_ValueGetPropertyNames(ctx_scope.get_inner(), self.inner_obj) };
         V8LocalArray {
             inner_array,
             isolate_scope: self.isolate_scope,
@@ -163,7 +163,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
         ctx_scope: &V8ContextScope,
     ) -> V8LocalArray<'isolate_scope, 'isolate> {
         let inner_array =
-            unsafe { v8_ValueGetOwnPropertyNames(ctx_scope.inner_ctx_ref, self.inner_obj) };
+            unsafe { v8_ValueGetOwnPropertyNames(ctx_scope.get_inner(), self.inner_obj) };
         V8LocalArray {
             inner_array,
             isolate_scope: self.isolate_scope,
@@ -173,8 +173,7 @@ impl<'isolate_scope, 'isolate> V8LocalObject<'isolate_scope, 'isolate> {
     /// Delete a property from the object by the property name.
     /// Return `true` if the delete was done successfully.
     pub fn delete(&self, ctx_scope: &V8ContextScope, key: &V8LocalValue) -> bool {
-        let res =
-            unsafe { v8_DeletePropery(ctx_scope.inner_ctx_ref, self.inner_obj, key.inner_val) };
+        let res = unsafe { v8_DeletePropery(ctx_scope.get_inner(), self.inner_obj, key.inner_val) };
         res != 0
     }
 }

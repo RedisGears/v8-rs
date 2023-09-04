@@ -11,3 +11,9 @@ Cargo.lock
 .vscode/*
 *.o
 *.a
+
+# Debugging history.
+.gdb_history
+
+# Developer tools
+.clangd*

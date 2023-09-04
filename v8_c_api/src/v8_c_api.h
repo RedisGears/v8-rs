@@ -8,6 +8,10 @@
 #define SRC_V8_C_API_H_
 
 #include <stddef.h>
+#include <stdint.h>
+
+/** A special isolate ID which is is invalid. */
+static const uint64_t ISOLATE_ID_INVALID = 0;
 
 /** Allocator definition
  * Note: only structs memory will be allocated using the allocator,
@@ -157,6 +161,9 @@ size_t v8_IsolateHeapSizeLimit(v8_isolate* i);
 
 void v8_IsolateNotifyMemoryPressure(v8_isolate* i);
 
+/** Returns the ID of the passed isolate. */
+uint64_t v8_GetIsolateId(v8_isolate* isolate);
+
 /** Return the currently used isolate or NULL if not isolate is in used */
 v8_isolate* v8_IsolateGetCurrent();
 
@@ -255,6 +262,9 @@ void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd);
 
 /** Create a new JS string object */
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);
+
+/** Clones the passed JS string */
+v8_local_string* v8_CloneString(v8_local_string *source);
 
 /** Convert the JS string to JS generic value */
 v8_local_value* v8_StringToValue(v8_local_string *str);

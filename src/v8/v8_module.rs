@@ -17,7 +17,7 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 use std::os::raw::c_int;
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 /// JS script object
 pub struct V8LocalModule<'isolate_scope, 'isolate> {
@@ -52,11 +52,8 @@ pub(crate) extern "C" fn load_module<
     // return value.
     // Users can use this isolate score as if it was a regular isolate scope.
     let isolate_scope = V8IsolateScope::new_dummy(&isolate);
-    let ctx_scope = V8ContextScope {
-        inner_ctx_ref: v8_ctx_ref,
-        exit_on_drop: false,
-        isolate_scope: &isolate_scope,
-    };
+    let ctx_scope = V8ContextScope::get_current_for_isolate(&isolate_scope)
+        .expect("Couldn't get the current context");
     let name_obj = V8LocalString {
         inner_string: name,
         isolate_scope: &isolate_scope,
@@ -90,7 +87,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
         let res = unsafe {
             v8_InitiateModule(
                 self.inner_module,
-                ctx_scope.inner_ctx_ref,
+                ctx_scope.get_inner(),
                 Some(load_module::<T>),
             )
         };
@@ -102,7 +99,7 @@ impl<'isolate_scope, 'isolate> V8LocalModule<'isolate_scope, 'isolate> {
         &self,
         ctx_scope: &V8ContextScope,
     ) -> Option<V8LocalValue<'isolate_scope, 'isolate>> {
-        let res = unsafe { v8_EvaluateModule(self.inner_module, ctx_scope.inner_ctx_ref) };
+        let res = unsafe { v8_EvaluateModule(self.inner_module, ctx_scope.get_inner()) };
         if res.is_null() {
             None
         } else {
