@@ -4,13 +4,13 @@
  * the Server Side Public License v1 (SSPLv1).
  */
 
-use crate::v8_c_raw::bindings::v8_SetPrivateDataOnCtxRef;
 use crate::v8_c_raw::bindings::{
     v8_Compile, v8_CompileAsModule, v8_ContextEnter, v8_ContextRefGetGlobals, v8_ExitContextRef,
     v8_FreeContextRef, v8_GetPrivateDataFromCtxRef, v8_JsonStringify, v8_NewNativeFunction,
     v8_NewObjectFromJsonString, v8_NewResolver, v8_ResetPrivateDataOnCtxRef, v8_context,
     v8_context_ref,
 };
+use crate::v8_c_raw::bindings::{v8_GetCurrentCtxRef, v8_SetPrivateDataOnCtxRef};
 use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
@@ -111,6 +111,13 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
         )
     }
 
+    /// Returns a raw pointer to the current isolate, if it was left.
+    pub(crate) fn get_current_raw_ref_for_isolate(
+        isolate: &V8Isolate,
+    ) -> Option<NonNull<v8_context_ref>> {
+        NonNull::new(unsafe { v8_GetCurrentCtxRef(isolate.inner_isolate) })
+    }
+
     /// Creates a new [V8ContextScope] with the reference provided.
     /// Useful for custom creation with the bindings.
     pub(crate) fn new_for_ref(
@@ -123,6 +130,14 @@ impl<'isolate_scope, 'isolate> V8ContextScope<'isolate_scope, 'isolate> {
             exit_on_drop,
             isolate_scope,
         }
+    }
+
+    /// Returns the context scope which was left unfreed.
+    pub(crate) fn get_current_for_isolate(
+        isolate_scope: &'isolate_scope V8IsolateScope<'isolate>,
+    ) -> Option<Self> {
+        Self::get_current_raw_ref_for_isolate(isolate_scope.isolate)
+            .map(|c| Self::new_for_ref(c, false, isolate_scope))
     }
 
     /// Compile the given code into a script object.

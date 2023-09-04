@@ -5,14 +5,14 @@
  */
 
 use crate::v8_c_raw::bindings::{
-    v8_FreeContext, v8_GetCurrentCtxRef, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData,
-    v8_SetPrivateData, v8_context, v8_context_ref,
+    v8_FreeContext, v8_GetPrivateData, v8_NewContext, v8_ResetPrivateData, v8_SetPrivateData,
+    v8_context,
 };
 use crate::{RawIndex, UserIndex};
 
 use std::marker::PhantomData;
 use std::os::raw::c_void;
-use std::ptr::{self, NonNull};
+use std::ptr;
 
 use crate::v8::isolate::V8Isolate;
 use crate::v8::isolate_scope::V8IsolateScope;
@@ -61,12 +61,6 @@ impl V8Context {
             None => unsafe { v8_NewContext(isolate.inner_isolate, ptr::null_mut()) },
         };
         Self { inner_ctx }
-    }
-
-    pub(crate) fn get_current_raw_ref_for_isolate(
-        isolate: &V8Isolate,
-    ) -> Option<NonNull<v8_context_ref>> {
-        NonNull::new(unsafe { v8_GetCurrentCtxRef(isolate.inner_isolate) })
     }
 
     /// Enter the context for JS code invocation.
