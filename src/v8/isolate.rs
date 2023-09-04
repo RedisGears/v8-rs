@@ -256,12 +256,12 @@ impl V8Isolate {
     }
 
     /// Returns a raw pointer to a [v8_isolate].
-    pub fn get_raw(&self) -> *mut v8_isolate {
+    pub(crate) fn get_raw(&self) -> *mut v8_isolate {
         self.inner_isolate
     }
 
     /// Returns the unique ID of this isolate.
-    pub fn get_id(&self) -> Option<IsolateId> {
+    pub(crate) fn get_id(&self) -> Option<IsolateId> {
         let raw_id = unsafe { v8_GetIsolateId(self.inner_isolate) };
         if raw_id == ISOLATE_ID_INVALID {
             None
