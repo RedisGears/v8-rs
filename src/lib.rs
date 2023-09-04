@@ -40,8 +40,6 @@
 //! assert_eq!(res_utf8.as_str(), "2");
 //! ```
 
-#![warn(missing_docs)]
-
 /// The module contains the rust-idiomatic data structures and functions.
 pub mod v8;
 mod v8_c_raw;

@@ -125,14 +125,6 @@ impl<'isolate> V8IsolateScope<'isolate> {
         V8Context::new(self.isolate, globals)
     }
 
-    /// Returns a [V8ContextScope] if it has already been entered and
-    /// created for this isolate and isolate scope.
-    pub(crate) fn get_current_context_scope<'isolate_scope>(
-        &'isolate_scope self,
-    ) -> Option<V8ContextScope<'isolate_scope, 'isolate>> {
-        V8ContextScope::get_current_for_isolate(self)
-    }
-
     /// Raise an exception with the given local generic value.
     pub fn raise_exception(&self, exception: V8LocalValue) {
         unsafe { v8_IsolateRaiseException(self.isolate.inner_isolate, exception.inner_val) };
