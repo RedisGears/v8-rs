@@ -20,8 +20,6 @@ use crate::v8::v8_native_function::V8LocalNativeFunction;
 use crate::v8::v8_object::V8LocalObject;
 use crate::v8::v8_value::V8LocalValue;
 
-use super::v8_context::V8Context;
-
 /// Native function template object
 pub struct V8LocalNativeFunctionTemplate<'isolate_scope, 'isolate> {
     pub(crate) inner_func: *mut v8_local_native_function_template,

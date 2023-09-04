@@ -17,7 +17,7 @@ use crate::v8::v8_context_scope::V8ContextScope;
 use crate::v8::v8_string::V8LocalString;
 use crate::v8::v8_value::V8LocalValue;
 use std::os::raw::c_int;
-use std::ptr::{self, NonNull};
+use std::ptr::{self};
 
 /// JS script object
 pub struct V8LocalModule<'isolate_scope, 'isolate> {
