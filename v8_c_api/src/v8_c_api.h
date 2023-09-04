@@ -24,6 +24,11 @@ typedef struct v8_allocator {
 	char* (*v8_Strdup)(const char *str);
 } v8_allocator;
 
+/**
+ * An opaque struct representing a v8 inspector.
+ */
+typedef struct v8_inspector_c_wrapper v8_inspector_c_wrapper;
+
 /** Opaque struct representing a v8 interpreter.
  * There is no limit to the amount of isolates that can be
  * created in a single processes. */
@@ -129,6 +134,66 @@ const char* v8_Version();
 
 /** Dispose v8 initialization */
 void v8_Dispose();
+
+typedef void (*v8_InspectorOnResponseCallback)(const char *string, void *userdata);
+typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *inspector,  void *userdata);
+
+/** Creates a debugging inspector for the global platform and the given
+context. The callbacks are optional. */
+v8_inspector_c_wrapper* v8_InspectorCreate(
+	v8_context_ref *context_ref,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData
+);
+
+/** Deletes (invokes the destructor and deallocates) an inspector
+object. */
+void v8_FreeInspector(v8_inspector_c_wrapper *inspector);
+
+/** Dispatches an inspector protocol message to the inspector passed. */
+void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *inspector, const char *message_json);
+
+/** Schedules a pause (sets a breakpoint) on the next statement, with
+the reason message provided. */
+void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *inspector, const char *reason);
+
+/** The callback which is invoked when the V8 Inspector requires more
+ * data from the front-end (the client) and, therefore, this callback
+ * must attempt to read more data and dispatch it to the inspector.
+ *
+ * The callback should return `1` when it is possible to operate (read,
+ * write, send, receive messages) and `0` when not, to indicate the
+ * impossibility of the further action, in which case, the inspector
+ * will stop.
+ */
+void v8_InspectorWaitFrontendMessageOnPause(v8_inspector_c_wrapper *inspector);
+
+/** Sets the "onResponse" callback: a function to be invoked whenever
+the inspector provided needs to reply to the client. */
+void v8_InspectorSetOnResponseCallback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData
+);
+
+/** Sets the "onWaitFrontendMessageOnPause" callback. */
+void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData
+);
+
+/** Returns the V8Isolate the passed inspector is bound to. */
+v8_isolate* v8_InspectorGetIsolate(
+	v8_inspector_c_wrapper *inspector
+);
+
+/** Returns the V8ContextScope the passed inspector is bound to. */
+v8_context_ref* v8_InspectorGetContext(
+	v8_inspector_c_wrapper *inspector
+);
 
 /** Creates a new v8 isolate. An isolate is a v8 interpreter that responsible to run JS code.
  * Impeder may create as many isolates as wishes.

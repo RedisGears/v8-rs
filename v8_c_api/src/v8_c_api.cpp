@@ -5,6 +5,7 @@
  */
 
 #include "v8.h"
+#include "v8-inspector.h"
 #include "v8-version-string.h"
 #include "libplatform/libplatform.h"
 
@@ -41,7 +42,7 @@ std::atomic_uint_fast64_t ISOLATE_ID_COUNTER = 1;
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-#define INTERNAL_OFFSET 2 + OUR_SLOT
+#define INTERNAL_OFFSET 3 + OUR_SLOT
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
 
 extern "C" {
@@ -305,6 +306,303 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
     native_data->allocator = alloc;
     return native_data;
 }
+
+// Some parts of the contents of this anonymous namespace below
+// were borrowed and changed.
+namespace {
+/*
+MIT License
+
+Copyright (c) 2019 Elmi Ahmadov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+static inline v8_inspector::StringView convertToStringView(const std::string &str) {
+    auto* stringView = reinterpret_cast<const uint8_t*>(str.c_str());
+    return { stringView, str.length() };
+}
+
+static inline std::string convertToString(v8::Isolate* isolate, const v8_inspector::StringView stringView) {
+    int length = static_cast<int>(stringView.length());
+    v8::Local<v8::String> message = (
+        stringView.is8Bit()
+          ? v8::String::NewFromOneByte(isolate, reinterpret_cast<const uint8_t*>(stringView.characters8()), v8::NewStringType::kNormal, length)
+          : v8::String::NewFromTwoByte(isolate, reinterpret_cast<const uint16_t*>(stringView.characters16()), v8::NewStringType::kNormal, length)
+      ).ToLocalChecked();
+    v8::String::Utf8Value result(isolate, message);
+    return *result;
+}
+
+class v8_inspector_channel_wrapper final: public v8_inspector::V8Inspector::Channel {
+public:
+    explicit v8_inspector_channel_wrapper(
+        v8::Isolate *isolate,
+        const std::function<void(std::string)> &onResponse = {}
+    );
+
+    void sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) override;
+    void sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) override;
+    void flushProtocolNotifications() override;
+
+    void setIsolate(v8::Isolate *isolate);
+
+    void setOnResponseCallback(const std::function<void(std::string)> &callback);
+
+private:
+    v8::Isolate* isolate_;
+   std::function<void(std::string)> onResponse_;
+};
+
+
+v8_inspector_channel_wrapper::v8_inspector_channel_wrapper(v8::Isolate *isolate, const std::function<void(std::string)> &onResponse) {
+    isolate_ = isolate;
+    onResponse_ = onResponse;
+}
+
+void v8_inspector_channel_wrapper::sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) {
+    const std::string response = convertToString(isolate_, message->string());
+    if (onResponse_) {
+        onResponse_(response);
+    }
+}
+
+void v8_inspector_channel_wrapper::sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) {
+    const std::string notification = convertToString(isolate_, message->string());
+    if (onResponse_) {
+        onResponse_(notification);
+    }
+}
+
+void v8_inspector_channel_wrapper::flushProtocolNotifications() {
+    // flush protocol notification
+}
+
+void v8_inspector_channel_wrapper::setIsolate(v8::Isolate *isolate) {
+    isolate_ = isolate;
+}
+
+void v8_inspector_channel_wrapper::setOnResponseCallback(const std::function<void(std::string)> &callback) {
+    onResponse_ = callback;
+}
+
+using InspectorOnResponseCallback = std::function<void(std::string)>;
+using InspectorOnWaitFrontendMessageOnPauseCallback = std::function<int(v8_inspector_c_wrapper *)>;
+
+class v8_inspector_client_wrapper final: public v8_inspector::V8InspectorClient {
+public:
+    explicit v8_inspector_client_wrapper(
+        v8::Platform *platform,
+        const v8::Local<v8::Context> &context,
+        const InspectorOnResponseCallback &onResponse = {},
+        const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause = {}
+    );
+
+    v8::Local<v8::Context> getContext();
+    v8::Isolate* getIsolate();
+    void setOnResponseCallback(const InspectorOnResponseCallback &callback);
+    void setOnWaitFrontendMessageOnPauseCallback(const InspectorOnWaitFrontendMessageOnPauseCallback &callback);
+
+    void dispatchProtocolMessage(const v8_inspector::StringView &message_view);
+    void runMessageLoopOnPause(const int contextGroupId) override;
+    void quitMessageLoopOnPause() override;
+
+    void schedulePauseOnNextStatement(const v8_inspector::StringView &reason);
+    void waitFrontendMessageOnPause();
+
+private:
+    static const int kContextGroupId = 1;
+
+    v8::Platform* platform_;
+    std::unique_ptr<v8_inspector::V8Inspector> inspector_;
+    std::unique_ptr<v8_inspector::V8InspectorSession> session_;
+    std::unique_ptr<v8_inspector_channel_wrapper> channel_;
+    v8::Isolate* isolate_;
+    v8::Local<v8::Context> context_;
+    InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
+    bool terminated_;
+    bool run_nested_loop_;
+};
+
+v8_inspector_client_wrapper::v8_inspector_client_wrapper(
+    v8::Platform *platform,
+    const v8::Local<v8::Context> &context,
+    const InspectorOnResponseCallback &onResponse,
+    const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause
+) :
+    platform_(platform),
+    context_(context),
+    onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause)
+{
+    isolate_ = context->GetIsolate();
+    inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
+    channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse));
+    session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
+    context_->SetAlignedPointerInEmbedderData(DEBUGGER_INDEX, this);
+
+    v8_inspector::StringView contextName = convertToStringView("inspector");
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context_, kContextGroupId, contextName));
+    terminated_ = true;
+    run_nested_loop_ = false;
+}
+
+v8::Isolate* v8_inspector_client_wrapper::getIsolate() {
+    return isolate_;
+}
+
+v8::Local<v8::Context> v8_inspector_client_wrapper::getContext() {
+    return context_;
+}
+
+void v8_inspector_client_wrapper::setOnResponseCallback(const InspectorOnResponseCallback &callback) {
+    channel_->setOnResponseCallback(callback);
+}
+
+void v8_inspector_client_wrapper::setOnWaitFrontendMessageOnPauseCallback(const InspectorOnWaitFrontendMessageOnPauseCallback &callback) {
+    onWaitFrontendMessageOnPause_ = callback;
+}
+
+void v8_inspector_client_wrapper::dispatchProtocolMessage(const v8_inspector::StringView &message_view) {
+    session_->dispatchProtocolMessage(message_view);
+}
+
+void v8_inspector_client_wrapper::runMessageLoopOnPause(int contextGroupId) {
+    if (run_nested_loop_) {
+        return;
+    }
+
+    terminated_ = false;
+    run_nested_loop_ = true;
+
+    while (!terminated_ && onWaitFrontendMessageOnPause_ && onWaitFrontendMessageOnPause_(reinterpret_cast<v8_inspector_c_wrapper *>(this))) {
+        while (v8::platform::PumpMessageLoop(platform_, isolate_)) {}
+    }
+
+    terminated_ = true;
+    run_nested_loop_ = false;
+}
+
+void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
+    terminated_ = true;
+}
+
+void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
+    session_->schedulePauseOnNextStatement(reason, reason);
+}
+
+void v8_inspector_client_wrapper::waitFrontendMessageOnPause() {
+    terminated_ = false;
+}
+} // anonymous namespace
+
+v8_inspector_c_wrapper* v8_InspectorCreate(
+    v8_context_ref *context_ref,
+    v8_InspectorOnResponseCallback onResponse,
+    void *onResponseUserData,
+    v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+    void *onWaitUserData
+) {
+    std::function<void(std::string)> onResponseWrapper = [onResponse, onResponseUserData](const std::string &string){
+        onResponse(string.c_str(), onResponseUserData);
+    };
+    std::function<int(v8_inspector_c_wrapper *)> onWaitFrontendMessageOnPauseWrapper = [onWaitFrontendMessageOnPause, onWaitUserData](v8_inspector_c_wrapper *inspector) {
+        return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
+    };
+    auto platform = GLOBAL_PLATFORM;
+    auto context = context_ref->context;
+    return reinterpret_cast<v8_inspector_c_wrapper *>(
+        new v8_inspector_client_wrapper(
+            platform,
+            context,
+            onResponseWrapper,
+            onWaitFrontendMessageOnPauseWrapper
+        )
+    );
+}
+
+void v8_FreeInspector(v8_inspector_c_wrapper *wrapper) {
+    delete reinterpret_cast<v8_inspector_client_wrapper *>(wrapper);
+}
+
+void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *wrapper, const char *message) {
+    const std::string string = message;
+    const auto view = convertToStringView(string);
+    reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->dispatchProtocolMessage(view);
+}
+
+void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *wrapper, const char *reason) {
+    const std::string string = reason;
+    const auto view = convertToStringView(string);
+    reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->schedulePauseOnNextStatement(view);
+}
+
+void v8_InspectorWaitFrontendMessageOnPause(v8_inspector_c_wrapper *wrapper) {
+    reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->waitFrontendMessageOnPause();
+}
+
+void v8_InspectorSetOnResponseCallback(
+    v8_inspector_c_wrapper *inspector,
+    v8_InspectorOnResponseCallback onResponse,
+    void *onResponseUserData
+) {
+    std::function<void(std::string)> onResponseWrapper = {};
+
+    if (onResponse) {
+        onResponseWrapper = [onResponse, onResponseUserData](const std::string &string){
+            onResponse(string.c_str(), onResponseUserData);
+        };
+    }
+
+    reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnResponseCallback(onResponseWrapper);
+}
+
+/* Sets the "onWaitFrontendMessageOnPause" callback. */
+void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
+    v8_inspector_c_wrapper *inspector,
+    v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+    void *onWaitUserData
+) {
+    std::function<int(v8_inspector_c_wrapper *)> onWaitFrontendMessageOnPauseWrapper = {};
+
+    if (onWaitFrontendMessageOnPause) {
+        onWaitFrontendMessageOnPauseWrapper = [onWaitFrontendMessageOnPause, onWaitUserData](v8_inspector_c_wrapper *inspector) {
+            return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
+        };
+    }
+
+    reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnWaitFrontendMessageOnPauseCallback(onWaitFrontendMessageOnPauseWrapper);
+}
+
+v8_isolate* v8_InspectorGetIsolate(
+    v8_inspector_c_wrapper *inspector
+) {
+    return reinterpret_cast<v8_isolate *>(
+        reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getIsolate());
+}
+
+v8_context_ref* v8_InspectorGetContext(
+    v8_inspector_c_wrapper *inspector
+) {
+    return new v8_context_ref(
+        reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getContext());
+}
+
 
 int v8_InitializePlatform(int thread_pool_size, const char *flags) {
     if (flags) {

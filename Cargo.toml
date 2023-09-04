@@ -7,9 +7,15 @@ license = "Redis Source Available License 2.0 (RSALv2) or the Server Side Public
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tungstenite = { version = "0.20", optional = true }
+log = "0.4"
+serde = { version = "=1.0.171", features = ["derive"] }
+serde_derive = "=1.0.171"
+serde_json = "1"
+serde-aux = "4"
 
 [build-dependencies]
-bindgen = "0.59.2"
+bindgen = "0.65"
 vergen = { version = "8", features = ["git", "gitcl"] }
 lazy_static = "1"
 
@@ -22,3 +28,8 @@ ctor = "0.2.4"
 name = "v8_rs"
 path = "src/lib.rs"
 crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["debug-server"]
+debug-server = ["tungstenite"]
+
