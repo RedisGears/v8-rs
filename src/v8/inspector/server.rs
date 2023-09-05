@@ -301,10 +301,11 @@ impl WebSocketServer {
 
     /// Attempts to read the next message.
     pub fn try_read_next_message(&mut self) -> Result<Option<String>, std::io::Error> {
-        // log::trace!("Reading the next message (non-blocking).");
         if !self.has_data_to_read()? {
             return Ok(None);
         }
+
+        log::trace!("Reading the next message (non-blocking).");
 
         let message = self.0.read();
         self.process_message(message)
@@ -428,6 +429,12 @@ impl DebuggerSession {
         };
 
         let on_wait_frontend_message_on_pause = move |raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper| -> std::os::raw::c_int {
+            // When this is returned, the callback will be called again,
+            // if no error occured.
+            const CONTINUE_WAITING: std::os::raw::c_int = 0;
+            // Returning this would result in stopping the wait.
+            const STOP_WAITING: std::os::raw::c_int = 1;
+
             let string;
 
             loop {
@@ -443,12 +450,12 @@ impl DebuggerSession {
                             break;
                         }
                         Err(e) => if e.kind() == std::io::ErrorKind::ConnectionAborted {
-                            return 0;
+                            return CONTINUE_WAITING;
                         }
                     },
                     Err(e) => {
                         log::error!("The WebSocketServer mutex is poisoned: {e:?}");
-                        return 0;
+                        return CONTINUE_WAITING;
                     },
                 }
             }
@@ -460,7 +467,7 @@ impl DebuggerSession {
                 )
             }
 
-            1
+            STOP_WAITING
         };
 
         InspectorCallbacks {
