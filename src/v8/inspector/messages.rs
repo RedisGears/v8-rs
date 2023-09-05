@@ -137,7 +137,9 @@ impl MethodCallInformation {
 /// server).
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ClientMessage {
-    /// The ID of the message.
+    /// The ID of the message. The message IDs are monotonically
+    /// increasing sequence, where each consecutive message has an ID
+    /// higher than the previous one.
     pub id: u64,
     /// The method information.
     #[serde(flatten)]
@@ -149,17 +151,36 @@ impl ClientMessage {
     /// connected to the [super::Inspector] server and waits for the
     /// debugging session to start.
     const DEBUGGER_SHOULD_START_METHOD_NAME: &str = "Runtime.runIfWaitingForDebugger";
+    /// The V8 method which enables the debugger runtime. Usually, this
+    /// is the very first message the frontend sends to the backend.
+    const DEBUGGER_RUNTIME_ENABLE: &str = "Runtime.enable";
     /// The V8 method which pauses the execution, effectively setting
     /// a silent breakpoint on the next statement.
     const DEBUGGER_PAUSE_METHOD_NAME: &str = "Debugger.pause";
 
     /// Creates a new client message which says that the remote debugger
     /// (the client) is ready to proceed.
+    ///
+    /// The `id` argument is the sequential number of this message.
     pub fn new_client_ready(id: u64) -> Self {
         Self {
             id,
             method: MethodCallInformation {
                 name: Self::DEBUGGER_SHOULD_START_METHOD_NAME.to_owned(),
+                ..Default::default()
+            },
+        }
+    }
+
+    /// Creates a new client message which instructs to enable the
+    /// debugger runtime.
+    ///
+    /// The `id` argument is the sequential number of this message.
+    pub fn new_runtime_enable(id: u64) -> Self {
+        Self {
+            id,
+            method: MethodCallInformation {
+                name: Self::DEBUGGER_RUNTIME_ENABLE.to_owned(),
                 ..Default::default()
             },
         }

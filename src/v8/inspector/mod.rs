@@ -51,7 +51,7 @@ use super::{isolate::V8Isolate, v8_context_scope::V8ContextScope};
 ///
 /// // Initialise the V8 engine:
 /// v8_init_platform(1, Some("--expose-gc")).unwrap();
-/// v8_init();
+/// v8_init().unwrap();
 ///
 /// // Create a new isolate:
 /// let isolate = isolate::V8Isolate::new();
@@ -111,36 +111,52 @@ impl RawInspector {
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     /// The message must be a valid string encoded in JSON and following
     /// the V8 Inspector Protocol.
-    pub fn dispatch_protocol_message<T: AsRef<str>>(&self, message: T) {
+    pub fn dispatch_protocol_message<T: AsRef<str>>(
+        &self,
+        message: T,
+    ) -> Result<(), std::io::Error> {
         let message = message.as_ref();
         log::trace!("Dispatching incoming message: {message}",);
 
-        let string = match std::ffi::CString::new(message) {
-            Ok(string) => string,
-            _ => return,
-        };
+        let string = std::ffi::CString::new(message).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "The V8 Inspector Protocol message shouldn't contain nul symbols.",
+            )
+        })?;
+
         unsafe {
             crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
                 self.raw.as_ptr(),
                 string.as_ptr(),
-            )
+            );
         }
+
+        Ok(())
     }
 
     /// Schedules a debugger pause (sets a breakpoint) for the next
     /// statement. The `reason` argument may be any string, helpful to
     /// the user.
-    pub fn schedule_pause_on_next_statement<T: AsRef<str>>(&self, reason: T) {
-        let string = match std::ffi::CString::new(reason.as_ref()) {
-            Ok(string) => string,
-            _ => return,
-        };
+    pub fn schedule_pause_on_next_statement<T: AsRef<str>>(
+        &self,
+        reason: T,
+    ) -> Result<(), std::io::Error> {
+        let string = std::ffi::CString::new(reason.as_ref()).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "The V8 Inspector Protocol message shouldn't contain nul symbols.",
+            )
+        })?;
+
         unsafe {
             crate::v8_c_raw::bindings::v8_InspectorSchedulePauseOnNextStatement(
                 self.raw.as_ptr(),
                 string.as_ptr(),
-            )
+            );
         }
+
+        Ok(())
     }
 
     /// Enables the debugger main loop. Only useful when the debugger
@@ -320,4 +336,89 @@ impl Deref for Inspector {
     fn deref(&self) -> &Self::Target {
         &self.raw
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::v8::*;
+
+    #[test]
+    fn set_breakpoint() {
+        // Initialise the V8 engine:
+        crate::test_utils::initialize();
+
+        // Create a new isolate:
+        let isolate = isolate::V8Isolate::new();
+
+        // Enter the isolate created:
+        let i_scope = isolate.enter();
+
+        // Create a JS execution context for code invocation:""
+        let ctx = i_scope.new_context(None);
+
+        // Enter the created execution context for debugging:
+        let ctx_scope = ctx.enter(&i_scope);
+
+        // Create an inspector.
+        let inspector = RawInspector::new(&ctx_scope);
+
+        // Set a "good" breakpoint.
+        assert!(inspector
+            .schedule_pause_on_next_statement("Test breakpoint")
+            .is_ok());
+
+        // Set a "bad" breakpoint.
+        assert!(inspector
+            .schedule_pause_on_next_statement("Test\0breakpoint")
+            .is_err());
+    }
+
+    // TODO: Unfortunately, this test crashes the V8 engine, it requires
+    // a proper research as to why.
+    // // The idea of this test is to dispatch two messages, a correct and
+    // // an incorrect one and check that the dispatch method works
+    // // as expected. The only test case is that we can't dispatch
+    // // invalid messages. A valid message is a JSON-string, without NUL
+    // // symbols.
+    // #[cfg(feature = "debug-server")]
+    // #[test]
+    // fn dispatch_message() {
+    //     // Initialise the V8 engine:
+    //     crate::test_utils::initialize();
+
+    //     // Create a new isolate:
+    //     let isolate = isolate::V8Isolate::new();
+
+    //     // Enter the isolate created:
+    //     let i_scope = isolate.enter();
+
+    //     // Create the code string object:
+    //     let code_str = i_scope.new_string("1+1");
+
+    //     // Create a JS execution context for code invocation:""
+    //     let ctx = i_scope.new_context(None);
+
+    //     // Enter the created execution context for debugging:
+    //     let ctx_scope = ctx.enter(&i_scope);
+
+    //     // Create an inspector.
+    //     let inspector = RawInspector::new(&ctx_scope);
+
+    //     let script = ctx_scope.compile(&code_str).unwrap();
+    //     let _res = script.run(&ctx_scope).unwrap();
+
+    //     let mut message = messages::ClientMessage::new_runtime_enable(0);
+
+    //     // Send a good message.
+    //     assert!(inspector
+    //         .dispatch_protocol_message(serde_json::to_string(&message).unwrap())
+    //         .is_ok());
+
+    //     // Send a bad message.
+    //     message.method.name.insert(0, '\0');
+    //     assert!(inspector
+    //         .dispatch_protocol_message(serde_json::to_string(&message).unwrap())
+    //         .is_err());
+    // }
 }

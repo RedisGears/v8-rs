@@ -61,7 +61,7 @@
 //!
 //! // Initialise the V8 engine:
 //! v8_init_platform(1, Some("--expose-gc")).unwrap();
-//! v8_init();
+//! v8_init().unwrap();
 //!
 //! // Create a new isolate:
 //! let isolate = isolate::V8Isolate::new();
@@ -505,8 +505,12 @@ impl DebuggerSession {
                 Ok(message) => message,
                 Err(_) => continue,
             };
+
             log::trace!("Parsed out the incoming message: {message:?}");
-            session.inspector.dispatch_protocol_message(&message_string);
+
+            session
+                .inspector
+                .dispatch_protocol_message(&message_string)?;
 
             if message.is_client_ready() {
                 return Ok(session);
@@ -588,7 +592,7 @@ impl DebuggerSession {
     pub fn read_and_process_next_message(&self) -> Result<String, std::io::Error> {
         let message = self.read_next_message()?;
         log::trace!("Got incoming websocket message: {message}");
-        self.inspector.dispatch_protocol_message(&message);
+        self.inspector.dispatch_protocol_message(&message)?;
         Ok(message)
     }
 
@@ -602,7 +606,7 @@ impl DebuggerSession {
                 "Got incoming websocket message: {message}, len={}",
                 message.len()
             );
-            self.inspector.dispatch_protocol_message(message);
+            self.inspector.dispatch_protocol_message(message)?;
         }
         Ok(message)
     }
@@ -655,9 +659,9 @@ impl DebuggerSession {
 
     /// Schedules a pause (sets a breakpoint) for the next statement.
     /// See [`super::Inspector::schedule_pause_on_next_statement`].
-    pub fn schedule_pause_on_next_statement(&self) {
+    pub fn schedule_pause_on_next_statement(&self) -> Result<(), std::io::Error> {
         self.inspector
-            .schedule_pause_on_next_statement("User breakpoint.");
+            .schedule_pause_on_next_statement("User breakpoint.")
     }
 
     /// Stops the debugging session if it has been established.
