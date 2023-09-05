@@ -30,6 +30,7 @@
 //! the network and feed the [Inspector] with data.
 use std::{ops::Deref, ptr::NonNull, sync::Arc};
 
+#[cfg(feature = "debug-server")]
 pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
@@ -41,6 +42,32 @@ use super::{isolate::V8Isolate, v8_context_scope::V8ContextScope};
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
 /// API. An inspector is tied to the [V8Isolate] it was created for.
+///
+/// # Example
+///
+/// ```rust
+/// use v8_rs::v8::*;
+/// use v8_rs::v8::inspector::RawInspector;
+///
+/// // Initialise the V8 engine:
+/// v8_init_platform(1, Some("--expose-gc")).unwrap();
+/// v8_init();
+///
+/// // Create a new isolate:
+/// let isolate = isolate::V8Isolate::new();
+///
+/// // Enter the isolate created:
+/// let i_scope = isolate.enter();
+///
+/// // Create a JS execution context for code invocation:""
+/// let ctx = i_scope.new_context(None);
+///
+/// // Enter the created execution context for debugging:
+/// let ctx_scope = ctx.enter(&i_scope);
+///
+/// // Create an inspector.
+/// let _inspector = RawInspector::new(&ctx_scope);
+/// ```
 #[derive(Debug)]
 pub struct RawInspector {
     raw: NonNull<crate::v8_c_raw::bindings::v8_inspector_c_wrapper>,

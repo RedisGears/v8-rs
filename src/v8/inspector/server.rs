@@ -78,7 +78,7 @@
 //! // Enter the created execution context for debugging:
 //! let ctx_scope = ctx.enter(&i_scope);
 //!
-//! // Obtain an inspector.
+//! // Create an inspector.
 //! let inspector = Arc::new(RawInspector::new(&ctx_scope));
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
