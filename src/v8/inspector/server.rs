@@ -476,7 +476,7 @@ impl DebuggerSession {
     /// function returns.
     ///
     /// After the function returns, to start the debugging main loop,
-    /// one needs to call the [Self::process_messages].
+    /// one needs to call the [`Self::process_messages`].
     /// method.
     pub fn new(
         web_socket: WebSocketServer,
@@ -654,19 +654,13 @@ impl DebuggerSession {
     }
 
     /// Schedules a pause (sets a breakpoint) for the next statement.
-    /// See [super::Inspector::schedule_pause_on_next_statement].
+    /// See [`super::Inspector::schedule_pause_on_next_statement`].
     pub fn schedule_pause_on_next_statement(&self) {
         self.inspector
             .schedule_pause_on_next_statement("User breakpoint.");
     }
 
     /// Stops the debugging session if it has been established.
-    ///
-    /// The [`should_send_close`] argument determines whether a closing
-    /// websocket frame should be sent. The flag should be set to
-    /// [`true`] if the initiator of the session stop is the server, and
-    /// [`false`] when the connection is dropped by the client.
-    // pub fn stop(&self, should_send_close: bool) {
     pub fn stop(&self) {
         if let Ok(mut ws) = self.web_socket.lock() {
             if ws.0.can_write() {

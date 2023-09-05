@@ -6,7 +6,7 @@
 //! The messages the V8 Inspector, represented by [super::Inspector],
 //! sends and receives.
 //!
-//! See [ClientMessage], [MethodInvocation], [ServerMessage],
+//! See [ClientMessage], [MethodCallInformation], [ServerMessage],
 //! and [ErrorMessage].
 //!
 //! For more information on the protocol, see the official V8
@@ -171,7 +171,7 @@ impl ClientMessage {
         const SET_BREAKPOINT_METHOD_NAME: &str = "Debugger.setBreakpointByUrl";
         // Example: { id: 1015, method: MethodInvocation { name: "Debugger.setBreakpointByUrl",
         // arguments: {"columnNumber": Number(0), "lineNumber": Number(0),
-        // "urlRegex": String("file:\\/\\/\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)|\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)")} } }
+        // "urlRegex": String("file:\\/\\/\\/mnt/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)|\\/home\\/fx\\/workspace\\/RedisGears\\/redisgears_core\\/src\\/lib\\.rs($|\\?)")} } }
 
         let mut arguments = serde_json::Map::new();
         arguments.insert("columnNumber".to_owned(), serde_json::json!(column));
