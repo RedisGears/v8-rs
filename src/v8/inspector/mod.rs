@@ -180,8 +180,8 @@ impl Drop for RawInspector {
 }
 
 // TODO remove and rewrite so that we don't use it.
-/// Currently, we rely on the thread-safety guarantees of V8, until it
-/// shoots us in the leg.
+/// Currently, we rely on the thread-safety of V8 which is said to not
+/// exist.
 unsafe impl Sync for RawInspector {}
 unsafe impl Send for RawInspector {}
 
