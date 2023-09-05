@@ -101,7 +101,7 @@ impl RawInspector {
         }
     }
 
-    /// Returns a raw mutable pointer of the underylgin object of
+    /// Returns a raw mutable pointer of the underlying object of
     /// [`crate::v8::v8_context_scope::V8ContextScope`] of this
     /// inspector.
     pub fn get_context_scope_ptr(&self) -> *mut v8_context_ref {
@@ -109,8 +109,9 @@ impl RawInspector {
     }
 
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
-    /// The message must be a valid string encoded in JSON and following
-    /// the V8 Inspector Protocol.
+    /// The message must be a valid stringified JSON object with no NUL
+    /// symbols, and the message must be allowed by the V8 Inspector
+    /// Protocol.
     pub fn dispatch_protocol_message<T: AsRef<str>>(
         &self,
         message: T,
@@ -145,7 +146,7 @@ impl RawInspector {
         let string = std::ffi::CString::new(reason.as_ref()).map_err(|_| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                "The V8 Inspector Protocol message shouldn't contain nul symbols.",
+                "The V8 Inspector Protocol breakpoint reason shouldn't contain nul symbols.",
             )
         })?;
 
