@@ -367,7 +367,7 @@ public:
 
 private:
     v8::Isolate* isolate_;
-   std::function<void(std::string)> onResponse_;
+    std::function<void(std::string)> onResponse_;
 };
 
 
