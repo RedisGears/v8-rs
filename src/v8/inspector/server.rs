@@ -57,7 +57,7 @@
 //! use inspector::messages::ClientMessage;
 //! use inspector::server::{DebuggerSession, TcpServer};
 //! use std::sync::{Arc, Mutex};
-//! use v8_rs::v8::inspector::RawInspector;
+//! use v8_rs::v8::inspector::Inspector;
 //!
 //! // Initialise the V8 engine:
 //! v8_init_platform(1, Some("--expose-gc")).unwrap();
@@ -79,7 +79,7 @@
 //! let ctx_scope = ctx.enter(&i_scope);
 //!
 //! // Create an inspector.
-//! let inspector = Arc::new(RawInspector::new(&ctx_scope));
+//! let inspector = Arc::new(Inspector::new(&ctx_scope));
 //!
 //! let mut stage_1 = Arc::new(Mutex::new(()));
 //! let mut stage_2 = Arc::new(Mutex::new(()));
@@ -187,7 +187,9 @@ use tungstenite::{Error, Message, WebSocket};
 
 use crate::v8::inspector::messages::ClientMessage;
 
-use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback, RawInspector};
+use super::{
+    Inspector, InspectorSession, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback,
+};
 
 /// The debugging server which waits for a connection of a remote
 /// debugger, receives messages from there and sends the replies back.
@@ -404,7 +406,7 @@ impl<T: Into<std::net::SocketAddr>> From<T> for DebuggerSessionConnectionHints {
 #[derive(Debug)]
 pub struct DebuggerSession {
     web_socket: Rc<Mutex<WebSocketServer>>,
-    inspector: Inspector,
+    inspector: InspectorSession,
     connection_hints: DebuggerSessionConnectionHints,
 }
 
@@ -487,12 +489,12 @@ impl DebuggerSession {
     /// method.
     pub fn new(
         web_socket: WebSocketServer,
-        inspector: Arc<RawInspector>,
+        inspector: Arc<Inspector>,
     ) -> Result<Self, std::io::Error> {
         let connection_hints = web_socket.get_connection_hints()?;
         let web_socket = Rc::new(Mutex::new(web_socket));
         let callbacks = Self::create_inspector_callbacks(web_socket.clone());
-        let inspector = Inspector::new(
+        let inspector = InspectorSession::new(
             inspector,
             callbacks.on_response,
             callbacks.on_wait_frontend_message_on_pause,
@@ -688,7 +690,7 @@ mod tests {
     use crate::v8::{
         inspector::{
             server::{DebuggerSession, TcpServer},
-            RawInspector,
+            Inspector,
         },
         isolate::V8Isolate,
     };
@@ -724,7 +726,7 @@ mod tests {
         // Enter the created execution context for debugging:
         let ctx_scope = ctx.enter(&i_scope);
 
-        let inspector = Arc::new(RawInspector::new(&ctx_scope));
+        let inspector = Arc::new(Inspector::new(&ctx_scope));
 
         let stage_1 = Arc::new(Mutex::new(()));
 

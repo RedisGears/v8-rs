@@ -47,7 +47,7 @@ use super::{isolate::V8Isolate, v8_context_scope::V8ContextScope};
 ///
 /// ```rust
 /// use v8_rs::v8::*;
-/// use v8_rs::v8::inspector::RawInspector;
+/// use v8_rs::v8::inspector::Inspector;
 ///
 /// // Initialise the V8 engine:
 /// v8_init_platform(1, Some("--expose-gc")).unwrap();
@@ -66,14 +66,14 @@ use super::{isolate::V8Isolate, v8_context_scope::V8ContextScope};
 /// let ctx_scope = ctx.enter(&i_scope);
 ///
 /// // Create an inspector.
-/// let _inspector = RawInspector::new(&ctx_scope);
+/// let _inspector = Inspector::new(&ctx_scope);
 /// ```
 #[derive(Debug)]
-pub struct RawInspector {
+pub struct Inspector {
     raw: NonNull<crate::v8_c_raw::bindings::v8_inspector_c_wrapper>,
 }
 
-impl RawInspector {
+impl Inspector {
     /// Creates a new inspector for the provided isolate.
     #[allow(clippy::not_unsafe_ptr_arg_deref)]
     pub fn new(context_scope: &V8ContextScope<'_, '_>) -> Self {
@@ -159,19 +159,9 @@ impl RawInspector {
 
         Ok(())
     }
-
-    /// Enables the debugger main loop. Only useful when the debugger
-    /// is on pause. It is usually called automatically by the inspector
-    /// but may also be called from here to wait for a certain event
-    /// on the client side.
-    pub fn wait_frontend_message_on_pause(&self) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(self.raw.as_ptr())
-        }
-    }
 }
 
-impl Drop for RawInspector {
+impl Drop for Inspector {
     fn drop(&mut self) {
         unsafe {
             crate::v8_c_raw::bindings::v8_FreeInspector(self.raw.as_ptr());
@@ -182,8 +172,8 @@ impl Drop for RawInspector {
 // TODO remove and rewrite so that we don't use it.
 /// Currently, we rely on the thread-safety of V8 which is said to not
 /// exist.
-unsafe impl Sync for RawInspector {}
-unsafe impl Send for RawInspector {}
+unsafe impl Sync for Inspector {}
+unsafe impl Send for Inspector {}
 
 /// The callback which is invoked when the V8 Inspector needs to reply
 /// to the client.
@@ -211,8 +201,8 @@ type OnWaitFrontendMessageOnPauseCallback =
 /// to be able to send the responses back to the client. The callbacks
 /// which this version of the `Inspector` has are mandatory for a
 /// properly working session.
-pub struct Inspector {
-    raw: Arc<RawInspector>,
+pub struct InspectorSession {
+    inspector: Arc<Inspector>,
     /// This callback is stored to preserve the lifetime, it is never
     /// called by this object, but by the C++ side.
     _on_response_callback: Box<Box<OnResponseCallback>>,
@@ -221,7 +211,7 @@ pub struct Inspector {
     _on_wait_frontend_message_on_pause_callback: Box<Box<OnWaitFrontendMessageOnPauseCallback>>,
 }
 
-impl std::fmt::Debug for Inspector {
+impl std::fmt::Debug for InspectorSession {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let on_response_str = {
             let callback = &self._on_response_callback;
@@ -234,7 +224,7 @@ impl std::fmt::Debug for Inspector {
         };
 
         f.debug_struct("Inspector")
-            .field("raw", &self.raw)
+            .field("raw", &self.inspector)
             .field("_on_response_callback", &on_response_str)
             .field("_on_wait_frontend_message_on_pause_callback", &on_wait_str)
             .finish()
@@ -269,10 +259,10 @@ extern "C" fn on_wait_frontend_message_on_pause(
     rust_callback(raw)
 }
 
-impl Inspector {
+impl InspectorSession {
     /// Creates a new [Inspector].
     pub fn new(
-        raw: Arc<RawInspector>,
+        raw: Arc<Inspector>,
         on_response_callback: Box<OnResponseCallback>,
         on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
     ) -> Self {
@@ -282,7 +272,7 @@ impl Inspector {
             on_wait_frontend_message_on_pause_callback,
         );
         Self {
-            raw,
+            inspector: raw,
             _on_response_callback: on_response_callback,
             _on_wait_frontend_message_on_pause_callback: on_wait_callback,
         }
@@ -291,7 +281,7 @@ impl Inspector {
     /// Sets the callback which is used by the debugger to send messages
     /// to the remote client.
     fn set_on_response_callback(
-        raw: &RawInspector,
+        raw: &Inspector,
         on_response_callback: Box<OnResponseCallback>,
     ) -> Box<Box<OnResponseCallback>> {
         let on_response_callback = Box::new(on_response_callback);
@@ -311,7 +301,7 @@ impl Inspector {
     /// Sets the callback when the debugger needs to wait for the
     /// remote client's message.
     fn set_on_wait_frontend_message_on_pause_callback(
-        raw: &RawInspector,
+        raw: &Inspector,
         on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
     ) -> Box<Box<OnWaitFrontendMessageOnPauseCallback>> {
         let on_wait_frontend_message_on_pause_callback =
@@ -329,13 +319,25 @@ impl Inspector {
 
         unsafe { Box::from_raw(on_wait_frontend_message_on_pause_callback as *mut _) }
     }
+
+    /// Enables the debugger main loop. Only useful when the debugger
+    /// is on pause. It is usually called automatically by the inspector
+    /// but may also be called from here to wait for a certain event
+    /// on the client side.
+    pub fn wait_frontend_message_on_pause(&self) {
+        unsafe {
+            crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(
+                self.inspector.raw.as_ptr(),
+            )
+        }
+    }
 }
 
-impl Deref for Inspector {
-    type Target = RawInspector;
+impl Deref for InspectorSession {
+    type Target = Inspector;
 
     fn deref(&self) -> &Self::Target {
-        &self.raw
+        &self.inspector
     }
 }
 
@@ -362,7 +364,7 @@ mod tests {
         let ctx_scope = ctx.enter(&i_scope);
 
         // Create an inspector.
-        let inspector = RawInspector::new(&ctx_scope);
+        let inspector = Inspector::new(&ctx_scope);
 
         // Set a "good" breakpoint.
         assert!(inspector
@@ -404,7 +406,7 @@ mod tests {
     //     let ctx_scope = ctx.enter(&i_scope);
 
     //     // Create an inspector.
-    //     let inspector = RawInspector::new(&ctx_scope);
+    //     let inspector = Inspector::new(&ctx_scope);
 
     //     let script = ctx_scope.compile(&code_str).unwrap();
     //     let _res = script.run(&ctx_scope).unwrap();
