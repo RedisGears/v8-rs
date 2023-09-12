@@ -159,17 +159,6 @@ void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *inspector, cons
 the reason message provided. */
 void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *inspector, const char *reason);
 
-/** The callback which is invoked when the V8 Inspector requires more
- * data from the front-end (the client) and, therefore, this callback
- * must attempt to read more data and dispatch it to the inspector.
- *
- * The callback should return `1` when it is possible to operate (read,
- * write, send, receive messages) and `0` when not, to indicate the
- * impossibility of the further action, in which case, the inspector
- * will stop.
- */
-void v8_InspectorWaitFrontendMessageOnPause(v8_inspector_c_wrapper *inspector);
-
 /** Sets the "onResponse" callback: a function to be invoked whenever
 the inspector provided needs to reply to the client. */
 void v8_InspectorSetOnResponseCallback(

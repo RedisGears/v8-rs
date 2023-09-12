@@ -299,18 +299,6 @@ impl InspectorSession {
 
         unsafe { Box::from_raw(on_wait_frontend_message_on_pause_callback as *mut _) }
     }
-
-    /// Enables the debugger main loop. Only useful when the debugger
-    /// is on pause. It is usually called automatically by the inspector
-    /// but may also be called from here to wait for a certain event
-    /// on the client side.
-    pub fn wait_frontend_message_on_pause(&self) {
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorWaitFrontendMessageOnPause(
-                self.inspector.raw.as_ptr(),
-            )
-        }
-    }
 }
 
 impl Deref for InspectorSession {

@@ -23,8 +23,7 @@ std::atomic_uint_fast64_t ISOLATE_ID_COUNTER = 1;
  * 0 - reserved by V8.
  * 1 - our internal data (can be anything).
  * 2 - isolate id.
- * 3 - debugger object.
- * 4 and higher - any other user data.
+ * 3 and higher - any other user data.
 */
 
 /** Our slot is a slot where we store our own data. The 0th index of
@@ -34,15 +33,13 @@ std::atomic_uint_fast64_t ISOLATE_ID_COUNTER = 1;
 #define OUR_SLOT 1
 /** The data index of the isolate id. */
 #define ISOLATE_ID_INDEX 2
-/** The data index of the debugger . */
-#define DEBUGGER_INDEX 3
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-#define INTERNAL_OFFSET 3 + OUR_SLOT
+#define INTERNAL_OFFSET ISOLATE_ID_INDEX + OUR_SLOT
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
 
 extern "C" {
@@ -494,10 +491,6 @@ void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
 void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
     session_->schedulePauseOnNextStatement(reason, reason);
 }
-
-void v8_inspector_client_wrapper::waitFrontendMessageOnPause() {
-    terminated_ = false;
-}
 } // anonymous namespace
 
 v8_inspector_c_wrapper* v8_InspectorCreate(
@@ -539,10 +532,6 @@ void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *wrapper, c
     const std::string string = reason;
     const auto view = convertToStringView(string);
     reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->schedulePauseOnNextStatement(view);
-}
-
-void v8_InspectorWaitFrontendMessageOnPause(v8_inspector_c_wrapper *wrapper) {
-    reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->waitFrontendMessageOnPause();
 }
 
 void v8_InspectorSetOnResponseCallback(
