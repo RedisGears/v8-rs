@@ -1299,7 +1299,7 @@ void v8_ObjectSetInternalField(v8_local_object *obj, size_t index, v8_local_valu
 }
 
 v8_local_value* v8_ObjectGetInternalField(v8_local_object *obj, size_t index) {
-    v8::Local<v8::Value> val = obj->obj->GetInternalField(index);
+    v8::Local<v8::Value> val = obj->obj->GetInternalField(index).As<v8::Value>();
     v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
     res = new (res) v8_local_value(val);
     return res;
