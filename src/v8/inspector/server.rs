@@ -678,7 +678,7 @@ impl DebuggerSession {
         if let Ok(mut ws) = self.web_socket.lock() {
             if ws.0.can_write() {
                 if let Err(e) = ws.0.send(Message::Close(None)) {
-                    log::warn!("Couldn't stop the debugging session: {e}");
+                    log::trace!("Couldn't stop the debugging session: {e}");
                 }
             }
         }

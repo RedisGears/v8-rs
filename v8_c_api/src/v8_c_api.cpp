@@ -414,8 +414,6 @@ public:
         const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause = {}
     );
 
-    v8::Local<v8::Context> getContext();
-    v8::Isolate* getIsolate();
     void setOnResponseCallback(const InspectorOnResponseCallback &callback);
     void setOnWaitFrontendMessageOnPauseCallback(const InspectorOnWaitFrontendMessageOnPauseCallback &callback);
 
@@ -454,20 +452,11 @@ v8_inspector_client_wrapper::v8_inspector_client_wrapper(
     inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
     channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse));
     session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
-    context_->SetAlignedPointerInEmbedderData(DEBUGGER_INDEX, this);
 
     v8_inspector::StringView contextName = convertToStringView("inspector");
     inspector_->contextCreated(v8_inspector::V8ContextInfo(context_, kContextGroupId, contextName));
     terminated_ = true;
     run_nested_loop_ = false;
-}
-
-v8::Isolate* v8_inspector_client_wrapper::getIsolate() {
-    return isolate_;
-}
-
-v8::Local<v8::Context> v8_inspector_client_wrapper::getContext() {
-    return context_;
 }
 
 void v8_inspector_client_wrapper::setOnResponseCallback(const InspectorOnResponseCallback &callback) {
