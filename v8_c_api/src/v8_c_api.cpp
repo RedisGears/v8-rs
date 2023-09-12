@@ -508,14 +508,15 @@ v8_inspector_c_wrapper* v8_InspectorCreate(
     };
     auto platform = GLOBAL_PLATFORM;
     auto context = context_ref->context;
-    return reinterpret_cast<v8_inspector_c_wrapper *>(
-        new v8_inspector_client_wrapper(
+
+    v8_inspector_client_wrapper *inspectorWrapper = (v8_inspector_client_wrapper *)V8_ALLOC(sizeof(v8_inspector_client_wrapper ));
+    inspectorWrapper = new(inspectorWrapper) v8_inspector_client_wrapper(
             platform,
             context,
             onResponseWrapper,
             onWaitFrontendMessageOnPauseWrapper
-        )
     );
+    return reinterpret_cast<v8_inspector_c_wrapper*>(inspectorWrapper);
 }
 
 void v8_FreeInspector(v8_inspector_c_wrapper *wrapper) {
