@@ -1299,19 +1299,7 @@ void v8_ObjectSetInternalField(v8_local_object *obj, size_t index, v8_local_valu
 }
 
 v8_local_value* v8_ObjectGetInternalField(v8_local_object *obj, size_t index) {
-    // On v8 version 11.9, the API was changed to allow setting any V8 data and not just
-    // Local<Value>. This is why we need to check the V8 version to decide which code
-    // flow to take.
-#if (V8_MAJOR_VERSION > 11) || (V8_MAJOR_VERSION == 11 && V8_MINOR_VERSION >= 9)
-    v8::Local<v8::Data> data = obj->obj->GetInternalField(index);
-    if (!data->IsValue())
-    {
-        return NULL;
-    }
-    v8::Local<v8::Value> val = data.As<v8::Value>();
-#else
-    v8::Local<v8::Value> val = obj->obj->GetInternalField(index);
-#endif
+    v8::Local<v8::Value> val = obj->obj->GetInternalField(index).As<v8::Value>();
     v8_local_value *res = (v8_local_value*) V8_ALLOC(sizeof(*res));
     res = new (res) v8_local_value(val);
     return res;
