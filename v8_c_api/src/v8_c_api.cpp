@@ -589,21 +589,6 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
     reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnWaitFrontendMessageOnPauseCallback(onWaitFrontendMessageOnPauseWrapper);
 }
 
-v8_isolate* v8_InspectorGetIsolate(
-    v8_inspector_c_wrapper *inspector
-) {
-    return reinterpret_cast<v8_isolate *>(
-        reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getIsolate());
-}
-
-v8_context_ref* v8_InspectorGetContext(
-    v8_inspector_c_wrapper *inspector
-) {
-    return new v8_context_ref(
-        reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getContext());
-}
-
-
 int v8_InitializePlatform(int thread_pool_size, const char *flags) {
     if (flags) {
         v8::V8::SetFlagsFromString(flags);

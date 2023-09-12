@@ -185,16 +185,6 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 	void *onWaitUserData
 );
 
-/** Returns the V8Isolate the passed inspector is bound to. */
-v8_isolate* v8_InspectorGetIsolate(
-	v8_inspector_c_wrapper *inspector
-);
-
-/** Returns the V8ContextScope the passed inspector is bound to. */
-v8_context_ref* v8_InspectorGetContext(
-	v8_inspector_c_wrapper *inspector
-);
-
 /** Creates a new v8 isolate. An isolate is a v8 interpreter that responsible to run JS code.
  * Impeder may create as many isolates as wishes.
  * initial_heap_size_in_bytes - the initial isolate heap size

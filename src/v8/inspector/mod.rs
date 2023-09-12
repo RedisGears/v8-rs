@@ -35,9 +35,7 @@ pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
 
-use crate::v8_c_raw::bindings::v8_context_ref;
-
-use super::{isolate::V8Isolate, v8_context_scope::V8ContextScope};
+use super::v8_context_scope::V8ContextScope;
 
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
@@ -88,24 +86,6 @@ impl Inspector {
             ))
         };
         Self { raw }
-    }
-
-    /// Returns the isolate this inspector is bound to. The isolate
-    /// returned won't be released automatically.
-    pub fn get_isolate(&self) -> V8Isolate {
-        let isolate =
-            unsafe { crate::v8_c_raw::bindings::v8_InspectorGetIsolate(self.raw.as_ptr()) };
-        V8Isolate {
-            inner_isolate: isolate,
-            no_release: true,
-        }
-    }
-
-    /// Returns a raw mutable pointer of the underlying object of
-    /// [`crate::v8::v8_context_scope::V8ContextScope`] of this
-    /// inspector.
-    pub fn get_context_scope_ptr(&self) -> *mut v8_context_ref {
-        unsafe { crate::v8_c_raw::bindings::v8_InspectorGetContext(self.raw.as_ptr()) }
     }
 
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
