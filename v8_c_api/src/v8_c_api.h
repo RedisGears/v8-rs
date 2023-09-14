@@ -137,15 +137,19 @@ void v8_Dispose();
 
 typedef void (*v8_InspectorOnResponseCallback)(const char *string, void *userdata);
 typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *inspector,  void *userdata);
+/** Used to delete the user data. */
+typedef void (*v8_InspectorUserDataDeleter)(void *userdata);
 
 /** Creates a debugging inspector for the global platform and the given
 context. The callbacks are optional. */
 v8_inspector_c_wrapper* v8_InspectorCreate(
-	v8_context_ref *context_ref,
-	v8_InspectorOnResponseCallback onResponse,
-	void *onResponseUserData,
-	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
-	void *onWaitUserData
+    v8_context_ref *context_ref,
+    v8_InspectorOnResponseCallback onResponse,
+    void *onResponseUserData,
+    v8_InspectorUserDataDeleter onResponseUserDataDeleter,
+    v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+    void *onWaitUserData,
+    v8_InspectorUserDataDeleter onWaitUserDataDeleter
 );
 
 /** Deletes (invokes the destructor and deallocates) an inspector
@@ -164,14 +168,16 @@ the inspector provided needs to reply to the client. */
 void v8_InspectorSetOnResponseCallback(
 	v8_inspector_c_wrapper *inspector,
 	v8_InspectorOnResponseCallback onResponse,
-	void *onResponseUserData
+	void *onResponseUserData,
+	v8_InspectorUserDataDeleter deleter
 );
 
 /** Sets the "onWaitFrontendMessageOnPause" callback. */
 void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 	v8_inspector_c_wrapper *inspector,
 	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
-	void *onWaitUserData
+	void *onWaitUserData,
+	v8_InspectorUserDataDeleter deleter
 );
 
 /** Creates a new v8 isolate. An isolate is a v8 interpreter that responsible to run JS code.

@@ -28,7 +28,7 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::{ops::Deref, ptr::NonNull, sync::Arc};
+use std::ptr::NonNull;
 
 #[cfg(feature = "debug-server")]
 pub mod messages;
@@ -72,17 +72,66 @@ pub struct Inspector {
 }
 
 impl Inspector {
-    /// Creates a new inspector for the provided isolate.
-    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    /// Creates a new inspector for the provided isolate. The created
+    /// inspector object has no callbacks set.
     pub fn new(context_scope: &V8ContextScope<'_, '_>) -> Self {
         let raw_context = context_scope.get_inner();
+
         let raw = unsafe {
             NonNull::new_unchecked(crate::v8_c_raw::bindings::v8_InspectorCreate(
                 raw_context,
                 None,
                 std::ptr::null_mut(),
                 None,
+                None,
                 std::ptr::null_mut(),
+                None,
+            ))
+        };
+        Self { raw }
+    }
+
+    /// Creates a new [Inspector] with callbacks.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    #[allow(unused)]
+    pub(crate) fn new_with_callbacks<
+        OnResponse: OnResponseCallback,
+        OnWait: OnWaitFrontendMessageOnPauseCallback,
+    >(
+        context_scope: &V8ContextScope<'_, '_>,
+        on_response_callback: Option<OnResponse>,
+        on_wait_frontend_message_on_pause_callback: Option<OnWait>,
+    ) -> Self {
+        let raw_context = context_scope.get_inner();
+
+        let (on_response_c, deallocate_on_response, on_response_callback_ptr) =
+            match on_response_callback {
+                Some(r) => (
+                    Some(on_response::<OnResponse>),
+                    Some(deallocate_box),
+                    Box::into_raw(Box::new(r)),
+                ),
+                None => (None, None, std::ptr::null_mut()),
+            };
+        let (on_wait_c, deallocate_on_wait, on_wait_callback_ptr) =
+            match on_wait_frontend_message_on_pause_callback {
+                Some(w) => (
+                    Some(on_wait_frontend_message_on_pause::<OnWait>),
+                    Some(deallocate_box),
+                    Box::into_raw(Box::new(w)),
+                ),
+                None => (None, None, std::ptr::null_mut()),
+            };
+
+        let raw = unsafe {
+            NonNull::new_unchecked(crate::v8_c_raw::bindings::v8_InspectorCreate(
+                raw_context,
+                on_response_c.map(|r| r as _),
+                on_response_callback_ptr as _,
+                deallocate_on_response.map(|d| d as _),
+                on_wait_c.map(|w| w as _),
+                on_wait_callback_ptr as _,
+                deallocate_on_wait.map(|d| d as _),
             ))
         };
         Self { raw }
@@ -139,6 +188,43 @@ impl Inspector {
 
         Ok(())
     }
+
+    /// Sets the callback which is used by the debugger to send messages
+    /// to the remote client.
+    fn set_on_response_callback<T: OnResponseCallback>(&self, on_response_callback: T) {
+        let on_response_callback = Box::new(on_response_callback);
+        let on_response_callback = Box::into_raw(on_response_callback);
+
+        unsafe {
+            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
+                self.raw.as_ptr(),
+                Some(on_response::<T>),
+                on_response_callback as _,
+                Some(deallocate_box),
+            );
+        }
+    }
+
+    /// Sets the callback when the debugger needs to wait for the
+    /// remote client's message.
+    fn set_on_wait_frontend_message_on_pause_callback<T: OnWaitFrontendMessageOnPauseCallback>(
+        &self,
+        on_wait_frontend_message_on_pause_callback: T,
+    ) {
+        let on_wait_frontend_message_on_pause_callback =
+            Box::new(on_wait_frontend_message_on_pause_callback);
+        let on_wait_frontend_message_on_pause_callback =
+            Box::into_raw(on_wait_frontend_message_on_pause_callback);
+
+        unsafe {
+            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
+                self.raw.as_ptr(),
+                Some(on_wait_frontend_message_on_pause::<T>),
+                on_wait_frontend_message_on_pause_callback as _,
+                Some(deallocate_box),
+            );
+        }
+    }
 }
 
 impl Drop for Inspector {
@@ -157,7 +243,9 @@ unsafe impl Send for Inspector {}
 
 /// The callback which is invoked when the V8 Inspector needs to reply
 /// to the client.
-type OnResponseCallback = dyn FnMut(String);
+pub(crate) trait OnResponseCallback: FnMut(String) {}
+
+impl<T: FnMut(String)> OnResponseCallback for T {}
 
 /// The callback which is invoked when the V8 Inspector requires more
 /// data from the front-end (the client) and, therefore, this callback
@@ -167,146 +255,41 @@ type OnResponseCallback = dyn FnMut(String);
 /// write, send, receive messages) and `0` when not, to indicate the
 /// impossibility of the further action, in which case, the inspector
 /// will stop.
-type OnWaitFrontendMessageOnPauseCallback =
-    dyn FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> std::os::raw::c_int;
-
-/// The debugging inspector, carefully wrapping the
-/// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
-/// API. An inspector is tied to the [V8Isolate] it was created for.
-///
-/// This is a more user-friendly version of the inspector, which, at
-/// the same time, can be used for a remote debugging session. The
-/// reason why this [`Inspector`] exists is to help managing the
-/// debugging sessions, as for the V8 to properly debug, it requires
-/// to be able to send the responses back to the client. The callbacks
-/// which this version of the `Inspector` has are mandatory for a
-/// properly working session.
-pub struct InspectorSession {
-    inspector: Arc<Inspector>,
-    /// This callback is stored to preserve the lifetime, it is never
-    /// called by this object, but by the C++ side.
-    _on_response_callback: Box<Box<OnResponseCallback>>,
-    /// This callback is stored to preserve the lifetime, it is never
-    /// called by this object, but by the C++ side.
-    _on_wait_frontend_message_on_pause_callback: Box<Box<OnWaitFrontendMessageOnPauseCallback>>,
+pub(crate) trait OnWaitFrontendMessageOnPauseCallback:
+    FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> std::os::raw::c_int
+{
 }
 
-impl std::fmt::Debug for InspectorSession {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let on_response_str = {
-            let callback = &self._on_response_callback;
-            format!("Some({callback:p})")
-        };
-
-        let on_wait_str = {
-            let callback = &self._on_wait_frontend_message_on_pause_callback;
-            format!("Some({callback:p})")
-        };
-
-        f.debug_struct("Inspector")
-            .field("raw", &self.inspector)
-            .field("_on_response_callback", &on_response_str)
-            .field("_on_wait_frontend_message_on_pause_callback", &on_wait_str)
-            .finish()
-    }
+impl<T: FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> std::os::raw::c_int>
+    OnWaitFrontendMessageOnPauseCallback for T
+{
 }
 
 /// The callback function used to send the messages back to the client
 /// of the inspector (to the one who is debugging).
-extern "C" fn on_response(
+extern "C" fn on_response<T: OnResponseCallback>(
     string: *const ::std::os::raw::c_char,
     rust_callback: *mut ::std::os::raw::c_void,
 ) {
     let string = unsafe { std::ffi::CStr::from_ptr(string) }.to_string_lossy();
     log::trace!("Outgoing message: {string}");
-    let rust_callback: &mut Box<OnResponseCallback> = unsafe {
-        &mut *(rust_callback as *mut std::boxed::Box<dyn std::ops::FnMut(std::string::String)>)
-    };
+    let rust_callback: &mut T = unsafe { &mut *(rust_callback.cast::<T>()) };
     rust_callback(string.to_string())
 }
 
-extern "C" fn on_wait_frontend_message_on_pause(
+extern "C" fn on_wait_frontend_message_on_pause<T: OnWaitFrontendMessageOnPauseCallback>(
     raw: *mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper,
     rust_callback: *mut ::std::os::raw::c_void,
 ) -> ::std::os::raw::c_int {
     log::trace!("on_wait_frontend_message_on_pause");
-    let rust_callback: &mut Box<OnWaitFrontendMessageOnPauseCallback> = unsafe {
-        &mut *(rust_callback
-            as *mut std::boxed::Box<
-                dyn std::ops::FnMut(*mut crate::v8_c_raw::bindings::v8_inspector_c_wrapper) -> i32,
-            >)
-    };
+
+    let rust_callback: &mut T = unsafe { &mut *(rust_callback.cast::<T>()) };
     rust_callback(raw)
 }
 
-impl InspectorSession {
-    /// Creates a new [Inspector].
-    pub fn new(
-        raw: Arc<Inspector>,
-        on_response_callback: Box<OnResponseCallback>,
-        on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
-    ) -> Self {
-        let on_response_callback = Self::set_on_response_callback(&raw, on_response_callback);
-        let on_wait_callback = Self::set_on_wait_frontend_message_on_pause_callback(
-            &raw,
-            on_wait_frontend_message_on_pause_callback,
-        );
-        Self {
-            inspector: raw,
-            _on_response_callback: on_response_callback,
-            _on_wait_frontend_message_on_pause_callback: on_wait_callback,
-        }
-    }
-
-    /// Sets the callback which is used by the debugger to send messages
-    /// to the remote client.
-    fn set_on_response_callback(
-        raw: &Inspector,
-        on_response_callback: Box<OnResponseCallback>,
-    ) -> Box<Box<OnResponseCallback>> {
-        let on_response_callback = Box::new(on_response_callback);
-        let on_response_callback = Box::into_raw(on_response_callback);
-
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnResponseCallback(
-                raw.raw.as_ptr(),
-                Some(on_response),
-                on_response_callback as _,
-            );
-        }
-
-        unsafe { Box::from_raw(on_response_callback as *mut _) }
-    }
-
-    /// Sets the callback when the debugger needs to wait for the
-    /// remote client's message.
-    fn set_on_wait_frontend_message_on_pause_callback(
-        raw: &Inspector,
-        on_wait_frontend_message_on_pause_callback: Box<OnWaitFrontendMessageOnPauseCallback>,
-    ) -> Box<Box<OnWaitFrontendMessageOnPauseCallback>> {
-        let on_wait_frontend_message_on_pause_callback =
-            Box::new(on_wait_frontend_message_on_pause_callback);
-        let on_wait_frontend_message_on_pause_callback =
-            Box::into_raw(on_wait_frontend_message_on_pause_callback);
-
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
-                raw.raw.as_ptr(),
-                Some(on_wait_frontend_message_on_pause),
-                on_wait_frontend_message_on_pause_callback as _,
-            );
-        }
-
-        unsafe { Box::from_raw(on_wait_frontend_message_on_pause_callback as *mut _) }
-    }
-}
-
-impl Deref for InspectorSession {
-    type Target = Inspector;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inspector
-    }
+#[allow(clippy::from_raw_with_void_ptr)]
+extern "C" fn deallocate_box(raw_box: *mut ::std::os::raw::c_void) {
+    unsafe { drop(Box::from_raw(raw_box as *mut _)) };
 }
 
 #[cfg(test)]

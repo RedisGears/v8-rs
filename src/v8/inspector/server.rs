@@ -186,10 +186,9 @@ use std::time::Duration;
 use tungstenite::{Error, Message, WebSocket};
 
 use crate::v8::inspector::messages::ClientMessage;
+use crate::v8_c_raw::bindings::v8_inspector_c_wrapper;
 
-use super::{
-    Inspector, InspectorSession, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback,
-};
+use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback};
 
 /// The debugging server which waits for a connection of a remote
 /// debugger, receives messages from there and sends the replies back.
@@ -330,9 +329,9 @@ impl From<WebSocket<TcpStream>> for WebSocketServer {
     }
 }
 
-struct InspectorCallbacks {
-    on_response: Box<OnResponseCallback>,
-    on_wait_frontend_message_on_pause: Box<OnWaitFrontendMessageOnPauseCallback>,
+struct InspectorCallbacks<R: OnResponseCallback, W: OnWaitFrontendMessageOnPauseCallback> {
+    on_response: R,
+    on_wait_frontend_message_on_pause: W,
 }
 
 /// The means of connection to the V8 debugger.
@@ -406,12 +405,14 @@ impl<T: Into<std::net::SocketAddr>> From<T> for DebuggerSessionConnectionHints {
 #[derive(Debug)]
 pub struct DebuggerSession {
     web_socket: Rc<Mutex<WebSocketServer>>,
-    inspector: InspectorSession,
+    inspector: Arc<Inspector>,
     connection_hints: DebuggerSessionConnectionHints,
 }
 
 impl DebuggerSession {
-    fn create_inspector_callbacks(web_socket: Rc<Mutex<WebSocketServer>>) -> InspectorCallbacks {
+    fn create_inspector_callbacks(
+        web_socket: Rc<Mutex<WebSocketServer>>,
+    ) -> InspectorCallbacks<impl Fn(String), impl Fn(*mut v8_inspector_c_wrapper) -> i32> {
         let websocket = web_socket.clone();
 
         let on_response = move |s: String| {
@@ -473,8 +474,8 @@ impl DebuggerSession {
         };
 
         InspectorCallbacks {
-            on_response: Box::new(on_response),
-            on_wait_frontend_message_on_pause: Box::new(on_wait_frontend_message_on_pause),
+            on_response,
+            on_wait_frontend_message_on_pause,
         }
     }
 
@@ -494,9 +495,8 @@ impl DebuggerSession {
         let connection_hints = web_socket.get_connection_hints()?;
         let web_socket = Rc::new(Mutex::new(web_socket));
         let callbacks = Self::create_inspector_callbacks(web_socket.clone());
-        let inspector = InspectorSession::new(
-            inspector,
-            callbacks.on_response,
+        inspector.set_on_response_callback(callbacks.on_response);
+        inspector.set_on_wait_frontend_message_on_pause_callback(
             callbacks.on_wait_frontend_message_on_pause,
         );
 
