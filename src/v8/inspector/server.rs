@@ -149,7 +149,7 @@
 //!
 //! // Now that we have accepted a connection, we can start our
 //! // debugging session.
-//! let debugger_session = DebuggerSession::new(web_socket, inspector)
+//! let debugger_session = DebuggerSession::new(web_socket, inspector, &i_scope)
 //!     .expect("Couldn't start a debugging session");
 //!
 //! // At this point, the server is running and has accepted a remote
@@ -186,6 +186,7 @@ use std::time::Duration;
 use tungstenite::{Error, Message, WebSocket};
 
 use crate::v8::inspector::messages::ClientMessage;
+use crate::v8::isolate_scope::V8IsolateScope;
 use crate::v8_c_raw::bindings::v8_inspector_c_wrapper;
 
 use super::{Inspector, OnResponseCallback, OnWaitFrontendMessageOnPauseCallback};
@@ -488,9 +489,14 @@ impl DebuggerSession {
     /// After the function returns, to start the debugging main loop,
     /// one needs to call the [`Self::process_messages`].
     /// method.
+    ///
+    /// # Notes
+    ///
+    /// This method requires a [`V8IsolateScope`].
     pub fn new(
         web_socket: WebSocketServer,
         inspector: Arc<Inspector>,
+        _isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<Self, std::io::Error> {
         let connection_hints = web_socket.get_connection_hints()?;
         let web_socket = Rc::new(Mutex::new(web_socket));
@@ -643,9 +649,14 @@ impl DebuggerSession {
     ///
     /// Returns [`true`] if the client has disconnected and the remote
     /// debugging is thus no longer possible.
+    ///
+    /// # Notes
+    ///
+    /// This method requires a [`V8IsolateScope`].
     pub fn process_messages_with_timeout(
         &self,
         duration: std::time::Duration,
+        _isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<bool, std::io::Error> {
         self.set_read_timeout(Some(duration))?;
 
@@ -715,18 +726,18 @@ mod tests {
         let isolate = V8Isolate::new();
 
         // Enter the isolate created:
-        let i_scope = isolate.enter();
+        let isolate_scope = isolate.enter();
 
         // Create the code string object:
-        let code_str = i_scope.new_string("1+1");
+        let code_str = isolate_scope.new_string("1+1");
 
         // Create a JS execution context for code invocation:""
-        let ctx = i_scope.new_context(None);
+        let context = isolate_scope.new_context(None);
 
         // Enter the created execution context for debugging:
-        let ctx_scope = ctx.enter(&i_scope);
+        let context_scope = context.enter(&isolate_scope);
 
-        let inspector = Arc::new(Inspector::new(&ctx_scope));
+        let inspector = Arc::new(Inspector::new(&context_scope));
 
         let stage_1 = Arc::new(Mutex::new(()));
 
@@ -823,7 +834,7 @@ mod tests {
 
         // Now that we have accepted a connection, we can start our
         // debugging session.
-        let debugger_session = DebuggerSession::new(web_socket, inspector)
+        let debugger_session = DebuggerSession::new(web_socket, inspector, &isolate_scope)
             .expect("Couldn't start a debugging session");
 
         // At this point, the server is running and has accepted a remote
@@ -832,11 +843,11 @@ mod tests {
         // script, as it won't actually run but will wait for remote client
         // to act.
         // Compile the code:
-        let script = ctx_scope.compile(&code_str).unwrap();
+        let script = context_scope.compile(&code_str).unwrap();
         // Allow the fake client to stop (for this test not to hang).
         drop(lock_1);
         // Run the compiled code:
-        let res = script.run(&ctx_scope).unwrap();
+        let res = script.run(&context_scope).unwrap();
         // To let the remote debugger operate, we need to be able to send
         // and receive data to and from it. This is achieved by starting the
         // main loop of the debugger session:
