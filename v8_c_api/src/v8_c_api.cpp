@@ -457,7 +457,6 @@ private:
     std::unique_ptr<v8_inspector::V8InspectorSession> session_;
     std::unique_ptr<v8_inspector_channel_wrapper> channel_;
     v8::Isolate* isolate_;
-    v8::Local<v8::Context> context_;
     InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
     InspectorUserDataDeleter onWaitFrontendMessageOnPauseUserDataDeleter_;
     bool terminated_;
@@ -473,17 +472,16 @@ v8_inspector_client_wrapper::v8_inspector_client_wrapper(
     const InspectorUserDataDeleter &onWaitFrontendMessageOnPauseUserDataDeleter
 ) :
     platform_(platform),
-    context_(context),
+    isolate_(context->GetIsolate()),
     onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause),
     onWaitFrontendMessageOnPauseUserDataDeleter_(onWaitFrontendMessageOnPauseUserDataDeleter)
 {
-    isolate_ = context->GetIsolate();
     inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
     channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse, onResponseUserDataDeleter));
     session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
 
     v8_inspector::StringView contextName = convertToStringView("inspector");
-    inspector_->contextCreated(v8_inspector::V8ContextInfo(context_, kContextGroupId, contextName));
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
     terminated_ = true;
     run_nested_loop_ = false;
 }
