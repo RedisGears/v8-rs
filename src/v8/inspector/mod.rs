@@ -464,14 +464,16 @@ mod tests {
 
     //     let mut message = messages::ClientMessage::new_runtime_enable(0);
 
+    //     let inspector_guard = inspector.guard(&i_scope).unwrap();
+
     //     // Send a good message.
-    //     assert!(inspector
+    //     assert!(inspector_guard
     //         .dispatch_protocol_message(serde_json::to_string(&message).unwrap())
     //         .is_ok());
 
     //     // Send a bad message.
     //     message.method.name.insert(0, '\0');
-    //     assert!(inspector
+    //     assert!(inspector_guard
     //         .dispatch_protocol_message(serde_json::to_string(&message).unwrap())
     //         .is_err());
     // }
