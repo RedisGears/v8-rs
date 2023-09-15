@@ -170,7 +170,7 @@
 //! // To let the remote debugger operate, we need to be able to send
 //! // and receive data to and from it. This is achieved by starting the
 //! // main loop of the debugger session:
-//! assert!(debugger_session.process_messages().is_ok());
+//! assert!(debugger_session.process_messages(&i_scope).is_ok());
 //!
 //! fake_client.join();
 //!
@@ -496,7 +496,7 @@ impl DebuggerSession {
     pub fn new(
         web_socket: WebSocketServer,
         inspector: Arc<Inspector>,
-        _isolate_scope: &V8IsolateScope<'_>,
+        isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<Self, std::io::Error> {
         let connection_hints = web_socket.get_connection_hints()?;
         let web_socket = Rc::new(Mutex::new(web_socket));
@@ -525,7 +525,7 @@ impl DebuggerSession {
 
             session
                 .inspector
-                .dispatch_protocol_message(&message_string)?;
+                .dispatch_protocol_message(&message_string, isolate_scope)?;
 
             if message.is_client_ready() {
                 return Ok(session);
@@ -604,16 +604,23 @@ impl DebuggerSession {
 
     /// Waits for a message to read, reads (without parsing), proccesses
     /// it and then it.
-    pub fn read_and_process_next_message(&self) -> Result<String, std::io::Error> {
+    pub fn read_and_process_next_message(
+        &self,
+        isolate_scope: &V8IsolateScope<'_>,
+    ) -> Result<String, std::io::Error> {
         let message = self.read_next_message()?;
         log::trace!("Got incoming websocket message: {message}");
-        self.inspector.dispatch_protocol_message(&message)?;
+        self.inspector
+            .dispatch_protocol_message(&message, isolate_scope)?;
         Ok(message)
     }
 
     /// Attempts to read a message from the client. If there are no
     /// messages available to read at this time, [`None`] is returned.
-    pub fn try_read_and_process_next_message(&self) -> Result<Option<String>, std::io::Error> {
+    pub fn try_read_and_process_next_message(
+        &self,
+        isolate_scope: &V8IsolateScope<'_>,
+    ) -> Result<Option<String>, std::io::Error> {
         let message = self.try_read_next_message()?;
 
         if let Some(ref message) = message {
@@ -621,7 +628,8 @@ impl DebuggerSession {
                 "Got incoming websocket message: {message}, len={}",
                 message.len()
             );
-            self.inspector.dispatch_protocol_message(message)?;
+            self.inspector
+                .dispatch_protocol_message(message, isolate_scope)?;
         }
         Ok(message)
     }
@@ -629,10 +637,13 @@ impl DebuggerSession {
     /// Reads and processes all the next messages in a loop, until
     /// the connection is dropped by the client or until an error state
     /// is reached.
-    pub fn process_messages(&self) -> Result<(), std::io::Error> {
+    pub fn process_messages(
+        &self,
+        isolate_scope: &V8IsolateScope<'_>,
+    ) -> Result<(), std::io::Error> {
         log::trace!("Inspector main loop started.");
         loop {
-            if let Err(e) = self.read_and_process_next_message() {
+            if let Err(e) = self.read_and_process_next_message(isolate_scope) {
                 if e.kind() == std::io::ErrorKind::ConnectionAborted {
                     log::trace!("Inspector main loop successfully stopped.");
                     return Ok(());
@@ -656,11 +667,11 @@ impl DebuggerSession {
     pub fn process_messages_with_timeout(
         &self,
         duration: std::time::Duration,
-        _isolate_scope: &V8IsolateScope<'_>,
+        isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<bool, std::io::Error> {
         self.set_read_timeout(Some(duration))?;
 
-        if let Err(e) = self.try_read_and_process_next_message() {
+        if let Err(e) = self.try_read_and_process_next_message(isolate_scope) {
             if e.kind() == std::io::ErrorKind::ConnectionAborted {
                 Ok(true)
             } else if e.kind() == std::io::ErrorKind::WouldBlock
@@ -679,9 +690,12 @@ impl DebuggerSession {
 
     /// Schedules a pause (sets a breakpoint) for the next statement.
     /// See [`super::Inspector::schedule_pause_on_next_statement`].
-    pub fn schedule_pause_on_next_statement(&self) -> Result<(), std::io::Error> {
+    pub fn schedule_pause_on_next_statement(
+        &self,
+        isolate_scope: &V8IsolateScope<'_>,
+    ) -> Result<(), std::io::Error> {
         self.inspector
-            .schedule_pause_on_next_statement("User breakpoint.")
+            .schedule_pause_on_next_statement("User breakpoint.", isolate_scope)
     }
 
     /// Stops the debugging session if it has been established.
@@ -853,7 +867,7 @@ mod tests {
         // main loop of the debugger session:
         // debugger_session.process_messages().expect("Debugger error");
         debugger_session
-            .read_and_process_next_message()
+            .read_and_process_next_message(&isolate_scope)
             .expect("Debugger error");
         fake_client
             .join()

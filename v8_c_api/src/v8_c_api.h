@@ -180,6 +180,9 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
 	v8_InspectorUserDataDeleter deleter
 );
 
+/** Returns the isolate ID this inspector was created with. */
+uint64_t v8_InspectorGetIsolateId(v8_inspector_c_wrapper *inspector);
+
 /** Creates a new v8 isolate. An isolate is a v8 interpreter that responsible to run JS code.
  * Impeder may create as many isolates as wishes.
  * initial_heap_size_in_bytes - the initial isolate heap size

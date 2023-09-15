@@ -35,7 +35,9 @@ pub mod messages;
 #[cfg(feature = "debug-server")]
 pub mod server;
 
-use super::v8_context_scope::V8ContextScope;
+use crate::v8_c_raw::bindings::{v8_InspectorGetIsolateId, ISOLATE_ID_INVALID};
+
+use super::{isolate::IsolateId, isolate_scope::V8IsolateScope, v8_context_scope::V8ContextScope};
 
 /// The debugging inspector, carefully wrapping the
 /// [`v8_inspector::Inspector`](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/src/inspector)
@@ -137,6 +139,38 @@ impl Inspector {
         Self { raw }
     }
 
+    /// Returns the isolate ID of this inspector.
+    fn get_isolate_id(&self) -> Option<IsolateId> {
+        let raw_id = unsafe { v8_InspectorGetIsolateId(self.raw.as_ptr()) };
+        if raw_id == ISOLATE_ID_INVALID {
+            None
+        } else {
+            Some(raw_id.into())
+        }
+    }
+
+    /// Returns an error if the isolate id provided isn't the one
+    /// which was used to create the inspector.
+    pub(crate) fn check_isolate_id(&self, id: Option<IsolateId>) -> Result<(), std::io::Error> {
+        let id = id.ok_or(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "The isolate doesn't have an ID.",
+        ))?;
+
+        if id
+            != self
+                .get_isolate_id()
+                .expect("The inspector has a valid isolate.")
+        {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "The isolate passed doesn't match with the isolate used to create the inspector.",
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
     /// Dispatches the Chrome Developer Tools (CDT) protocol message.
     /// The message must be a valid stringified JSON object with no NUL
     /// symbols, and the message must be allowed by the V8 Inspector
@@ -144,7 +178,10 @@ impl Inspector {
     pub fn dispatch_protocol_message<T: AsRef<str>>(
         &self,
         message: T,
+        isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<(), std::io::Error> {
+        self.check_isolate_id(isolate_scope.isolate.get_id())?;
+
         let message = message.as_ref();
         log::trace!("Dispatching incoming message: {message}",);
 
@@ -171,7 +208,10 @@ impl Inspector {
     pub fn schedule_pause_on_next_statement<T: AsRef<str>>(
         &self,
         reason: T,
+        isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<(), std::io::Error> {
+        self.check_isolate_id(isolate_scope.isolate.get_id())?;
+
         let string = std::ffi::CString::new(reason.as_ref()).map_err(|_| {
             std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
@@ -235,7 +275,6 @@ impl Drop for Inspector {
     }
 }
 
-// TODO remove and rewrite so that we don't use it.
 /// Currently, we rely on the thread-safety of V8 which is said to not
 /// exist.
 unsafe impl Sync for Inspector {}
@@ -319,12 +358,38 @@ mod tests {
 
         // Set a "good" breakpoint.
         assert!(inspector
-            .schedule_pause_on_next_statement("Test breakpoint")
+            .schedule_pause_on_next_statement("Test breakpoint", &i_scope)
             .is_ok());
 
         // Set a "bad" breakpoint.
         assert!(inspector
-            .schedule_pause_on_next_statement("Test\0breakpoint")
+            .schedule_pause_on_next_statement("Test\0breakpoint", &i_scope)
+            .is_err());
+    }
+
+    #[test]
+    fn test_isolate_id() {
+        // Initialise the V8 engine:
+        v8_init_platform(1, Some("--expose-gc")).unwrap();
+        v8_init().unwrap();
+        // Create a new isolate:
+        let isolate = isolate::V8Isolate::new();
+        // Enter the isolate created:
+        let i_scope = isolate.enter();
+        // Create a JS execution context for code invocation:""
+        let ctx = i_scope.new_context(None);
+        // Enter the created execution context for debugging:
+        let ctx_scope = ctx.enter(&i_scope);
+        // Create an inspector.
+        let inspector = Inspector::new(&ctx_scope);
+        // This passes as we check for the same isolate id as we used
+        // to create the inspector.
+        assert!(inspector.check_isolate_id(isolate.get_id()).is_ok());
+
+        let isolate_another = isolate::V8Isolate::new();
+        // This fails the check as the isolates are different.
+        assert!(inspector
+            .check_isolate_id(isolate_another.get_id())
             .is_err());
     }
 

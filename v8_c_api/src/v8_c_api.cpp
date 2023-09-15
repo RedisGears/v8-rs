@@ -442,6 +442,14 @@ public:
         const InspectorUserDataDeleter &deleter
     );
 
+    inline uint64_t getIsolateId() const noexcept {
+        const uint64_t *id_ptr = reinterpret_cast<uint64_t*>(isolate_->GetData(ISOLATE_ID_INDEX));
+        if (!id_ptr) {
+            return ISOLATE_ID_INVALID;
+        }
+        return *id_ptr;
+    }
+
     void dispatchProtocolMessage(const v8_inspector::StringView &message_view);
     void runMessageLoopOnPause(const int contextGroupId) override;
     void quitMessageLoopOnPause() override;
@@ -640,6 +648,10 @@ void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
     }
 
     reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnWaitFrontendMessageOnPauseCallback(onWaitFrontendMessageOnPauseWrapper, onDelete);
+}
+
+uint64_t v8_InspectorGetIsolateId(v8_inspector_c_wrapper *inspector) {
+    return reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getIsolateId();
 }
 
 int v8_InitializePlatform(int thread_pool_size, const char *flags) {
