@@ -209,7 +209,7 @@ impl Inspector {
     }
 
     /// Returns a guard which makes sure the isolates are correct.
-    pub(crate) fn guard<'a>(
+    pub fn guard<'a>(
         &'a self,
         isolate_scope: &'a V8IsolateScope<'a>,
     ) -> Result<InspectorGuard<'a>, std::io::Error> {
