@@ -28,7 +28,7 @@
 //! In case the `"debug-server"` feature isn't enabled, the user of the
 //! crate must manually provide a way to receive and send messages over
 //! the network and feed the [Inspector] with data.
-use std::ptr::NonNull;
+use std::{marker::PhantomData, ptr::NonNull};
 
 #[cfg(feature = "debug-server")]
 pub mod messages;
@@ -171,64 +171,6 @@ impl Inspector {
         }
     }
 
-    /// Dispatches the Chrome Developer Tools (CDT) protocol message.
-    /// The message must be a valid stringified JSON object with no NUL
-    /// symbols, and the message must be allowed by the V8 Inspector
-    /// Protocol.
-    pub fn dispatch_protocol_message<T: AsRef<str>>(
-        &self,
-        message: T,
-        isolate_scope: &V8IsolateScope<'_>,
-    ) -> Result<(), std::io::Error> {
-        self.check_isolate_id(isolate_scope.isolate.get_id())?;
-
-        let message = message.as_ref();
-        log::trace!("Dispatching incoming message: {message}",);
-
-        let string = std::ffi::CString::new(message).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "The V8 Inspector Protocol message shouldn't contain nul symbols.",
-            )
-        })?;
-
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
-                self.raw.as_ptr(),
-                string.as_ptr(),
-            );
-        }
-
-        Ok(())
-    }
-
-    /// Schedules a debugger pause (sets a breakpoint) for the next
-    /// statement. The `reason` argument may be any string, helpful to
-    /// the user.
-    pub fn schedule_pause_on_next_statement<T: AsRef<str>>(
-        &self,
-        reason: T,
-        isolate_scope: &V8IsolateScope<'_>,
-    ) -> Result<(), std::io::Error> {
-        self.check_isolate_id(isolate_scope.isolate.get_id())?;
-
-        let string = std::ffi::CString::new(reason.as_ref()).map_err(|_| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "The V8 Inspector Protocol breakpoint reason shouldn't contain nul symbols.",
-            )
-        })?;
-
-        unsafe {
-            crate::v8_c_raw::bindings::v8_InspectorSchedulePauseOnNextStatement(
-                self.raw.as_ptr(),
-                string.as_ptr(),
-            );
-        }
-
-        Ok(())
-    }
-
     /// Sets the callback which is used by the debugger to send messages
     /// to the remote client.
     fn set_on_response_callback<T: OnResponseCallback>(&self, on_response_callback: T) {
@@ -265,6 +207,14 @@ impl Inspector {
             );
         }
     }
+
+    /// Returns a guard which makes sure the isolates are correct.
+    pub(crate) fn guard<'a>(
+        &'a self,
+        isolate_scope: &'a V8IsolateScope<'a>,
+    ) -> Result<InspectorGuard<'a>, std::io::Error> {
+        InspectorGuard::new(self, isolate_scope)
+    }
 }
 
 impl Drop for Inspector {
@@ -275,10 +225,94 @@ impl Drop for Inspector {
     }
 }
 
-/// Currently, we rely on the thread-safety of V8 which is said to not
-/// exist.
+/// We only have a [`NonNull`], so we mark the [`Inspector`] as safe.
 unsafe impl Sync for Inspector {}
 unsafe impl Send for Inspector {}
+
+/// The inspector guard, which makes sure the [`Inspector`] object it
+/// is created with can only be used correctly. It achieves this by
+/// only allowing to use the facilities of the inspector after checking
+/// the isolate it was created with.
+#[derive(Debug)]
+pub struct InspectorGuard<'a> {
+    inspector: &'a Inspector,
+    _phantom_data: PhantomData<&'a V8IsolateScope<'a>>,
+}
+impl<'a> InspectorGuard<'a> {
+    /// Creates a new [`InspectorGuard`], making sure it can only be
+    /// used correctly.
+    pub fn new(
+        inspector: &'a Inspector,
+        isolate_scope: &'a V8IsolateScope<'a>,
+    ) -> Result<Self, std::io::Error> {
+        inspector
+            .check_isolate_id(isolate_scope.isolate.get_id())
+            .map(|_| Self {
+                inspector,
+                _phantom_data: PhantomData,
+            })
+    }
+
+    /// Dispatches the Chrome Developer Tools (CDT) protocol message.
+    /// The message must be a valid stringified JSON object with no NUL
+    /// symbols, and the message must be allowed by the V8 Inspector
+    /// Protocol.
+    pub fn dispatch_protocol_message<T: AsRef<str>>(
+        &self,
+        message: T,
+    ) -> Result<(), std::io::Error> {
+        let message = message.as_ref();
+        log::trace!("Dispatching incoming message: {message}",);
+
+        let string = std::ffi::CString::new(message).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "The V8 Inspector Protocol message shouldn't contain nul symbols.",
+            )
+        })?;
+
+        unsafe {
+            crate::v8_c_raw::bindings::v8_InspectorDispatchProtocolMessage(
+                self.raw.as_ptr(),
+                string.as_ptr(),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Schedules a debugger pause (sets a breakpoint) for the next
+    /// statement. The `reason` argument may be any string, helpful to
+    /// the user.
+    pub fn schedule_pause_on_next_statement<T: AsRef<str>>(
+        &self,
+        reason: T,
+    ) -> Result<(), std::io::Error> {
+        let string = std::ffi::CString::new(reason.as_ref()).map_err(|_| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "The V8 Inspector Protocol breakpoint reason shouldn't contain nul symbols.",
+            )
+        })?;
+
+        unsafe {
+            crate::v8_c_raw::bindings::v8_InspectorSchedulePauseOnNextStatement(
+                self.raw.as_ptr(),
+                string.as_ptr(),
+            );
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a> std::ops::Deref for InspectorGuard<'a> {
+    type Target = Inspector;
+
+    fn deref(&self) -> &Self::Target {
+        self.inspector
+    }
+}
 
 /// The callback which is invoked when the V8 Inspector needs to reply
 /// to the client.
@@ -356,22 +390,23 @@ mod tests {
         // Create an inspector.
         let inspector = Inspector::new(&ctx_scope);
 
+        let inspector = inspector.guard(&i_scope).unwrap();
+
         // Set a "good" breakpoint.
         assert!(inspector
-            .schedule_pause_on_next_statement("Test breakpoint", &i_scope)
+            .schedule_pause_on_next_statement("Test breakpoint")
             .is_ok());
 
         // Set a "bad" breakpoint.
         assert!(inspector
-            .schedule_pause_on_next_statement("Test\0breakpoint", &i_scope)
+            .schedule_pause_on_next_statement("Test\0breakpoint")
             .is_err());
     }
 
     #[test]
     fn test_isolate_id() {
         // Initialise the V8 engine:
-        v8_init_platform(1, Some("--expose-gc")).unwrap();
-        v8_init().unwrap();
+        crate::test_utils::initialize();
         // Create a new isolate:
         let isolate = isolate::V8Isolate::new();
         // Enter the isolate created:

@@ -512,6 +512,8 @@ impl DebuggerSession {
             connection_hints,
         };
 
+        let inspector_guard = session.inspector.guard(isolate_scope)?;
+
         // The re-locking read loop to wait until the remote debugger
         // is ready to start.
         loop {
@@ -523,9 +525,7 @@ impl DebuggerSession {
 
             log::trace!("Parsed out the incoming message: {message:?}");
 
-            session
-                .inspector
-                .dispatch_protocol_message(&message_string, isolate_scope)?;
+            inspector_guard.dispatch_protocol_message(&message_string)?;
 
             if message.is_client_ready() {
                 return Ok(session);
@@ -611,7 +611,8 @@ impl DebuggerSession {
         let message = self.read_next_message()?;
         log::trace!("Got incoming websocket message: {message}");
         self.inspector
-            .dispatch_protocol_message(&message, isolate_scope)?;
+            .guard(isolate_scope)?
+            .dispatch_protocol_message(&message)?;
         Ok(message)
     }
 
@@ -629,7 +630,8 @@ impl DebuggerSession {
                 message.len()
             );
             self.inspector
-                .dispatch_protocol_message(message, isolate_scope)?;
+                .guard(isolate_scope)?
+                .dispatch_protocol_message(message)?;
         }
         Ok(message)
     }
@@ -695,7 +697,8 @@ impl DebuggerSession {
         isolate_scope: &V8IsolateScope<'_>,
     ) -> Result<(), std::io::Error> {
         self.inspector
-            .schedule_pause_on_next_statement("User breakpoint.", isolate_scope)
+            .guard(isolate_scope)?
+            .schedule_pause_on_next_statement("User breakpoint.")
     }
 
     /// Stops the debugging session if it has been established.
