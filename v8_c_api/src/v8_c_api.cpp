@@ -304,6 +304,19 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
     return native_data;
 }
 
+namespace {
+/** Returns the isolate id. */
+uint64_t GetIsolateId(v8::Isolate *isolate) {
+    if (!isolate) {
+        return ISOLATE_ID_INVALID;
+    }
+
+    const uint64_t *id_ptr = reinterpret_cast<uint64_t*>(isolate->GetData(ISOLATE_ID_INDEX));
+
+    return id_ptr ? *id_ptr : ISOLATE_ID_INVALID;
+}
+}
+
 // Some parts of the contents of this anonymous namespace below
 // were borrowed and changed.
 namespace {
@@ -442,12 +455,8 @@ public:
         const InspectorUserDataDeleter &deleter
     );
 
-    inline uint64_t getIsolateId() const noexcept {
-        const uint64_t *id_ptr = reinterpret_cast<uint64_t*>(isolate_->GetData(ISOLATE_ID_INDEX));
-        if (!id_ptr) {
-            return ISOLATE_ID_INVALID;
-        }
-        return *id_ptr;
+    inline uint64_t getIsolateId() const {
+        return isolate_id_;
     }
 
     void dispatchProtocolMessage(const v8_inspector::StringView &message_view);
@@ -465,6 +474,7 @@ private:
     std::unique_ptr<v8_inspector::V8InspectorSession> session_;
     std::unique_ptr<v8_inspector_channel_wrapper> channel_;
     v8::Isolate* isolate_;
+    uint64_t isolate_id_;
     InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
     InspectorUserDataDeleter onWaitFrontendMessageOnPauseUserDataDeleter_;
     bool terminated_;
@@ -481,6 +491,7 @@ v8_inspector_client_wrapper::v8_inspector_client_wrapper(
 ) :
     platform_(platform),
     isolate_(context->GetIsolate()),
+    isolate_id_(GetIsolateId(isolate_)),
     onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause),
     onWaitFrontendMessageOnPauseUserDataDeleter_(onWaitFrontendMessageOnPauseUserDataDeleter)
 {
@@ -726,12 +737,8 @@ void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void
 }
 
 uint64_t v8_GetIsolateId(v8_isolate* isolate) {
-    v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate *>(isolate);
-    uint64_t *id_ptr = reinterpret_cast<uint64_t*>(v8_isolate->GetData(ISOLATE_ID_INDEX));
-    if (!id_ptr) {
-        return ISOLATE_ID_INVALID;
-    }
-    return *id_ptr;
+    return GetIsolateId(reinterpret_cast<v8::Isolate *>(isolate));
+
 }
 
 v8_isolate* v8_IsolateGetCurrent() {
