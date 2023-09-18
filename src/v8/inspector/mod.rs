@@ -110,7 +110,7 @@ impl Inspector {
             match on_response_callback {
                 Some(r) => (
                     Some(on_response::<OnResponse>),
-                    Some(deallocate_box),
+                    Some(deallocate_box::<OnResponse>),
                     Box::into_raw(Box::new(r)),
                 ),
                 None => (None, None, std::ptr::null_mut()),
@@ -119,7 +119,7 @@ impl Inspector {
             match on_wait_frontend_message_on_pause_callback {
                 Some(w) => (
                     Some(on_wait_frontend_message_on_pause::<OnWait>),
-                    Some(deallocate_box),
+                    Some(deallocate_box::<OnWait>),
                     Box::into_raw(Box::new(w)),
                 ),
                 None => (None, None, std::ptr::null_mut()),
@@ -182,7 +182,7 @@ impl Inspector {
                 self.raw.as_ptr(),
                 Some(on_response::<T>),
                 on_response_callback as _,
-                Some(deallocate_box),
+                Some(deallocate_box::<T>),
             );
         }
     }
@@ -203,7 +203,7 @@ impl Inspector {
                 self.raw.as_ptr(),
                 Some(on_wait_frontend_message_on_pause::<T>),
                 on_wait_frontend_message_on_pause_callback as _,
-                Some(deallocate_box),
+                Some(deallocate_box::<T>),
             );
         }
     }
@@ -361,8 +361,8 @@ extern "C" fn on_wait_frontend_message_on_pause<T: OnWaitFrontendMessageOnPauseC
 }
 
 #[allow(clippy::from_raw_with_void_ptr)]
-extern "C" fn deallocate_box(raw_box: *mut ::std::os::raw::c_void) {
-    unsafe { drop(Box::from_raw(raw_box as *mut _)) };
+extern "C" fn deallocate_box<T>(raw_box: *mut ::std::os::raw::c_void) {
+    unsafe { drop(Box::from_raw(raw_box as *mut T)) };
 }
 
 #[cfg(test)]
