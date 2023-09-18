@@ -24,6 +24,11 @@ typedef struct v8_allocator {
 	char* (*v8_Strdup)(const char *str);
 } v8_allocator;
 
+/**
+ * An opaque struct representing a v8 inspector.
+ */
+typedef struct v8_inspector_c_wrapper v8_inspector_c_wrapper;
+
 /** Opaque struct representing a v8 interpreter.
  * There is no limit to the amount of isolates that can be
  * created in a single processes. */
@@ -129,6 +134,54 @@ const char* v8_Version();
 
 /** Dispose v8 initialization */
 void v8_Dispose();
+
+typedef void (*v8_InspectorOnResponseCallback)(const char *string, void *userdata);
+typedef int (*v8_InspectorOnWaitFrontendMessageOnPause)(v8_inspector_c_wrapper *inspector,  void *userdata);
+/** Used to delete the user data. */
+typedef void (*v8_InspectorUserDataDeleter)(void *userdata);
+
+/** Creates a debugging inspector for the global platform and the given
+context. The callbacks are optional. */
+v8_inspector_c_wrapper* v8_InspectorCreate(
+    v8_context_ref *context_ref,
+    v8_InspectorOnResponseCallback onResponse,
+    void *onResponseUserData,
+    v8_InspectorUserDataDeleter onResponseUserDataDeleter,
+    v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+    void *onWaitUserData,
+    v8_InspectorUserDataDeleter onWaitUserDataDeleter
+);
+
+/** Deletes (invokes the destructor and deallocates) an inspector
+object. */
+void v8_FreeInspector(v8_inspector_c_wrapper *inspector);
+
+/** Dispatches an inspector protocol message to the inspector passed. */
+void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *inspector, const char *message_json);
+
+/** Schedules a pause (sets a breakpoint) on the next statement, with
+the reason message provided. */
+void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *inspector, const char *reason);
+
+/** Sets the "onResponse" callback: a function to be invoked whenever
+the inspector provided needs to reply to the client. */
+void v8_InspectorSetOnResponseCallback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnResponseCallback onResponse,
+	void *onResponseUserData,
+	v8_InspectorUserDataDeleter deleter
+);
+
+/** Sets the "onWaitFrontendMessageOnPause" callback. */
+void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
+	v8_inspector_c_wrapper *inspector,
+	v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+	void *onWaitUserData,
+	v8_InspectorUserDataDeleter deleter
+);
+
+/** Returns the isolate ID this inspector was created with. */
+uint64_t v8_InspectorGetIsolateId(v8_inspector_c_wrapper *inspector);
 
 /** Creates a new v8 isolate. An isolate is a v8 interpreter that responsible to run JS code.
  * Impeder may create as many isolates as wishes.
@@ -263,7 +316,8 @@ void v8_SetPrivateDataOnCtxRef(v8_context_ref* ctx_ref, size_t index, void *pd);
 /** Create a new JS string object */
 v8_local_string* v8_NewString(v8_isolate* v8_isolate, const char *str, size_t len);
 
-/** Clones the passed JS string */
+/** Clones the passed JS string. The cloned string still is owned by
+the same isolate as the source string. */
 v8_local_string* v8_CloneString(v8_local_string *source);
 
 /** Convert the JS string to JS generic value */

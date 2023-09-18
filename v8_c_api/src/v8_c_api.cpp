@@ -5,6 +5,7 @@
  */
 
 #include "v8.h"
+#include "v8-inspector.h"
 #include "v8-version-string.h"
 #include "libplatform/libplatform.h"
 
@@ -22,8 +23,7 @@ std::atomic_uint_fast64_t ISOLATE_ID_COUNTER = 1;
  * 0 - reserved by V8.
  * 1 - our internal data (can be anything).
  * 2 - isolate id.
- * 3 - debugger object.
- * 4 and higher - any other user data.
+ * 3 and higher - any other user data.
 */
 
 /** Our slot is a slot where we store our own data. The 0th index of
@@ -33,15 +33,13 @@ std::atomic_uint_fast64_t ISOLATE_ID_COUNTER = 1;
 #define OUR_SLOT 1
 /** The data index of the isolate id. */
 #define ISOLATE_ID_INDEX 2
-/** The data index of the debugger . */
-#define DEBUGGER_INDEX 3
 /// Returns the corrected index. The index passed is expected to be an
 /// index relative to the user data. However, the first elements we store
 /// aren't actually the user data, but our internal data. So the user
 /// shouldn't be allowed to set or get the internal data, and for that
 /// purpose we should always correct the index which should point to
 /// real data location.
-#define INTERNAL_OFFSET 2 + OUR_SLOT
+#define INTERNAL_OFFSET ISOLATE_ID_INDEX + OUR_SLOT
 #define DATA_INDEX(user_index) (user_index + INTERNAL_OFFSET)
 
 extern "C" {
@@ -306,6 +304,367 @@ v8_pd_list* v8_PDListCreate(v8::ArrayBuffer::Allocator *alloc) {
     return native_data;
 }
 
+namespace {
+/** Returns the isolate id. */
+uint64_t GetIsolateId(v8::Isolate *isolate) {
+    if (!isolate) {
+        return ISOLATE_ID_INVALID;
+    }
+
+    const uint64_t *id_ptr = reinterpret_cast<uint64_t*>(isolate->GetData(ISOLATE_ID_INDEX));
+
+    return id_ptr ? *id_ptr : ISOLATE_ID_INVALID;
+}
+}
+
+// Some parts of the contents of this anonymous namespace below
+// were borrowed and changed.
+namespace {
+/*
+MIT License
+
+Copyright (c) 2019 Elmi Ahmadov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
+using InspectorOnResponseCallback = std::function<void(std::string)>;
+using InspectorOnWaitFrontendMessageOnPauseCallback = std::function<int(v8_inspector_c_wrapper *)>;
+using InspectorUserDataDeleter = std::function<void()>;
+
+static inline v8_inspector::StringView convertToStringView(const std::string &str) {
+    auto* stringView = reinterpret_cast<const uint8_t*>(str.c_str());
+    return { stringView, str.length() };
+}
+
+static inline std::string convertToString(v8::Isolate* isolate, const v8_inspector::StringView stringView) {
+    int length = static_cast<int>(stringView.length());
+    v8::Local<v8::String> message = (
+        stringView.is8Bit()
+          ? v8::String::NewFromOneByte(isolate, reinterpret_cast<const uint8_t*>(stringView.characters8()), v8::NewStringType::kNormal, length)
+          : v8::String::NewFromTwoByte(isolate, reinterpret_cast<const uint16_t*>(stringView.characters16()), v8::NewStringType::kNormal, length)
+      ).ToLocalChecked();
+    v8::String::Utf8Value result(isolate, message);
+    return *result;
+}
+
+class v8_inspector_channel_wrapper final: public v8_inspector::V8Inspector::Channel {
+public:
+    explicit v8_inspector_channel_wrapper(
+        v8::Isolate *isolate,
+        const InspectorOnResponseCallback &onResponse,
+        const InspectorUserDataDeleter &onResponseUserDataDeleter
+    );
+
+    void sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) override;
+    void sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) override;
+    void flushProtocolNotifications() override;
+
+    void setIsolate(v8::Isolate *isolate);
+
+    void setOnResponseCallback(
+        const InspectorOnResponseCallback &callback,
+        const InspectorUserDataDeleter &onResponseUserDataDeleter
+    );
+
+private:
+    v8::Isolate* isolate_;
+    InspectorOnResponseCallback onResponse_;
+    InspectorUserDataDeleter onResponseUserDataDeleter_;
+};
+
+
+v8_inspector_channel_wrapper::v8_inspector_channel_wrapper(
+    v8::Isolate *isolate,
+    const InspectorOnResponseCallback &onResponse,
+    const InspectorUserDataDeleter &onResponseUserDataDeleter
+)
+  :
+    isolate_(isolate),
+    onResponse_(onResponse),
+    onResponseUserDataDeleter_(onResponseUserDataDeleter)
+{}
+
+void v8_inspector_channel_wrapper::sendResponse(int callId, std::unique_ptr<v8_inspector::StringBuffer> message) {
+    const std::string response = convertToString(isolate_, message->string());
+    if (onResponse_) {
+        onResponse_(response);
+    }
+}
+
+void v8_inspector_channel_wrapper::sendNotification(std::unique_ptr<v8_inspector::StringBuffer> message) {
+    const std::string notification = convertToString(isolate_, message->string());
+    if (onResponse_) {
+        onResponse_(notification);
+    }
+}
+
+void v8_inspector_channel_wrapper::flushProtocolNotifications() {
+    // flush protocol notification
+}
+
+void v8_inspector_channel_wrapper::setIsolate(v8::Isolate *isolate) {
+    isolate_ = isolate;
+}
+
+void v8_inspector_channel_wrapper::setOnResponseCallback(
+    const InspectorOnResponseCallback &callback,
+    const InspectorUserDataDeleter &deleter
+) {
+    if (onResponseUserDataDeleter_) {
+        onResponseUserDataDeleter_();
+    }
+
+    onResponse_ = callback;
+    onResponseUserDataDeleter_ = deleter;
+}
+
+class v8_inspector_client_wrapper final: public v8_inspector::V8InspectorClient {
+public:
+    explicit v8_inspector_client_wrapper(
+        v8::Platform *platform,
+        const v8::Local<v8::Context> &context,
+        const InspectorOnResponseCallback &onResponse = {},
+        const InspectorUserDataDeleter &onResponseUserDataDeleter = {},
+        const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause = {},
+        const InspectorUserDataDeleter &onWaitFrontendMessageOnPauseUserDataDeleter = {}
+    );
+
+    void setOnResponseCallback(
+        const InspectorOnResponseCallback &callback,
+        const InspectorUserDataDeleter &deleter
+    );
+    void setOnWaitFrontendMessageOnPauseCallback(
+        const InspectorOnWaitFrontendMessageOnPauseCallback &callback,
+        const InspectorUserDataDeleter &deleter
+    );
+
+    inline uint64_t getIsolateId() const {
+        return isolate_id_;
+    }
+
+    void dispatchProtocolMessage(const v8_inspector::StringView &message_view);
+    void runMessageLoopOnPause(const int contextGroupId) override;
+    void quitMessageLoopOnPause() override;
+
+    void schedulePauseOnNextStatement(const v8_inspector::StringView &reason);
+    void waitFrontendMessageOnPause();
+
+private:
+    static const int kContextGroupId = 1;
+
+    v8::Platform* platform_;
+    std::unique_ptr<v8_inspector::V8Inspector> inspector_;
+    std::unique_ptr<v8_inspector::V8InspectorSession> session_;
+    std::unique_ptr<v8_inspector_channel_wrapper> channel_;
+    v8::Isolate* isolate_;
+    uint64_t isolate_id_;
+    InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPause_;
+    InspectorUserDataDeleter onWaitFrontendMessageOnPauseUserDataDeleter_;
+    bool terminated_;
+    bool run_nested_loop_;
+};
+
+v8_inspector_client_wrapper::v8_inspector_client_wrapper(
+    v8::Platform *platform,
+    const v8::Local<v8::Context> &context,
+    const InspectorOnResponseCallback &onResponse,
+    const InspectorUserDataDeleter &onResponseUserDataDeleter,
+    const InspectorOnWaitFrontendMessageOnPauseCallback &onWaitFrontendMessageOnPause,
+    const InspectorUserDataDeleter &onWaitFrontendMessageOnPauseUserDataDeleter
+) :
+    platform_(platform),
+    isolate_(context->GetIsolate()),
+    isolate_id_(GetIsolateId(isolate_)),
+    onWaitFrontendMessageOnPause_(onWaitFrontendMessageOnPause),
+    onWaitFrontendMessageOnPauseUserDataDeleter_(onWaitFrontendMessageOnPauseUserDataDeleter)
+{
+    inspector_ = v8_inspector::V8Inspector::create(isolate_, this);
+    channel_.reset(new v8_inspector_channel_wrapper(isolate_, onResponse, onResponseUserDataDeleter));
+    session_ = inspector_->connect(kContextGroupId, channel_.get(), v8_inspector::StringView(), v8_inspector::V8Inspector::kFullyTrusted);
+
+    v8_inspector::StringView contextName = convertToStringView("inspector");
+    inspector_->contextCreated(v8_inspector::V8ContextInfo(context, kContextGroupId, contextName));
+    terminated_ = true;
+    run_nested_loop_ = false;
+}
+
+void v8_inspector_client_wrapper::setOnResponseCallback(
+    const InspectorOnResponseCallback &callback,
+    const InspectorUserDataDeleter &deleter
+) {
+    channel_->setOnResponseCallback(callback, deleter);
+}
+
+void v8_inspector_client_wrapper::setOnWaitFrontendMessageOnPauseCallback(
+    const InspectorOnWaitFrontendMessageOnPauseCallback &callback,
+    const InspectorUserDataDeleter &deleter
+) {
+    onWaitFrontendMessageOnPause_ = callback;
+    onWaitFrontendMessageOnPauseUserDataDeleter_ = deleter;
+}
+
+void v8_inspector_client_wrapper::dispatchProtocolMessage(const v8_inspector::StringView &message_view) {
+    session_->dispatchProtocolMessage(message_view);
+}
+
+void v8_inspector_client_wrapper::runMessageLoopOnPause(int contextGroupId) {
+    if (run_nested_loop_) {
+        return;
+    }
+
+    terminated_ = false;
+    run_nested_loop_ = true;
+
+    while (!terminated_ && onWaitFrontendMessageOnPause_ && onWaitFrontendMessageOnPause_(reinterpret_cast<v8_inspector_c_wrapper *>(this))) {
+        while (v8::platform::PumpMessageLoop(platform_, isolate_)) {}
+    }
+
+    terminated_ = true;
+    run_nested_loop_ = false;
+}
+
+void v8_inspector_client_wrapper::quitMessageLoopOnPause() {
+    terminated_ = true;
+}
+
+void v8_inspector_client_wrapper::schedulePauseOnNextStatement(const v8_inspector::StringView &reason) {
+    session_->schedulePauseOnNextStatement(reason, reason);
+}
+} // anonymous namespace
+
+v8_inspector_c_wrapper* v8_InspectorCreate(
+    v8_context_ref *context_ref,
+    v8_InspectorOnResponseCallback onResponse,
+    void *onResponseUserData,
+    v8_InspectorUserDataDeleter onResponseUserDataDeleter,
+    v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+    void *onWaitUserData,
+    v8_InspectorUserDataDeleter onWaitUserDataDeleter
+) {
+    InspectorOnResponseCallback onResponseWrapper = [onResponse, onResponseUserData](const std::string &string){
+        onResponse(string.c_str(), onResponseUserData);
+    };
+    InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPauseWrapper = [onWaitFrontendMessageOnPause, onWaitUserData](v8_inspector_c_wrapper *inspector) {
+        return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
+    };
+
+    InspectorUserDataDeleter onResponseUserDataDeleterWrapper = {};
+    if (onResponseUserDataDeleter) {
+        onResponseUserDataDeleterWrapper = [onResponseUserData, onResponseUserDataDeleter] {
+            onResponseUserDataDeleter(onResponseUserData);
+        };
+    }
+
+    InspectorUserDataDeleter onWaitUserDataDeleterWrapper = {};
+    if (onWaitUserDataDeleter) {
+        onWaitUserDataDeleterWrapper = [onWaitUserData, onWaitUserDataDeleter] {
+            onWaitUserDataDeleter(onWaitUserData);
+        };
+    }
+
+    auto platform = GLOBAL_PLATFORM;
+    auto context = context_ref->context;
+
+    v8_inspector_client_wrapper *inspectorWrapper = (v8_inspector_client_wrapper *)V8_ALLOC(sizeof(v8_inspector_client_wrapper ));
+    inspectorWrapper = new(inspectorWrapper) v8_inspector_client_wrapper(
+            platform,
+            context,
+            onResponseWrapper,
+            onResponseUserDataDeleterWrapper,
+            onWaitFrontendMessageOnPauseWrapper,
+            onWaitUserDataDeleterWrapper
+    );
+    return reinterpret_cast<v8_inspector_c_wrapper*>(inspectorWrapper);
+}
+
+void v8_FreeInspector(v8_inspector_c_wrapper *wrapper) {
+    delete reinterpret_cast<v8_inspector_client_wrapper *>(wrapper);
+}
+
+void v8_InspectorDispatchProtocolMessage(v8_inspector_c_wrapper *wrapper, const char *message) {
+    const std::string string = message;
+    const auto view = convertToStringView(string);
+    reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->dispatchProtocolMessage(view);
+}
+
+void v8_InspectorSchedulePauseOnNextStatement(v8_inspector_c_wrapper *wrapper, const char *reason) {
+    const std::string string = reason;
+    const auto view = convertToStringView(string);
+    reinterpret_cast<v8_inspector_client_wrapper *>(wrapper)->schedulePauseOnNextStatement(view);
+}
+
+void v8_InspectorSetOnResponseCallback(
+    v8_inspector_c_wrapper *inspector,
+    v8_InspectorOnResponseCallback onResponse,
+    void *onResponseUserData,
+	v8_InspectorUserDataDeleter deleter
+) {
+    InspectorOnResponseCallback onResponseWrapper = {};
+
+    if (onResponse) {
+        onResponseWrapper = [onResponse, onResponseUserData](const std::string &string){
+            onResponse(string.c_str(), onResponseUserData);
+        };
+    }
+
+    InspectorUserDataDeleter onDelete = {};
+
+    if (deleter) {
+        onDelete = [onResponseUserData, deleter] {
+            deleter(onResponseUserData);
+        };
+    }
+
+    reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnResponseCallback(onResponseWrapper, onDelete);
+}
+
+/* Sets the "onWaitFrontendMessageOnPause" callback. */
+void v8_InspectorSetOnWaitFrontendMessageOnPauseCallback(
+    v8_inspector_c_wrapper *inspector,
+    v8_InspectorOnWaitFrontendMessageOnPause onWaitFrontendMessageOnPause,
+    void *onWaitUserData,
+	v8_InspectorUserDataDeleter deleter
+) {
+    InspectorOnWaitFrontendMessageOnPauseCallback onWaitFrontendMessageOnPauseWrapper = {};
+
+    if (onWaitFrontendMessageOnPause) {
+        onWaitFrontendMessageOnPauseWrapper = [onWaitFrontendMessageOnPause, onWaitUserData](v8_inspector_c_wrapper *inspector) {
+            return onWaitFrontendMessageOnPause(inspector, onWaitUserData);
+        };
+    }
+
+    InspectorUserDataDeleter onDelete = {};
+
+    if (deleter) {
+        onDelete = [onWaitUserData, deleter] {
+            deleter(onWaitUserData);
+        };
+    }
+
+    reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->setOnWaitFrontendMessageOnPauseCallback(onWaitFrontendMessageOnPauseWrapper, onDelete);
+}
+
+uint64_t v8_InspectorGetIsolateId(v8_inspector_c_wrapper *inspector) {
+    return reinterpret_cast<v8_inspector_client_wrapper *>(inspector)->getIsolateId();
+}
+
 int v8_InitializePlatform(int thread_pool_size, const char *flags) {
     if (flags) {
         v8::V8::SetFlagsFromString(flags);
@@ -378,12 +737,8 @@ void v8_IsolateSetNearOOMHandler(v8_isolate* i, size_t (*near_oom_callback)(void
 }
 
 uint64_t v8_GetIsolateId(v8_isolate* isolate) {
-    v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate *>(isolate);
-    uint64_t *id_ptr = reinterpret_cast<uint64_t*>(v8_isolate->GetData(ISOLATE_ID_INDEX));
-    if (!id_ptr) {
-        return ISOLATE_ID_INVALID;
-    }
-    return *id_ptr;
+    return GetIsolateId(reinterpret_cast<v8::Isolate *>(isolate));
+
 }
 
 v8_isolate* v8_IsolateGetCurrent() {

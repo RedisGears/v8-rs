@@ -9,6 +9,7 @@ use crate::v8_c_raw::bindings::{v8_Dispose, v8_Initialize, v8_InitializePlatform
 use std::ffi::{CStr, CString};
 use std::ptr;
 
+pub mod inspector;
 pub mod isolate;
 pub mod isolate_scope;
 pub mod try_catch;
