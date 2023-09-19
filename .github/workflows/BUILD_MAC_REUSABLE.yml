@@ -24,4 +24,4 @@ jobs:
     - name: Build
       run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build --verbose
     - name: Run tests
-      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test --verbose
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test --verbose -- --nocapture
