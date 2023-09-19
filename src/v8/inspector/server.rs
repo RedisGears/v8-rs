@@ -754,7 +754,11 @@ mod tests {
     use super::ClientMessage;
     use std::sync::{atomic::AtomicU16, Arc, Mutex};
 
-    static PORT_GENERATOR: AtomicU16 = AtomicU16::new(9006u16);
+    fn generate_port() -> u16 {
+        static LAST_PORT_USED: AtomicU16 = AtomicU16::new(9006u16);
+
+        LAST_PORT_USED.fetch_add(1, std::sync::atomic::Ordering::AcqRel)
+    }
 
     /// This is to test the crash when setting a breakpoint.
     /// It:
@@ -791,7 +795,7 @@ mod tests {
         let lock_1 = stage_1.lock().unwrap();
 
         // The remote debugging server port for the [WebSocketServer].
-        let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let port = generate_port();
         // The remote debugging server ip address for the [WebSocketServer].
         const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
         // The full remote debugging server host name for the [WebSocketServer].
@@ -919,7 +923,7 @@ mod tests {
         use tungstenite::{handshake::server::NoCallback, HandshakeError, ServerHandshake};
 
         // The remote debugging server port for the [WebSocketServer].
-        let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let port = generate_port();
         // The remote debugging server ip address for the [WebSocketServer].
         const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
         // The full remote debugging server host name for the [WebSocketServer].
@@ -954,7 +958,7 @@ mod tests {
 
         // Now let's wait for the user to connect.
         {
-            let _lock = wait.lock();
+            let _lock = wait.lock().unwrap();
             let _web_socket = 'accept_loop: loop {
                 let start_accepting_time = std::time::Instant::now();
 
@@ -968,6 +972,7 @@ mod tests {
                                 .unwrap()
                                 .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
 
+                            drop(_lock);
                             client_thread.join().expect("Thread joined");
                             return;
                         }
@@ -990,7 +995,7 @@ mod tests {
     #[test]
     fn connection_accept_timesout() {
         // The remote debugging server port for the [WebSocketServer].
-        let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        let port = generate_port();
         // The remote debugging server ip address for the [WebSocketServer].
         const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
         // The full remote debugging server host name for the [WebSocketServer].
