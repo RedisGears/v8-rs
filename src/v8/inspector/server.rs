@@ -963,7 +963,7 @@ mod tests {
         // Now let's wait for the user to connect.
         {
             // let _lock = wait.lock().unwrap();
-            let web_socket = 'accept_loop: loop {
+            let _web_socket = 'accept_loop: loop {
                 let start_accepting_time = std::time::Instant::now();
 
                 match server.try_accept_next_websocket_connection() {

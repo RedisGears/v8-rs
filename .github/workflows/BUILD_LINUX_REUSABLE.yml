@@ -25,6 +25,6 @@ jobs:
     - name: format
       run: cargo fmt -- --check
     - name: Build
-      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build -vv
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build -vv -- --nocapture
     - name: Run tests
-      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test -vv
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test -vv -- --nocapture
