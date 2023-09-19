@@ -941,58 +941,44 @@ mod tests {
 
         let address = address.clone();
 
-        // let wait = Arc::new(Mutex::new(()));
-
-        // let wait_client = wait.clone();
         // The client thread, attempting to connect.
-        let client_thread = std::thread::spawn(move || {
-            let _web_socket = 'connect: loop {
-                match tungstenite::connect(format!("ws://{address}")) {
-                    Ok(ws) => break 'connect ws,
-                    Err(_) => {
-                        eprintln!("3");
-                        continue;
-                    }
-                }
-            };
-
-            eprintln!("2");
-            // let _lock = wait_client.lock().unwrap();
-        });
+        let client_thread =
+            std::thread::spawn(
+                move || match tungstenite::connect(format!("ws://{address}")) {
+                    Ok(_ws) => {}
+                    Err(_) => {}
+                },
+            );
 
         // Now let's wait for the user to connect.
-        {
-            // let _lock = wait.lock().unwrap();
-            let _web_socket = 'accept_loop: loop {
-                let start_accepting_time = std::time::Instant::now();
+        let _web_socket = 'accept_loop: loop {
+            let start_accepting_time = std::time::Instant::now();
 
-                match server.try_accept_next_websocket_connection() {
-                    Ok(connection) => break 'accept_loop connection,
-                    Err((s, e)) => {
-                        if e.kind() != std::io::ErrorKind::WouldBlock {
-                            assert_eq!(e.kind(), std::io::ErrorKind::Other);
-                            assert!(e
-                                .into_inner()
-                                .unwrap()
-                                .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
+            match server.try_accept_next_websocket_connection() {
+                Ok(connection) => break 'accept_loop connection,
+                Err((s, e)) => {
+                    if e.kind() != std::io::ErrorKind::WouldBlock {
+                        assert_eq!(e.kind(), std::io::ErrorKind::Other);
+                        assert!(e
+                            .into_inner()
+                            .unwrap()
+                            .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
 
-                            eprintln!("1");
-                            // drop(_lock);
-                            client_thread.join().expect("Thread joined");
-                            return;
-                        }
-                        eprintln!("4");
-                        server = s;
-                        current_waiting_time += start_accepting_time.elapsed();
+                        eprintln!("1");
+                        client_thread.join().expect("Thread joined");
+                        return;
+                    }
+                    eprintln!("4");
+                    server = s;
+                    current_waiting_time += start_accepting_time.elapsed();
 
-                        if current_waiting_time >= time_limit {
-                            unreachable!("The connection is accepted.")
-                        }
+                    if current_waiting_time >= time_limit {
+                        unreachable!("The connection is accepted.")
                     }
                 }
-            };
-        }
-        eprintln!("3");
+            }
+        };
+        eprintln!("5");
         client_thread.join().expect("Thread joined");
     }
 
