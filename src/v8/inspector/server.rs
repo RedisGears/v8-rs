@@ -929,7 +929,7 @@ mod tests {
         let mut server = TcpServer::new(address).expect("Couldn't create a tcp server");
 
         let time_limit = std::time::Duration::from_millis(5000);
-        let mut current_waiting = std::time::Duration::ZERO;
+        let mut current_waiting_time = std::time::Duration::ZERO;
 
         let address = address.clone();
 
@@ -957,11 +957,15 @@ mod tests {
                 match server.try_accept_next_websocket_connection() {
                     Ok(connection) => break 'accept_loop connection,
                     Err((s, e)) => {
+                        if let Some(raw_error) = e.raw_os_error() {
+                            // EWOULDBLOCK / EAGAIN
+                            assert_eq!(raw_error, 11);
+                        }
                         assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
                         server = s;
-                        current_waiting += start_accepting_time.elapsed();
+                        current_waiting_time += start_accepting_time.elapsed();
 
-                        if current_waiting >= time_limit {
+                        if current_waiting_time >= time_limit {
                             unreachable!("The connection is accepted.")
                         }
                     }
@@ -991,7 +995,7 @@ mod tests {
         let mut server = TcpServer::new(address).expect("Couldn't create a tcp server");
 
         let time_limit = std::time::Duration::from_millis(1000);
-        let mut current_waiting = std::time::Duration::ZERO;
+        let mut current_waiting_time = std::time::Duration::ZERO;
 
         // Now let's wait for the user to connect.
         let _web_socket = 'accept_loop: loop {
@@ -1002,9 +1006,9 @@ mod tests {
                 Err((s, e)) => {
                     assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
                     server = s;
-                    current_waiting += start_accepting_time.elapsed();
+                    current_waiting_time += start_accepting_time.elapsed();
 
-                    if current_waiting >= time_limit {
+                    if current_waiting_time >= time_limit {
                         return;
                     }
                 }
