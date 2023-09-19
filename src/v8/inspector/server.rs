@@ -224,9 +224,6 @@ impl TcpServer {
         self.server
             .set_nonblocking(true)
             .expect("Set non-blocking work fine.");
-        // if let Err(e) = self.server.set_nonblocking(true) {
-        //     return Err((self, e));
-        // }
 
         let connection = match self.server.accept() {
             Ok(connection) => connection,
@@ -234,10 +231,6 @@ impl TcpServer {
                 self.server
                     .set_nonblocking(false)
                     .expect("Set blocking work fine.");
-                eprintln!("Server accept error: {e:#?}");
-                // if let Err(e) = self.server.set_nonblocking(false) {
-                //     return Err((self, e));
-                // }
                 return Err((self, e));
             }
         };
@@ -922,6 +915,9 @@ mod tests {
     /// doesn't happen within the provided time limit. time limit.
     #[test]
     fn connection_accept_doesnt_timeout() {
+        use std::net::TcpStream;
+        use tungstenite::{handshake::server::NoCallback, HandshakeError, ServerHandshake};
+
         // The remote debugging server port for the [WebSocketServer].
         let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         // The remote debugging server ip address for the [WebSocketServer].
@@ -966,14 +962,15 @@ mod tests {
                     Ok(connection) => break 'accept_loop connection,
                     Err((s, e)) => {
                         if e.kind() != std::io::ErrorKind::WouldBlock {
-                            if let Some(raw_error) = e.raw_os_error() {
-                                // EWOULDBLOCK / EAGAIN or E
-                                assert_eq!(raw_error, 35, "{e:#?}");
-                            } else {
-                                panic!("Shouldn't happen: {e:#?}");
-                            }
+                            assert_eq!(e.kind(), std::io::ErrorKind::Other);
+                            assert!(e
+                                .into_inner()
+                                .unwrap()
+                                .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
+
+                            client_thread.join().expect("Thread joined");
+                            return;
                         }
-                        assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
                         server = s;
                         current_waiting_time += start_accepting_time.elapsed();
 
@@ -985,7 +982,7 @@ mod tests {
             };
         }
 
-        client_thread.join().expect("Thread joined")
+        client_thread.join().expect("Thread joined");
     }
 
     /// Tests that there is a timeout waiting for the connection, if it
