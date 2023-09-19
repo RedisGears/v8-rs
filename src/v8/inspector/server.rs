@@ -234,6 +234,7 @@ impl TcpServer {
                 self.server
                     .set_nonblocking(false)
                     .expect("Set blocking work fine.");
+                eprintln!("Server accept error: {e:#?}");
                 // if let Err(e) = self.server.set_nonblocking(false) {
                 //     return Err((self, e));
                 // }
@@ -969,6 +970,7 @@ mod tests {
                                 // EWOULDBLOCK / EAGAIN or E
                                 assert_eq!(raw_error, 35, "{e:#?}");
                             } else {
+                                panic!("Shouldn't happen: {e:#?}");
                             }
                         }
                         assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
