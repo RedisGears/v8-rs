@@ -221,18 +221,25 @@ impl TcpServer {
     pub fn try_accept_next_websocket_connection(
         self,
     ) -> Result<WebSocketServer, (Self, std::io::Error)> {
-        if let Err(e) = self.server.set_nonblocking(true) {
-            return Err((self, e));
-        }
+        self.server
+            .set_nonblocking(true)
+            .expect("Set non-blocking work fine.");
+        // if let Err(e) = self.server.set_nonblocking(true) {
+        //     return Err((self, e));
+        // }
 
         let connection = match self.server.accept() {
             Ok(connection) => connection,
-            Err(e) => return Err((self, e)),
+            Err(e) => {
+                self.server
+                    .set_nonblocking(false)
+                    .expect("Set blocking work fine.");
+                // if let Err(e) = self.server.set_nonblocking(false) {
+                //     return Err((self, e));
+                // }
+                return Err((self, e));
+            }
         };
-
-        if let Err(e) = self.server.set_nonblocking(false) {
-            return Err((self, e));
-        }
 
         tungstenite::accept(connection.0)
             .map(WebSocketServer::from)
@@ -961,6 +968,7 @@ mod tests {
                             if let Some(raw_error) = e.raw_os_error() {
                                 // EWOULDBLOCK / EAGAIN or E
                                 assert_eq!(raw_error, 35, "{e:#?}");
+                            } else {
                             }
                         }
                         assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
