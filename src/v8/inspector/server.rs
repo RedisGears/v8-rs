@@ -221,16 +221,18 @@ impl TcpServer {
     pub fn try_accept_next_websocket_connection(
         self,
     ) -> Result<WebSocketServer, (Self, std::io::Error)> {
-        self.server
-            .set_nonblocking(true)
-            .expect("Set non-blocking work fine.");
+        if let Err(e) = self.server.set_nonblocking(true) {
+            return Err((self, e));
+        }
 
         let connection = match self.server.accept() {
             Ok(connection) => connection,
             Err(e) => {
-                self.server
-                    .set_nonblocking(false)
-                    .expect("Set blocking work fine.");
+                if let Err(e) = self.server.set_nonblocking(false) {
+                    log::warn!(
+                        "Couldn't unset the blocking flag for the inspector server socket: {e:#?}"
+                    );
+                }
                 return Err((self, e));
             }
         };
