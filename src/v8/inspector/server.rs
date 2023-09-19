@@ -941,9 +941,9 @@ mod tests {
 
         let address = address.clone();
 
-        let wait = Arc::new(Mutex::new(()));
+        // let wait = Arc::new(Mutex::new(()));
 
-        let wait_client = wait.clone();
+        // let wait_client = wait.clone();
         // The client thread, attempting to connect.
         let client_thread = std::thread::spawn(move || {
             let _web_socket = 'connect: loop {
@@ -953,12 +953,12 @@ mod tests {
                 }
             };
 
-            let _lock = wait_client.lock().unwrap();
+            // let _lock = wait_client.lock().unwrap();
         });
 
         // Now let's wait for the user to connect.
         {
-            let _lock = wait.lock().unwrap();
+            // let _lock = wait.lock().unwrap();
             let _web_socket = 'accept_loop: loop {
                 let start_accepting_time = std::time::Instant::now();
 
@@ -972,7 +972,7 @@ mod tests {
                                 .unwrap()
                                 .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
 
-                            drop(_lock);
+                            // drop(_lock);
                             client_thread.join().expect("Thread joined");
                             return;
                         }
