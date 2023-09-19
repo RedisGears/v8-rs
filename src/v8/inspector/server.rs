@@ -959,7 +959,7 @@ mod tests {
                     Err((s, e)) => {
                         if let Some(raw_error) = e.raw_os_error() {
                             // EWOULDBLOCK / EAGAIN
-                            assert_eq!(raw_error, 11);
+                            assert_eq!(raw_error, 11, "{e:#?}");
                         }
                         assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
                         server = s;
