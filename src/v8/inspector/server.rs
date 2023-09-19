@@ -957,9 +957,11 @@ mod tests {
                 match server.try_accept_next_websocket_connection() {
                     Ok(connection) => break 'accept_loop connection,
                     Err((s, e)) => {
-                        if let Some(raw_error) = e.raw_os_error() {
-                            // EWOULDBLOCK / EAGAIN
-                            assert_eq!(raw_error, 11, "{e:#?}");
+                        if e.kind() != std::io::ErrorKind::WouldBlock {
+                            if let Some(raw_error) = e.raw_os_error() {
+                                // EWOULDBLOCK / EAGAIN or E
+                                assert_eq!(raw_error, 35, "{e:#?}");
+                            }
                         }
                         assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
                         server = s;
