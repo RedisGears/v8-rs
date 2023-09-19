@@ -943,12 +943,7 @@ mod tests {
 
         // The client thread, attempting to connect.
         let client_thread =
-            std::thread::spawn(
-                move || match tungstenite::connect(format!("ws://{address}")) {
-                    Ok(_ws) => {}
-                    Err(_) => {}
-                },
-            );
+            std::thread::spawn(move || tungstenite::connect(format!("ws://{address}")));
 
         // Now let's wait for the user to connect.
         let _web_socket = 'accept_loop: loop {
@@ -964,11 +959,13 @@ mod tests {
                             .unwrap()
                             .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
 
-                        eprintln!("1");
-                        client_thread.join().expect("Thread joined");
+                        // When we reach here, we know that a connection
+                        // has been attempted to be established, but was
+                        // cut off due to us not receiving the WebSocket
+                        // frames here, so we consider this a success.
+                        let _ = client_thread.join().expect("Thread joined");
                         return;
                     }
-                    eprintln!("4");
                     server = s;
                     current_waiting_time += start_accepting_time.elapsed();
 
@@ -978,8 +975,10 @@ mod tests {
                 }
             }
         };
-        eprintln!("5");
-        client_thread.join().expect("Thread joined");
+
+        // By this time, the connection has been established, everything
+        // is good.
+        let _ = client_thread.join().expect("Thread joined");
     }
 
     /// Tests that there is a timeout waiting for the connection, if it
