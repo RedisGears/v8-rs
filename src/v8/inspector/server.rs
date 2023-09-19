@@ -212,7 +212,34 @@ impl TcpServer {
         self.server.local_addr()
     }
 
-    /// Starts listening for and a new single websocket connection.
+    /// Starts listening for a new single websocket connection.
+    /// The socket attempts to accept a connection in a non-blocking
+    /// mode, meaning it would return [`std::io::ErrorKind::WouldBlock`]
+    /// in case there is no user connection.
+    ///
+    /// Once the connection is accepted, it is returned to the user.
+    pub fn try_accept_next_websocket_connection(
+        self,
+    ) -> Result<WebSocketServer, (Self, std::io::Error)> {
+        if let Err(e) = self.server.set_nonblocking(true) {
+            return Err((self, e));
+        }
+
+        let connection = match self.server.accept() {
+            Ok(connection) => connection,
+            Err(e) => return Err((self, e)),
+        };
+
+        if let Err(e) = self.server.set_nonblocking(false) {
+            return Err((self, e));
+        }
+
+        tungstenite::accept(connection.0)
+            .map(WebSocketServer::from)
+            .map_err(|e| (self, std::io::Error::new(std::io::ErrorKind::Other, e)))
+    }
+
+    /// Starts listening for a new single websocket connection.
     /// Once the connection is accepted, it is returned to the user.
     pub fn accept_next_websocket_connection(self) -> Result<WebSocketServer, std::io::Error> {
         let connection = self.server.accept()?;
@@ -724,7 +751,9 @@ mod tests {
     };
 
     use super::ClientMessage;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{atomic::AtomicU16, Arc, Mutex};
+
+    static PORT_GENERATOR: AtomicU16 = AtomicU16::new(9006u16);
 
     /// This is to test the crash when setting a breakpoint.
     /// It:
@@ -761,13 +790,13 @@ mod tests {
         let lock_1 = stage_1.lock().unwrap();
 
         // The remote debugging server port for the [WebSocketServer].
-        const PORT_V4: u16 = 9005;
+        let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
         // The remote debugging server ip address for the [WebSocketServer].
         const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
         // The full remote debugging server host name for the [WebSocketServer].
-        const LOCAL_HOST: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, PORT_V4);
+        let host: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, port);
 
-        let address = LOCAL_HOST.to_string();
+        let address = host.to_string();
         let address = &address;
 
         let fake_client = {
@@ -878,5 +907,100 @@ mod tests {
         // Get the result:
         let res_utf8 = res.to_utf8().unwrap();
         assert_eq!(res_utf8.as_str(), "2");
+    }
+
+    /// Tests that there is no timeout waiting for the connection, if
+    /// the client connection is attempted.
+    /// doesn't happen within the provided time limit. time limit.
+    #[test]
+    fn connection_accept_doesnt_timeout() {
+        // The remote debugging server port for the [WebSocketServer].
+        let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        // The remote debugging server ip address for the [WebSocketServer].
+        const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
+        // The full remote debugging server host name for the [WebSocketServer].
+        let host: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, port);
+
+        let address = host.to_string();
+        let address = &address;
+
+        // Let's create a server and start listening for the connections
+        // on the address provided, but not accepting those yet.
+        let mut server = TcpServer::new(address).expect("Couldn't create a tcp server");
+
+        let time_limit = std::time::Duration::from_millis(5000);
+        let mut current_waiting = std::time::Duration::ZERO;
+
+        let address = address.clone();
+
+        // The client thread, attempting to connect.
+        let client_thread =
+            std::thread::spawn(
+                move || {
+                    while tungstenite::connect(format!("ws://{address}")).is_err() {}
+                },
+            );
+
+        // Now let's wait for the user to connect.
+        let _web_socket = 'accept_loop: loop {
+            let start_accepting_time = std::time::Instant::now();
+
+            match server.try_accept_next_websocket_connection() {
+                Ok(connection) => break 'accept_loop connection,
+                Err((s, e)) => {
+                    assert!(e.kind() == std::io::ErrorKind::WouldBlock);
+                    server = s;
+                    current_waiting += start_accepting_time.elapsed();
+
+                    if current_waiting >= time_limit {
+                        unreachable!("The connection is accepted.")
+                    }
+                }
+            }
+        };
+
+        client_thread.join().expect("Thread joined")
+    }
+
+    /// Tests that there is a timeout waiting for the connection, if it
+    /// doesn't happen within the provided
+    #[test]
+    fn connection_accept_timesout() {
+        // The remote debugging server port for the [WebSocketServer].
+        let port = PORT_GENERATOR.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        // The remote debugging server ip address for the [WebSocketServer].
+        const IP_V4: std::net::Ipv4Addr = std::net::Ipv4Addr::LOCALHOST;
+        // The full remote debugging server host name for the [WebSocketServer].
+        let host: std::net::SocketAddrV4 = std::net::SocketAddrV4::new(IP_V4, port);
+
+        let address = host.to_string();
+        let address = &address;
+
+        // Let's create a server and start listening for the connections
+        // on the address provided, but not accepting those yet.
+        let mut server = TcpServer::new(address).expect("Couldn't create a tcp server");
+
+        let time_limit = std::time::Duration::from_millis(1000);
+        let mut current_waiting = std::time::Duration::ZERO;
+
+        // Now let's wait for the user to connect.
+        let _web_socket = 'accept_loop: loop {
+            let start_accepting_time = std::time::Instant::now();
+
+            match server.try_accept_next_websocket_connection() {
+                Ok(connection) => break 'accept_loop connection,
+                Err((s, e)) => {
+                    assert!(e.kind() == std::io::ErrorKind::WouldBlock);
+                    server = s;
+                    current_waiting += start_accepting_time.elapsed();
+
+                    if current_waiting >= time_limit {
+                        return;
+                    }
+                }
+            }
+        };
+
+        unreachable!("The connection is never accepted.");
     }
 }
