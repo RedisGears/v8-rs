@@ -933,31 +933,41 @@ mod tests {
 
         let address = address.clone();
 
+        let wait = Arc::new(Mutex::new(()));
+
+        let wait_client = wait.clone();
         // The client thread, attempting to connect.
-        let client_thread =
-            std::thread::spawn(
-                move || {
-                    while tungstenite::connect(format!("ws://{address}")).is_err() {}
-                },
-            );
+        let client_thread = std::thread::spawn(move || {
+            let _web_socket = 'connect: loop {
+                match tungstenite::connect(format!("ws://{address}")) {
+                    Ok(ws) => break 'connect ws,
+                    Err(_) => continue,
+                }
+            };
+
+            let _lock = wait_client.lock().unwrap();
+        });
 
         // Now let's wait for the user to connect.
-        let _web_socket = 'accept_loop: loop {
-            let start_accepting_time = std::time::Instant::now();
+        {
+            let _lock = wait.lock();
+            let _web_socket = 'accept_loop: loop {
+                let start_accepting_time = std::time::Instant::now();
 
-            match server.try_accept_next_websocket_connection() {
-                Ok(connection) => break 'accept_loop connection,
-                Err((s, e)) => {
-                    assert!(e.kind() == std::io::ErrorKind::WouldBlock);
-                    server = s;
-                    current_waiting += start_accepting_time.elapsed();
+                match server.try_accept_next_websocket_connection() {
+                    Ok(connection) => break 'accept_loop connection,
+                    Err((s, e)) => {
+                        assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
+                        server = s;
+                        current_waiting += start_accepting_time.elapsed();
 
-                    if current_waiting >= time_limit {
-                        unreachable!("The connection is accepted.")
+                        if current_waiting >= time_limit {
+                            unreachable!("The connection is accepted.")
+                        }
                     }
                 }
-            }
-        };
+            };
+        }
 
         client_thread.join().expect("Thread joined")
     }
@@ -990,7 +1000,7 @@ mod tests {
             match server.try_accept_next_websocket_connection() {
                 Ok(connection) => break 'accept_loop connection,
                 Err((s, e)) => {
-                    assert!(e.kind() == std::io::ErrorKind::WouldBlock);
+                    assert_eq!(e.kind(), std::io::ErrorKind::WouldBlock);
                     server = s;
                     current_waiting += start_accepting_time.elapsed();
 
