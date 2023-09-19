@@ -949,17 +949,21 @@ mod tests {
             let _web_socket = 'connect: loop {
                 match tungstenite::connect(format!("ws://{address}")) {
                     Ok(ws) => break 'connect ws,
-                    Err(_) => continue,
+                    Err(_) => {
+                        eprintln!("3");
+                        continue;
+                    }
                 }
             };
 
+            eprintln!("2");
             // let _lock = wait_client.lock().unwrap();
         });
 
         // Now let's wait for the user to connect.
         {
             // let _lock = wait.lock().unwrap();
-            let _web_socket = 'accept_loop: loop {
+            let web_socket = 'accept_loop: loop {
                 let start_accepting_time = std::time::Instant::now();
 
                 match server.try_accept_next_websocket_connection() {
@@ -972,10 +976,12 @@ mod tests {
                                 .unwrap()
                                 .is::<HandshakeError<ServerHandshake<TcpStream, NoCallback>>>(),);
 
+                            eprintln!("1");
                             // drop(_lock);
                             client_thread.join().expect("Thread joined");
                             return;
                         }
+                        eprintln!("4");
                         server = s;
                         current_waiting_time += start_accepting_time.elapsed();
 
@@ -986,7 +992,7 @@ mod tests {
                 }
             };
         }
-
+        eprintln!("3");
         client_thread.join().expect("Thread joined");
     }
 
