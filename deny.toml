@@ -202,6 +202,45 @@ workspace-default-features = "allow"
 external-default-features = "allow"
 # List of crates that are allowed. Use with care!
 allow = [
+#    { name = "libloading", version = "*" },
+#    { name = "bindgen", version = "*" },
+#    { name = "addroid-tzdata", version = "*" },
+#    { name = "android_system_properties", version = "*" },
+#    { name = "anyhow", version = "*" },
+#    { name = "autocfg", version = "*" },
+#    { name = "bitflags", version = "*" },
+#    { name = "block-buffer", version = "*" },
+#    { name = "bumpalo", version = "*" },
+#    { name = "byteorder", version = "*" },
+#    { name = "bytes", version = "*" },
+#    { name = "cc", version = "*" },
+#    { name = "cexpr", version = "*" },
+#    { name = "cfg-if", version = "*" },
+#    { name = "chrono", version = "*" },
+#    { name = "clang-sys", version = "*" },
+#    { name = "core-foundation-sys", version = "*" },
+#    { name = "cpufeatures", version = "*" },
+#    { name = "crypto-common", version = "*" },
+#    { name = "data-encoding", version = "*" },
+#    { name = "deranged", version = "*" },
+#    { name = "digest", version = "*" },
+#    { name = "either", version = "*" },
+#    { name = "fnv", version = "*" },
+#    { name = "form_urlencoded", version = "*" },
+#    { name = "generic-array", version = "*" },
+#    { name = "getrandom", version = "*" },
+#    { name = "glob", version = "*" },
+#    { name = "home", version = "*" },
+#    { name = "http", version = "*" },
+#    { name = "httparse", version = "*" },
+#    { name = "iana-time-zone", version = "*" },
+#    { name = "iana-time-zone-haiku", version = "*" },
+#    { name = "idna", version = "*" },
+#    { name = "itoa", version = "*" },
+#    { name = "js-sys", version = "*" },
+#    { name = "lazy_static", version = "*" },
+#    { name = "lazycell", version = "*" },
+#    { name = "libc", version = "*" }
     #{ name = "ansi_term", version = "=0.11.0" },
 ]
 # List of crates to deny
@@ -241,6 +280,7 @@ deny = [
 # Certain crates/versions that will be skipped when doing duplicate detection.
 skip = [
     #{ name = "ansi_term", version = "=0.11.0" },
+    #{ name = "libloading", version = "=0.7.4" },
 ]
 # Similarly to `skip` allows you to skip certain crates during duplicate
 # detection. Unlike skip, it also includes the entire tree of transitive
@@ -248,16 +288,59 @@ skip = [
 # by default infinite.
 skip-tree = [
     #{ name = "ansi_term", version = "=0.11.0", depth = 20 },
+    { name = "v8_rs", version = "*" },
+    { name = "v8_rs_derive", version = "*" },
+    { name = "libloading", version = "*" },
+    { name = "bindgen", version = "*" },
 ]
 
 [bans.build]
 executables = "deny"
-#include-dependencies = true
-#include-dependencies = false
-#include-workspace = true
-#include-workspace = false
-#include-archives = true
-#include-archives = false
+
+include-dependencies = true
+include-archives = true
+
+[[bans.build.bypass]]
+name = "libloading"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_x86_64_msvc"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_x86_64_gnullvm"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_x86_64_gnu"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_aarch64_gnullvm"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_aarch64_msvc"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_i686_msvc"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "windows_i686_gnu"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "winapi-x86_64-pc-windows-gnu"
+allow-globs = ["*"]
+
+[[bans.build.bypass]]
+name = "winapi-i686-pc-windows-gnu"
+allow-globs = ["*"]
+
+
 
 # This section is considered when running `cargo deny check sources`.
 # More documentation about the 'sources' section can be found here:
