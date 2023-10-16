@@ -2,15 +2,15 @@
 name = "v8_rs"
 version = "0.3.0"
 edition = "2021"
-license = "Redis Source Available License 2.0 (RSALv2) or the Server Side Public License v1 (SSPLv1)"
+license = "LicenseRef-RSALv2 OR SSPL-1.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 tungstenite = { version = "0.20", optional = true }
 log = "0.4"
-serde = { version = "=1.0.171", features = ["derive"] }
-serde_derive = "=1.0.171"
+serde = { version = "1", features = ["derive"] }
+serde_derive = "1"
 serde_json = "1"
 serde-aux = "4"
 
