@@ -18,7 +18,7 @@ jobs:
       id: get-current-v8-version
       run: |
         export V8_VERSION_CURRENT=`cat ./V8_DEFAULT_VERSION.txt`
-        echo "V8_VERSION_CURRENT=$V8_VERSION_CURRENT" >> "$GITHUB_OUTPUT"
+        echo "V8_VERSION_CURRENT=${V8_VERSION_CURRENT}" >> "$GITHUB_OUTPUT"
     - name: Check new version is geater than current version
       env:
         V8_VERSION_CURRENT: ${{ steps.get-current-v8-version.outputs.V8_VERSION_CURRENT }}
