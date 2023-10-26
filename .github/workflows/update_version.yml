@@ -18,8 +18,8 @@ jobs:
       id: get-current-v8-version
       run: |
         export V8_VERSION_CURRENT=`cat ./V8_DEFAULT_VERSION.txt`
-        export V8_NUM_VERSION_CURRENT = echo ${ V8_VERSION_CURRENT } | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}
-        export V8_NUM_VERSION = echo ${{ inputs.v8_version }} | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}
+        export V8_NUM_VERSION_CURRENT=`echo ${ V8_VERSION_CURRENT } | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}`
+        export V8_NUM_VERSION=`echo ${{ inputs.v8_version }} | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}`
         echo "V8_VERSION_CURRENT=${V8_VERSION_CURRENT}" >> "$GITHUB_OUTPUT"
         echo "V8_NUM_VERSION_CURRENT=${V8_NUM_VERSION_CURRENT}" >> "$GITHUB_OUTPUT"
         echo "V8_NUM_VERSION=${V8_NUM_VERSION}" >> "$GITHUB_OUTPUT"
