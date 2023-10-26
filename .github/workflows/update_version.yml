@@ -18,8 +18,8 @@ jobs:
       id: get-current-v8-version
       run: |
         export V8_VERSION_CURRENT=`cat ./V8_DEFAULT_VERSION.txt`
-        export V8_NUM_VERSION_CURRENT = echo ${ V8_VERSION_CURRENT } | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}
-        export V8_NUM_VERSION = echo ${{ inputs.v8_version }} | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}
+        export V8_NUM_VERSION_CURRENT=`echo ${ V8_VERSION_CURRENT } | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}`
+        export V8_NUM_VERSION=`echo ${{ inputs.v8_version }} | awk -F \. {'print $1*1000000000 + $2*1000000 + $3*1000 + $4'}`
         echo "V8_VERSION_CURRENT=${V8_VERSION_CURRENT}" >> "$GITHUB_OUTPUT"
         echo "V8_NUM_VERSION_CURRENT=${V8_NUM_VERSION_CURRENT}" >> "$GITHUB_OUTPUT"
         echo "V8_NUM_VERSION=${V8_NUM_VERSION}" >> "$GITHUB_OUTPUT"
@@ -35,9 +35,9 @@ jobs:
     - name: Update Version
       run: echo ${{ inputs.v8_version }} > ./V8_DEFAULT_VERSION.txt
     - name: Build
-      run: V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build -vv
+      run: V8_UPDATE_HEADERS=yes cargo build -vv
     - name: Run tests
-      run: V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test -vv
+      run: V8_UPDATE_HEADERS=yes cargo test -vv
     - name: Create PR if needed
       env:
         GH_TOKEN: ${{ github.token }}
