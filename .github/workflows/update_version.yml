@@ -35,9 +35,9 @@ jobs:
     - name: Update Version
       run: echo ${{ inputs.v8_version }} > ./V8_DEFAULT_VERSION.txt
     - name: Build
-      run: V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build -vv
+      run: V8_UPDATE_HEADERS=yes cargo build -vv
     - name: Run tests
-      run: V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test -vv
+      run: V8_UPDATE_HEADERS=yes cargo test -vv
     - name: Create PR if needed
       env:
         GH_TOKEN: ${{ github.token }}
