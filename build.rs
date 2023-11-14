@@ -107,9 +107,7 @@ fn main() {
                 "cargo:rustc-flags=-L{} -lv8 -lv8_monolith_{} -ldl -lc",
                 output_dir, *PROFILE
             );
-            println!(
-                "cargo:rustc-link-lib=stdc++",
-            );
+            println!("cargo:rustc-link-lib=stdc++");
         }
         "macos" => {
             println!(
