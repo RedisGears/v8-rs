@@ -26,11 +26,11 @@ jobs:
       run: cargo fmt -- --check
     - name: install cargo-deny
       run: cargo install cargo-deny
+    - name: Build
+      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build -vv
     - name: deny licenses
       run: cargo deny check licenses
     - name: deny bans
       run: cargo deny check bans
-    - name: Build
-      run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo build -vv
     - name: Run tests
       run: V8_VERSION=${{ inputs.v8_version }} V8_UPDATE_HEADERS=${{ inputs.v8_update_headers }} cargo test -vv
