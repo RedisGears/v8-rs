@@ -39,9 +39,10 @@ lazy_static::lazy_static! {
     static ref V8_FORCE_MONOLITH_DOWNLOAD: bool = env::var("V8_FORCE_DOWNLOAD_V8_MONOLITH").map(|v| v == "yes").unwrap_or(false);
 }
 
-fn run_cmd(cmd: &str, args: &[&str]) {
+fn run_cmd_with_env(cmd: &str, args: &[&str], env: &[(&str, &str)]) {
     let failure_message = format!("Failed running command: {} {}", cmd, args.join(" "));
     if !Command::new(cmd)
+        .envs(env.iter().map(|v| v.clone()))
         .args(args)
         .status()
         .expect(&failure_message)
@@ -49,6 +50,10 @@ fn run_cmd(cmd: &str, args: &[&str]) {
     {
         panic!("{}", failure_message);
     }
+}
+
+fn run_cmd(cmd: &str, args: &[&str]) {
+    run_cmd_with_env(cmd, args, &[])
 }
 
 fn main() {
@@ -69,7 +74,11 @@ fn main() {
         run_cmd("unzip", &[&V8_HEADERS_PATH, "-d", *V8_HEADERS_DIRECTORY]);
     }
 
-    run_cmd("make", &["-C", "v8_c_api/"]);
+    if PROFILE.as_str() == "debug" {
+        run_cmd_with_env("make", &["-C", "v8_c_api/"], &[("DEBUG", "1")]);
+    } else {
+        run_cmd("make", &["-C", "v8_c_api/"]);
+    }
 
     let output_dir = env::var("OUT_DIR").expect("Can not find out directory");
 
