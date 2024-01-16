@@ -206,6 +206,12 @@ struct v8_embedded_data {
     }
 };
 
+struct v8_unlocker {
+	v8::Unlocker unlocker;
+	v8::Isolate *isolate;
+	v8_unlocker(v8::Isolate *i): unlocker(i), isolate(i) {}
+};
+
 typedef struct v8_native_function_pd v8_native_function_pd;
 typedef struct v8_pd_node v8_pd_node;
 typedef struct v8_pd_list v8_pd_list;
@@ -1889,13 +1895,16 @@ const char* v8_Utf8PtrLen(v8_utf8_value *val, size_t *len) {
 
 v8_unlocker* v8_NewUnlocker(v8_isolate *i) {
     v8::Isolate *isolate = (v8::Isolate*)i;
-    v8::Unlocker *unlocker = new v8::Unlocker(isolate);
-    return (v8_unlocker*)unlocker;
+    isolate->Exit();
+    v8_unlocker *unlocker = (struct v8_unlocker*)V8_ALLOC(sizeof(*unlocker));
+    return new (unlocker) v8_unlocker(isolate);
 }
 
 void v8_FreeUnlocker(v8_unlocker* u) {
-    v8::Unlocker *unlocker = (v8::Unlocker*)u;
-    delete unlocker;
+    v8::Isolate *isolate = u->isolate;
+    u->~v8_unlocker
+    V8_FREE(u);
+    isolate->Enter();
 }
 
 }
