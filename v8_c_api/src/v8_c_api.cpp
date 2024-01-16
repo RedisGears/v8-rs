@@ -1902,7 +1902,7 @@ v8_unlocker* v8_NewUnlocker(v8_isolate *i) {
 
 void v8_FreeUnlocker(v8_unlocker* u) {
     v8::Isolate *isolate = u->isolate;
-    u->~v8_unlocker
+    u->~v8_unlocker();
     V8_FREE(u);
     isolate->Enter();
 }
