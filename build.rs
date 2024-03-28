@@ -24,7 +24,7 @@ lazy_static::lazy_static! {
 
     static ref PROFILE: String = env::var("PROFILE").expect("PROFILE env var was not given");
 
-    static ref V8_DEFAULT_VERSION: &'static str = "12.2.281.21";
+    static ref V8_DEFAULT_VERSION: &'static str = "12.3.219.14";
     static ref V8_VERSION: String = env::var("V8_VERSION").map(|v| if v == "default" {V8_DEFAULT_VERSION.to_string()} else {v}).unwrap_or(V8_DEFAULT_VERSION.to_string());
     static ref V8_HEADERS_PATH: String = env::var("V8_HEADERS_PATH").unwrap_or("v8_c_api/libv8.include.zip".into());
     static ref V8_HEADERS_URL: String = env::var("V8_HEADERS_URL").unwrap_or(format!("http://redismodules.s3.amazonaws.com/redisgears/dependencies/libv8.{}.include.zip", *V8_VERSION));
