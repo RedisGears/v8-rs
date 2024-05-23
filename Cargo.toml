@@ -27,7 +27,6 @@ ctor = "0.2.4"
 [lib]
 name = "v8_rs"
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
 
 [features]
 default = ["debug-server"]

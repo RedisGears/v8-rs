@@ -116,9 +116,7 @@ fn main() {
                 "cargo:rustc-flags=-L{} -lv8 -lv8_monolith_{} -ldl -lc",
                 output_dir, *PROFILE
             );
-            println!("cargo:rustc-cdylib-link-arg=-Wl,-Bstatic");
-            println!("cargo:rustc-cdylib-link-arg=-lstdc++");
-            println!("cargo:rustc-cdylib-link-arg=-Wl,-Bdynamic");
+            println!("cargo:rustc-link-lib=static:-bundle,+whole-archive=stdc++");
         }
         "macos" => {
             println!(
